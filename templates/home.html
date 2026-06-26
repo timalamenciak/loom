@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Home — Loom{% endblock %}
+
+{% block content %}
+<h1 style="margin-top:0">Welcome to Loom</h1>
+<p style="color:#475569">Knowledge annotation tool</p>
+
+<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:2rem">
+  <a href="{% url 'my-queue' %}" class="btn btn-primary">My queue</a>
+  <a href="{% url 'project-list' %}" class="btn btn-secondary">Projects</a>
+  {% if user.is_staff %}
+  <a href="/admin/" class="btn btn-secondary">Admin panel</a>
+  {% endif %}
+</div>
+{% endblock %}

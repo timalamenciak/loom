@@ -1,0 +1,35 @@
+<div id="span-list">
+  <strong style="font-size:.85rem;display:block;margin-bottom:.5rem">
+    Spans ({{ spans|length }})
+  </strong>
+  {% if spans %}
+  <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.4rem;max-height:40vh;overflow-y:auto">
+    {% for span in spans %}
+    <li id="span-{{ span.pk }}" style="border:1px solid var(--border);border-radius:4px;padding:.4rem .6rem;font-size:.8rem">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:.5rem">
+        <span style="color:var(--muted);white-space:nowrap">[{{ span.start_char }}–{{ span.end_char }}]</span>
+        <form method="post" action="{% url 'span-delete' doc_pk=document.pk span_pk=span.pk %}"
+              style="margin:0;flex-shrink:0"
+              hx-post="{% url 'span-delete' doc_pk=document.pk span_pk=span.pk %}"
+              hx-target="#span-list"
+              hx-swap="outerHTML">
+          {% csrf_token %}
+          <button type="submit"
+                  style="background:none;border:none;color:var(--error);cursor:pointer;padding:0;font-size:.75rem"
+                  title="Delete span">✕</button>
+        </form>
+      </div>
+      <div style="margin-top:.25rem;font-style:italic">"{{ span.text|truncatechars:120 }}"</div>
+      {% if span.node or span.edge %}
+      <div style="margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap">
+        {% if span.node %}<span class="badge badge-draft">node: {{ span.node.name|truncatechars:30 }}</span>{% endif %}
+        {% if span.edge %}<span class="badge badge-complete">edge linked</span>{% endif %}
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p style="font-size:.8rem;color:var(--muted)">No spans yet. Select text in the pane to create one.</p>
+  {% endif %}
+</div>

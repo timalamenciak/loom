@@ -1,0 +1,104 @@
+{% load annotation_extras %}
+{# Render a single slot dict from the form spec.
+   Context: slot, current_data, graph_nodes, prefix (optional) #}
+
+{% with field_name=prefix|default:""|add:slot.name %}
+{% if slot.widget == "select" %}
+<div class="field">
+  <label for="id_{{ field_name }}">
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <select name="{{ field_name }}" id="id_{{ field_name }}"{% if slot.required %} required{% endif %}>
+    <option value="">— Select —</option>
+    {% for c in slot.choices %}
+    <option value="{{ c.value }}"
+            {% if current_data|dict_get:slot.name == c.value %}selected{% endif %}
+            title="{{ c.description }}">{{ c.label }}</option>
+    {% endfor %}
+  </select>
+  {% if slot.choices %}
+  <div class="help" style="margin-top:.3rem">
+    {% for c in slot.choices %}{% if c.linguistic_cues %}
+    <span title="{{ c.value }}: {{ c.linguistic_cues }}">ⓘ {{ c.value }}</span>&ensp;
+    {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% elif slot.widget == "node_picker" %}
+<div class="field">
+  <label for="id_{{ field_name }}">
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if graph_nodes %}
+  <select name="{{ field_name }}" id="id_{{ field_name }}"{% if slot.required %} required{% endif %}>
+    <option value="">— Choose node —</option>
+    {% for node in graph_nodes %}
+    <option value="{{ node.node_id }}"
+            {% if current_data|dict_get:slot.name == node.node_id %}selected{% endif %}>
+      {{ node.name }}{% if node.category %} ({{ node.category }}){% endif %}
+    </option>
+    {% endfor %}
+  </select>
+  {% else %}
+  <p class="help" style="color:#dc2626">No nodes yet — add nodes before creating an edge.</p>
+  <input type="hidden" name="{{ field_name }}" value="">
+  {% endif %}
+</div>
+
+{% elif slot.widget == "ontology_autocomplete" %}
+<div class="field">
+  <label for="id_{{ field_name }}_label">{{ slot.label }}</label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <input type="text"
+         id="id_{{ field_name }}_label"
+         data-ontology-prefixes="{{ slot.ontology_prefixes|join:',' }}"
+         data-curie-target="id_{{ field_name }}"
+         value="{{ current_data|dict_get:slot.name }}"
+         placeholder="Search ontology…"
+         autocomplete="off">
+  <input type="hidden" name="{{ field_name }}" id="id_{{ field_name }}"
+         value="{{ current_data|dict_get:slot.name }}">
+</div>
+
+{% elif slot.widget == "checkbox" %}
+<div class="field" style="display:flex;align-items:center;gap:.5rem">
+  <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}"
+         {% if current_data|dict_get:slot.name %}checked{% endif %}>
+  <label for="id_{{ field_name }}" style="margin:0">{{ slot.label }}</label>
+</div>
+
+{% elif slot.widget == "fieldset" %}
+<fieldset class="nested-fieldset" style="border:1px solid #e5e7eb;border-radius:4px;padding:.75rem;margin-bottom:.75rem">
+  <legend style="font-size:.8rem;font-weight:600;color:#6b7280;padding:0 .4rem">{{ slot.label }}</legend>
+  {% if slot.nested_spec %}
+    {% for nested_layer in slot.nested_spec %}
+      {% for nested_slot in nested_layer.slots %}
+        {% include "annotation/partials/form_field.html" with slot=nested_slot prefix=slot.name|add:"__" current_data=current_data %}
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+</fieldset>
+
+{% elif slot.name == "original_sentence" or slot.name == "edge_notes" or slot.name == "mechanism_description" %}
+{# textarea override for known long-text slots #}
+<div class="field">
+  <label for="id_{{ field_name }}">{{ slot.label }}</label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <textarea name="{{ field_name }}" id="id_{{ field_name }}" rows="3">{{ current_data|dict_get:slot.name }}</textarea>
+</div>
+
+{% else %}
+{# text / number / date fallback #}
+<div class="field">
+  <label for="id_{{ field_name }}">
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <input type="{{ slot.widget }}" name="{{ field_name }}" id="id_{{ field_name }}"
+         value="{{ current_data|dict_get:slot.name }}"
+         {% if slot.required %}required{% endif %}>
+</div>
+{% endif %}
+{% endwith %}

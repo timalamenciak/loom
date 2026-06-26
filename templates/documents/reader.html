@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ document.title|truncatechars:60 }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> ›
+  <a href="{% url 'project-detail' pk=document.project.pk %}">{{ document.project.name }}</a> ›
+  Reader
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;gap:1rem;flex-wrap:wrap">
+  <h1 style="font-size:1.05rem;margin:0;flex:1">{{ document.title }}</h1>
+  <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0">
+    {% if document.year %}<span class="badge badge-draft">{{ document.year }}</span>{% endif %}
+    {% if has_pdf %}
+      <span class="badge badge-complete">PDF</span>
+    {% else %}
+      <span class="badge badge-draft">Abstract only</span>
+    {% endif %}
+    <a href="{% url 'document-detail' pk=document.project.pk doc_pk=document.pk %}" class="btn-sm">↩ Back</a>
+  </div>
+</div>
+
+{% if not has_text %}
+<div class="alert" style="background:var(--error-bg,#fee2e2);border:1px solid var(--error,#dc2626);border-radius:4px;padding:.75rem 1rem;margin-bottom:1rem">
+  No text available for this document.
+  {% if not has_pdf %}Attach a PDF or ensure the RIS record has an abstract.{% endif %}
+</div>
+
+{% else %}
+
+<div class="reader-layout">
+
+  {# ── Left: canonical text pane ── #}
+  <div class="reader-text-pane">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+      <strong style="font-size:.78rem;color:var(--muted);letter-spacing:.05em">CANONICAL TEXT</strong>
+      <span style="font-size:.72rem;color:var(--muted)">Select text → Create span</span>
+    </div>
+    <div id="canonical-text" class="canonical-text">{{ highlighted_text }}</div>
+  </div>
+
+  {# ── Right: PDF viewer + span list ── #}
+  <div class="reader-right">
+
+    {% if has_pdf %}
+    <details open style="margin-bottom:.75rem;border:1px solid var(--border);border-radius:4px;padding:.5rem .75rem">
+      <summary style="font-weight:600;font-size:.82rem;cursor:pointer;color:var(--muted)">PDF VIEWER</summary>
+      <div id="pdf-viewer" class="pdf-viewer-container" style="margin-top:.5rem"></div>
+    </details>
+    {% endif %}
+
+    {% include "documents/partials/span_list.html" %}
+
+  </div>
+
+</div>
+
+{# ── Scripts ── #}
+{% if has_pdf %}
+<script type="module">
+  import { getDocument, GlobalWorkerOptions }
+    from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+
+  GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
+  const pdfUrl = '{{ document.pdf_file.url|escapejs }}';
+  const container = document.getElementById('pdf-viewer');
+  if (container && pdfUrl) {
+    try {
+      const pdf = await getDocument(pdfUrl).promise;
+      for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        const vp = page.getViewport({ scale: 1.2 });
+        const wrap = document.createElement('div');
+        wrap.dataset.page = n;
+        wrap.style.marginBottom = '4px';
+        const canvas = document.createElement('canvas');
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        canvas.style.cssText = 'display:block;max-width:100%;height:auto';
+        wrap.appendChild(canvas);
+        container.appendChild(wrap);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      }
+    } catch (err) {
+      container.textContent = 'Could not render PDF: ' + err.message;
+    }
+  }
+</script>
+{% endif %}
+
+<script src="{% static 'js/span-select.js' %}"></script>
+<script>
+  SpanSelector.init(
+    'canonical-text',
+    '{% url "span-create" doc_pk=document.pk %}',
+    '{{ csrf_token }}'
+  );
+</script>
+
+{% endif %}{# has_text #}
+
+<style>
+.reader-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .reader-layout { grid-template-columns: 1fr; }
+}
+.reader-text-pane {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .875rem 1rem;
+  background: var(--bg);
+}
+.canonical-text {
+  white-space: pre-wrap;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: .875rem;
+  line-height: 1.75;
+  word-break: break-word;
+  color: var(--fg);
+}
+mark.span-highlight {
+  background: rgba(250, 204, 21, 0.4);
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0 1px;
+}
+mark.span-highlight:hover {
+  background: rgba(250, 204, 21, 0.7);
+  outline: 1px solid rgba(161, 131, 0, .5);
+}
+.pdf-viewer-container {
+  max-height: 46vh;
+  overflow-y: auto;
+  background: #4a4a4a;
+  padding: 4px;
+  border-radius: 3px;
+}
+.reader-right {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  position: sticky;
+  top: 1rem;
+}
+</style>
+{% endblock %}

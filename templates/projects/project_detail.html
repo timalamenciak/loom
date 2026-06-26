@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load annotation_extras %}
+{% block title %}{{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ project.name }}</h1>
+    {% if project.description %}<p class="muted">{{ project.description }}</p>{% endif %}
+  </div>
+  {% if is_admin %}
+  <div class="header-actions">
+    <a href="{% url 'project-import-ris' project.pk %}" class="btn btn-secondary">Import RIS</a>
+    <a href="{% url 'project-import-ris-bundle' project.pk %}" class="btn btn-secondary">Import ZIP</a>
+    <a href="{% url 'project-upload-pdf' project.pk %}" class="btn btn-secondary">Upload PDF</a>
+    <a href="{% url 'project-members' project.pk %}" class="btn btn-secondary">Members</a>
+    <a href="{% url 'project-time-report' project.pk %}" class="btn btn-secondary">Time CSV</a>
+    <a href="{% url 'project-irr-export' project.pk %}" class="btn btn-secondary">IRR CSV</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if is_admin %}
+{# ── Admin: full document dashboard ── #}
+<h2>Documents <span class="count-badge">{{ documents|length }}</span></h2>
+
+{% if documents %}
+<div class="table-wrap">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Authors</th>
+      <th>Year</th>
+      <th>Text</th>
+      <th>Annotator</th>
+      <th>Status</th>
+      <th>Active time</th>
+      <th>Last activity</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for doc in documents %}
+    {% with a=doc.assignment_list.0 %}
+    <tr>
+      <td class="col-title">
+        <a href="{% url 'document-detail' project.pk doc.pk %}">{{ doc.title|truncatechars:70 }}</a>
+      </td>
+      <td class="col-authors muted">{{ doc.short_authors|truncatechars:30 }}</td>
+      <td>{{ doc.year|default:"—" }}</td>
+      <td>
+        {% if doc.text_source == "pdf" %}
+          <span class="tag tag-pdf">PDF</span>
+        {% elif doc.text_source == "abstract" %}
+          <span class="tag tag-abs">Abstract</span>
+        {% else %}
+          <span class="tag tag-none">None</span>
+        {% endif %}
+      </td>
+      <td>{{ a.annotator.username|default:"—" }}</td>
+      <td>
+        {% if a %}
+          <span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span>
+        {% else %}—{% endif %}
+      </td>
+      <td class="muted" style="font-size:.8rem">
+        {% with secs=active_time_by_doc|dict_get:doc.pk %}
+        {% if secs %}{{ secs }}s{% else %}—{% endif %}
+        {% endwith %}
+      </td>
+      <td class="muted">
+        {% if a %}{{ a.updated_at|timesince }} ago{% else %}—{% endif %}
+      </td>
+      <td class="col-actions">
+        <a href="{% url 'document-assign' project.pk doc.pk %}" class="action-link">Assign</a>
+        {% if not doc.has_pdf %}
+        <a href="{% url 'document-attach-pdf' project.pk doc.pk %}" class="action-link">Attach PDF</a>
+        {% endif %}
+        {% if a and a.status != "assigned" %}
+        <a href="{% url 'review-document' project.pk doc.pk %}" class="action-link">Review</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endwith %}
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">
+  No documents yet.
+  <a href="{% url 'project-import-ris-bundle' project.pk %}">import a RIS + PDF ZIP</a>,
+  <a href="{% url 'project-import-ris' project.pk %}">import a RIS file</a>, or
+  <a href="{% url 'project-upload-pdf' project.pk %}">upload a PDF</a>.
+</p>
+{% endif %}
+
+{% else %}
+{# ── Annotator: own assignments only ── #}
+<h2>My assignments in this project</h2>
+{% if my_assignments %}
+<table class="data-table">
+  <thead>
+    <tr><th>Title</th><th>Text</th><th>Status</th><th>Assigned</th></tr>
+  </thead>
+  <tbody>
+    {% for a in my_assignments %}
+    <tr>
+      <td><a href="{% url 'document-detail' project.pk a.document.pk %}">{{ a.document.title|truncatechars:70 }}</a></td>
+      <td>
+        {% if a.document.text_source == "pdf" %}<span class="tag tag-pdf">PDF</span>
+        {% elif a.document.text_source == "abstract" %}<span class="tag tag-abs">Abstract</span>
+        {% else %}<span class="tag tag-none">None</span>{% endif %}
+      </td>
+      <td><span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span></td>
+      <td class="muted">{{ a.assigned_at|date:"Y-m-d" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No documents assigned to you in this project yet.</p>
+{% endif %}
+{% endif %}
+
+{% endblock %}

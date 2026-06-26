@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Schema Demo — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> › Schema Demo
+</div>
+
+<h1>Schema-driven form demo</h1>
+
+{% if not schema_version %}
+<div class="alert alert-error">
+  No active schema. Run
+  <code>python manage.py load_schema config/schema/camo-0.4.0.yaml --activate</code>
+  then reload.
+</div>
+{% else %}
+<p>
+  Active schema: <strong>{{ schema_version.version }}</strong>
+  (SHA-256: <code>{{ schema_version.sha256|slice:":12" }}…</code>).
+  Swap to <code>camo-0.5.0.yaml</code> and reload — the form below updates
+  with no code or database change.
+</p>
+
+<h2>CausalNode fields</h2>
+{% for layer in node_spec %}
+  {% for slot in layer.slots %}
+  <div class="form-group" style="margin-bottom:.75rem">
+    <label><strong>{{ slot.label }}</strong>
+      {% if slot.required %}<span style="color:var(--error)">*</span>{% endif %}
+    </label>
+    {% if slot.description %}<div style="font-size:.8rem;color:var(--muted)">{{ slot.description }}</div>{% endif %}
+    {% if slot.widget == "select" %}
+    <select name="{{ slot.name }}" style="width:100%;max-width:400px">
+      <option value="">— select —</option>
+      {% for c in slot.choices %}
+      <option value="{{ c.value }}" title="{{ c.description }}">{{ c.label }}</option>
+      {% endfor %}
+    </select>
+    {% elif slot.widget == "checkbox" %}
+    <input type="checkbox" name="{{ slot.name }}">
+    {% elif slot.widget == "textarea" %}
+    <textarea name="{{ slot.name }}" rows="3" style="width:100%;max-width:600px"></textarea>
+    {% elif slot.widget == "fieldset" %}
+    <fieldset style="border:1px solid var(--border);border-radius:4px;padding:.5rem;max-width:600px">
+      <legend style="font-size:.85rem">{{ slot.label }}</legend>
+      <em style="font-size:.8rem;color:var(--muted)">(nested fieldset — {{ slot.nested_spec|length }} layer{{ slot.nested_spec|length|pluralize }})</em>
+    </fieldset>
+    {% else %}
+    <input type="{{ slot.widget|default:'text' }}" name="{{ slot.name }}"
+           style="width:100%;max-width:400px"
+           placeholder="{{ slot.ifabsent|default:'' }}">
+    {% endif %}
+  </div>
+  {% endfor %}
+{% endfor %}
+
+<hr style="margin:2rem 0">
+<h2>CausalEdge form (layered)</h2>
+
+{% for layer in edge_spec %}
+<details {% if not layer.collapsed_by_default %}open{% endif %}
+         style="margin-bottom:1rem;border:1px solid var(--border);border-radius:4px;padding:.75rem">
+  <summary style="font-weight:600;cursor:pointer">
+    {{ layer.label|default:layer.id }}
+    <span style="font-weight:400;color:var(--muted)">({{ layer.slots|length }} slot{{ layer.slots|length|pluralize }})</span>
+  </summary>
+  <div style="margin-top:.75rem">
+  {% for slot in layer.slots %}
+  <div class="form-group" style="margin-bottom:.75rem">
+    <label><strong>{{ slot.label }}</strong>
+      {% if slot.required %}<span style="color:var(--error)">*</span>{% endif %}
+    </label>
+    {% if slot.description %}<div style="font-size:.8rem;color:var(--muted)">{{ slot.description }}</div>{% endif %}
+    {% if slot.widget == "select" %}
+    <select name="{{ slot.name }}" style="width:100%;max-width:400px">
+      <option value="">— select —</option>
+      {% for c in slot.choices %}
+      <option value="{{ c.value }}" title="{{ c.description }}">{{ c.label }}</option>
+      {% endfor %}
+    </select>
+    {% elif slot.widget == "node_picker" %}
+    <input type="text" name="{{ slot.name }}" placeholder="Search or enter node name…"
+           style="width:100%;max-width:400px">
+    {% elif slot.widget == "checkbox" %}
+    <input type="checkbox" name="{{ slot.name }}">
+    {% elif slot.widget == "fieldset" %}
+    <fieldset style="border:1px solid var(--border);border-radius:4px;padding:.5rem;max-width:600px">
+      <legend style="font-size:.85rem">{{ slot.label }}</legend>
+      <em style="font-size:.8rem;color:var(--muted)">({{ slot.nested_spec|length }} sub-slot{{ slot.nested_spec|length|pluralize }})</em>
+    </fieldset>
+    {% elif slot.widget == "textarea" %}
+    <textarea name="{{ slot.name }}" rows="3" style="width:100%;max-width:600px"></textarea>
+    {% else %}
+    <input type="{{ slot.widget|default:'text' }}" name="{{ slot.name }}"
+           style="width:100%;max-width:400px"
+           placeholder="{{ slot.ifabsent|default:'' }}">
+    {% endif %}
+  </div>
+  {% endfor %}
+  </div>
+</details>
+{% endfor %}
+
+<p style="margin-top:2rem;font-size:.85rem;color:var(--muted)">
+  <strong>Phase 2 acceptance criterion:</strong> swapping the active schema to
+  <code>camo-0.5.0.yaml</code> adds the <code>biotic_interaction_type</code>
+  field and the <code>HypothesisRecord</code> class to this page with no code
+  or database change.
+</p>
+{% endif %}
+{% endblock %}

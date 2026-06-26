@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Schema {{ schema_version.version }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> ›
+  <a href="{% url 'schema-list' %}">Schemas</a> ›
+  {{ schema_version.version }}
+</div>
+
+<h1>Schema {{ schema_version.version }}
+  {% if schema_version.is_active %}<span class="badge badge-complete">Active</span>{% endif %}
+</h1>
+<p style="color:var(--muted)">SHA-256: <code>{{ schema_version.sha256 }}</code></p>
+
+<h2>CausalEdge form spec</h2>
+<p style="font-size:.85rem;color:var(--muted)">
+  This spec is generated live from the schema — no code needed to add a slot.
+</p>
+
+{% for layer in edge_spec %}
+<details {% if not layer.collapsed_by_default %}open{% endif %} style="margin-bottom:1rem;border:1px solid var(--border);border-radius:4px;padding:.75rem">
+  <summary style="font-weight:600;cursor:pointer">{{ layer.label|default:layer.id }} — {{ layer.slots|length }} slot{{ layer.slots|length|pluralize }}</summary>
+  <table style="margin-top:.5rem">
+    <thead>
+      <tr>
+        <th>Slot</th>
+        <th>Widget</th>
+        <th>Range / choices</th>
+        <th>Multi</th>
+        <th>Required</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for slot in layer.slots %}
+    <tr>
+      <td><code>{{ slot.name }}</code></td>
+      <td><span class="badge badge-draft">{{ slot.widget }}</span></td>
+      <td>
+        {% if slot.choices %}
+          {% for c in slot.choices %}
+            <span title="{{ c.description }}">{{ c.value }}</span>{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        {% elif slot.nested_spec %}
+          <em>fieldset ({{ slot.nested_spec|length }} layer{{ slot.nested_spec|length|pluralize }})</em>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>{% if slot.multivalued %}✓{% endif %}</td>
+      <td>{% if slot.required %}✓{% endif %}</td>
+      <td style="font-size:.8rem;color:var(--muted)">{{ slot.description|truncatechars:80 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endfor %}
+
+<h2>All classes in this schema</h2>
+<div style="display:flex;flex-wrap:wrap;gap:.4rem">
+{% for cls in all_classes %}
+  <code style="background:var(--surface);padding:.2rem .4rem;border-radius:3px">{{ cls }}</code>
+{% endfor %}
+</div>
+{% endblock %}

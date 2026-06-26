@@ -1,0 +1,68 @@
+{% load annotation_extras %}
+{# Edge creation / edit form. Rendered into #form-panel via HTMX GET. #}
+
+<div class="form-panel-inner">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+    <h3 style="margin:0;font-size:1rem">{% if edge %}Edit Edge{% else %}Add Edge{% endif %}</h3>
+    <button type="button"
+            onclick="document.getElementById('form-panel').innerHTML='<p class=\'empty muted\' style=\'padding:1rem;text-align:center\'>Select an action above to annotate.</p>'"
+            style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#6b7280"
+            title="Close this form without saving">&times;</button>
+  </div>
+
+  {% if not graph_nodes %}
+  <div class="message message-warning" style="margin-bottom:.75rem">
+    Add at least two nodes before creating an edge.
+  </div>
+  {% endif %}
+
+  <form{% if edge %}
+        hx-post="{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}"
+       {% else %}
+        hx-post="{% url 'edge-create' pk=project.pk doc_pk=document.pk %}"
+       {% endif %}
+        hx-target="#graph-panel"
+        hx-swap="innerHTML">
+    {% csrf_token %}
+    {% if current_data._source_span_pk %}
+    <input type="hidden" name="_source_span_pk" value="{{ current_data._source_span_pk }}">
+    {% endif %}
+
+    {% for layer in edge_spec %}
+    <details {% if not layer.collapsed_by_default %}open{% endif %}
+             style="margin-bottom:.5rem;border:1px solid #e5e7eb;border-radius:4px;padding:.5rem .75rem">
+      <summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:#374151;padding:.2rem 0">
+        {{ layer.label }}
+      </summary>
+      <div style="padding-top:.5rem">
+        {% for slot in layer.slots %}
+          {# Skip system/internal slots in the form #}
+          {% if slot.name != "edge_id" and slot.name != "source_spans" %}
+            {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}
+          {% endif %}
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+
+    <div class="form-actions" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary"
+              {% if not graph_nodes %}disabled title="Add nodes first"{% endif %}>
+        Save edge
+      </button>
+    </div>
+  </form>
+
+  {# Advance status is outside the edit form — nested forms are invalid HTML #}
+  {% if edge and edge.status == "draft" %}
+  <div style="margin-top:.5rem">
+    <button type="button"
+            hx-post="{% url 'edge-advance' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}"
+            hx-target="#graph-panel"
+            hx-swap="innerHTML"
+            hx-vals='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'
+            class="btn btn-secondary"
+            style="width:100%">&#10003; Mark complete</button>
+  </div>
+  {% endif %}
+</div>

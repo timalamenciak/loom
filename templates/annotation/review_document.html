@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Review — {{ document.title|truncatechars:60 }}{% endblock %}
+
+{% block content %}
+<div style="max-width:960px;margin:0 auto">
+
+  <div style="margin-bottom:1.25rem">
+    <a href="{% url 'project-detail' pk=project.pk %}" class="muted">&larr; {{ project.name }}</a>
+    <h1 style="margin:.5rem 0 .2rem;font-size:1.3rem">Review: {{ document.title|truncatechars:90 }}</h1>
+    <p class="muted" style="margin:0;font-size:.85rem">
+      {{ document.short_authors }}{% if document.year %}, {{ document.year }}{% endif %}
+    </p>
+  </div>
+
+  {% if not annotator_data %}
+  <p class="empty">No annotations for this document yet.</p>
+  {% endif %}
+
+  {% for row in annotator_data %}
+  {% with a=row.assignment graph=row.graph %}
+  <div style="border:1px solid #e5e7eb;border-radius:6px;margin-bottom:1.5rem;overflow:hidden">
+
+    {# Annotator header #}
+    <div style="background:#f8fafc;padding:.65rem 1rem;display:flex;align-items:center;
+                gap:1rem;border-bottom:1px solid #e5e7eb;flex-wrap:wrap">
+      <strong style="font-size:.9rem">{{ a.annotator.username }}</strong>
+      <span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span>
+      <span class="muted" style="font-size:.8rem">
+        Active: {{ row.active_minutes }}&thinsp;min
+      </span>
+      {% if graph %}
+      <span class="muted" style="font-size:.8rem">
+        {{ row.nodes|length }} nodes &middot; {{ row.edges|length }} edges
+      </span>
+      <a href="{% url 'export-graph' graph_pk=graph.pk %}"
+         class="muted" style="font-size:.8rem;margin-left:auto">Export YAML</a>
+      {% endif %}
+    </div>
+
+    {% if not graph %}
+    <p class="muted" style="padding:.75rem 1rem;margin:0">No graph created yet.</p>
+    {% else %}
+
+    {# Nodes (compact list) #}
+    {% if row.nodes %}
+    <div style="padding:.65rem 1rem;border-bottom:1px solid #f3f4f6">
+      <p style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+                color:#6b7280;margin:0 0 .4rem">Nodes</p>
+      <div style="display:flex;flex-wrap:wrap;gap:.3rem">
+        {% for node in row.nodes %}
+        <span style="font-size:.8rem;background:#f3f4f6;border-radius:4px;padding:.15rem .45rem">
+          {{ node.name }}
+          {% if node.category %}<span class="muted">({{ node.category }})</span>{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Edges with adjudication #}
+    {% if row.edges %}
+    <table style="width:100%;border-collapse:collapse;font-size:.83rem">
+      <thead>
+        <tr style="border-bottom:1px solid #e5e7eb;text-align:left;background:#fafafa">
+          <th style="padding:.35rem .75rem;color:#6b7280;font-weight:600">Subject</th>
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600">Predicate</th>
+          <th style="padding:.35rem .75rem;color:#6b7280;font-weight:600">Object</th>
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600">Strength</th>
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600">Status</th>
+          <th style="padding:.35rem .5rem"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for edge in row.edges %}
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.3rem .75rem">{{ edge.subject.name|truncatechars:30 }}</td>
+          <td style="padding:.3rem .5rem">
+            <span class="tag" style="font-size:.72rem">{{ edge.predicate|default:"—" }}</span>
+          </td>
+          <td style="padding:.3rem .75rem">{{ edge.object.name|truncatechars:30 }}</td>
+          <td style="padding:.3rem .5rem;color:#6b7280">{{ edge.claim_strength|default:"—" }}</td>
+          <td style="padding:.3rem .5rem">
+            <span class="badge badge-{{ edge.status }}">{{ edge.get_status_display }}</span>
+          </td>
+          <td style="padding:.3rem .5rem;white-space:nowrap">
+            {% if edge.status == "complete" %}
+            <form method="post"
+                  action="{% url 'adjudicate-edge' pk=project.pk doc_pk=document.pk graph_pk=graph.pk edge_pk=edge.pk %}"
+                  style="display:inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-secondary"
+                      style="font-size:.75rem;padding:.2rem .5rem"
+                      title="Confirm you have reviewed this annotation — it will move to the next stage">Mark reviewed</button>
+            </form>
+            {% elif edge.status == "reviewed" and is_admin %}
+            <form method="post"
+                  action="{% url 'adjudicate-edge' pk=project.pk doc_pk=document.pk graph_pk=graph.pk edge_pk=edge.pk %}"
+                  style="display:inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary"
+                      style="font-size:.75rem;padding:.2rem .5rem"
+                      title="Set this as the gold-standard annotation — the final, accepted version for this document">Mark gold</button>
+            </form>
+            {% elif edge.status == "gold" %}
+            <span style="font-size:.8rem;color:#065f46">&#10004; Gold</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted" style="padding:.65rem 1rem;margin:0;font-size:.85rem">No edges yet.</p>
+    {% endif %}
+
+    {% endif %}{# end if graph #}
+  </div>
+  {% endwith %}
+  {% endfor %}
+
+</div>
+{% endblock %}

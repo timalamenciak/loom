@@ -1,0 +1,43 @@
+from django.conf import settings
+from django.db import models
+
+
+class TextSpan(models.Model):
+    document = models.ForeignKey(
+        "projects.Document",
+        on_delete=models.CASCADE,
+        related_name="spans",
+    )
+    start_char = models.IntegerField()
+    end_char = models.IntegerField()
+    text = models.TextField(blank=True)
+    node = models.ForeignKey(
+        "annotation.Node",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="spans",
+    )
+    edge = models.ForeignKey(
+        "annotation.Edge",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="spans",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="created_spans",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["start_char"]
+        indexes = [
+            models.Index(fields=["document", "start_char", "end_char"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.start_char}:{self.end_char}] {self.text[:40]!r}"

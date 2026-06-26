@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Assign — {{ document.title|truncatechars:40 }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> /
+  <a href="{% url 'document-detail' project.pk document.pk %}">{{ document.title|truncatechars:40 }}</a> /
+  <span>Assign</span>
+</div>
+
+<div class="form-wrap">
+  <h1>Assign annotator</h1>
+  <p class="muted">{{ document.title }}</p>
+
+  {% if existing %}
+  <h3>Current assignments</h3>
+  <table class="data-table" style="max-width:500px;margin-bottom:1.5rem">
+    <thead><tr><th>Annotator</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for a in existing %}
+      <tr>
+        <td>{{ a.annotator.username }}</td>
+        <td><span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<div class="field-error">{{ field.errors }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Assign</button>
+      <a href="{% url 'project-detail' project.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

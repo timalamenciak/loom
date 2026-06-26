@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Annotating your first paper with the Causal Mosaic</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    --slate-900: #0f172a;
+    --slate-800: #1e293b;
+    --slate-700: #334155;
+    --slate-500: #64748b;
+    --slate-400: #94a3b8;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --slate-50:  #f8fafc;
+    --blue-600:  #2563eb;
+    --blue-100:  #dbeafe;
+    --blue-900:  #1e3a8a;
+    --green-100: #d1fae5;
+    --green-800: #065f46;
+    --amber-100: #fef3c7;
+    --amber-800: #92400e;
+    --indigo-100:#ede9fe;
+    --indigo-700:#4338ca;
+    --border: #e5e7eb;
+  }
+
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #1a1a1a;
+    background: var(--slate-50);
+  }
+
+  /* ── Masthead ── */
+  .masthead {
+    background: var(--slate-800);
+    color: #fff;
+    padding: 2.5rem 2rem 2rem;
+    border-bottom: 4px solid var(--blue-600);
+  }
+  .masthead-inner { max-width: 860px; margin: 0 auto; }
+  .masthead-product {
+    display: inline-block;
+    background: var(--blue-600);
+    color: #fff;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: .2rem .6rem;
+    border-radius: 3px;
+    margin-bottom: .75rem;
+  }
+  .masthead h1 {
+    margin: 0 0 .5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -.01em;
+  }
+  .masthead-sub {
+    color: var(--slate-400);
+    font-size: 1rem;
+    margin: 0;
+  }
+
+  /* ── Nav (table of contents) ── */
+  .toc-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--slate-900);
+    padding: .6rem 2rem;
+    border-bottom: 1px solid var(--slate-700);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .toc-bar a {
+    color: var(--slate-400);
+    text-decoration: none;
+    font-size: .82rem;
+    margin-right: 1.5rem;
+  }
+  .toc-bar a:hover { color: #fff; }
+
+  /* ── Body layout ── */
+  .body { max-width: 860px; margin: 0 auto; padding: 2.5rem 2rem 4rem; }
+
+  /* ── Sections ── */
+  section { margin-bottom: 3.5rem; }
+  section + section { border-top: 1px solid var(--border); padding-top: 3rem; }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--slate-800);
+    margin: 0 0 .25rem;
+  }
+  .section-num {
+    display: inline-block;
+    background: var(--blue-600);
+    color: #fff;
+    font-size: .72rem;
+    font-weight: 700;
+    padding: .15rem .5rem;
+    border-radius: 3px;
+    margin-bottom: .5rem;
+    letter-spacing: .05em;
+  }
+  h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--slate-700);
+    margin: 1.5rem 0 .4rem;
+  }
+  p { margin: 0 0 .9rem; color: #374151; }
+  ul, ol { margin: .5rem 0 .9rem 1.3rem; color: #374151; }
+  li { margin-bottom: .3rem; }
+
+  /* ── Screenshot placeholder ── */
+  .screenshot {
+    border: 2px dashed var(--slate-400);
+    border-radius: 8px;
+    background: #fff;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    margin: 1.25rem 0;
+    color: var(--slate-500);
+  }
+  .screenshot-label {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate-400);
+    margin-bottom: .4rem;
+  }
+  .screenshot-desc {
+    font-size: .9rem;
+    color: var(--slate-500);
+  }
+  .screenshot-icon {
+    font-size: 2rem;
+    margin-bottom: .5rem;
+    display: block;
+  }
+
+  /* ── Callout boxes ── */
+  .callout {
+    border-radius: 6px;
+    padding: .9rem 1.1rem;
+    margin: 1.1rem 0;
+    font-size: .9rem;
+    border-left: 4px solid;
+  }
+  .callout-tip    { background: var(--blue-100);  border-color: var(--blue-600);  color: var(--blue-900); }
+  .callout-note   { background: var(--slate-100); border-color: var(--slate-400); color: var(--slate-700); }
+  .callout-warn   { background: var(--amber-100); border-color: #f59e0b;          color: var(--amber-800); }
+  .callout strong { font-weight: 700; }
+
+  /* ── Step list ── */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: steps; }
+  .steps li {
+    counter-increment: steps;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+  .steps li::before {
+    content: counter(steps);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    min-width: 1.6rem;
+    border-radius: 50%;
+    background: var(--blue-600);
+    color: #fff;
+    font-size: .78rem;
+    font-weight: 700;
+    margin-top: .1rem;
+  }
+
+  /* ── ELMO decomposition diagram ── */
+  .elmo-diagram {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.25rem 0;
+    background: #fff;
+  }
+  .elmo-part {
+    flex: 1;
+    padding: 1rem;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .elmo-part:last-child { border-right: none; }
+  .elmo-letter {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--blue-600);
+    line-height: 1;
+    margin-bottom: .3rem;
+  }
+  .elmo-name {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--slate-500);
+    margin-bottom: .4rem;
+  }
+  .elmo-example {
+    font-size: .82rem;
+    color: var(--slate-700);
+    font-style: italic;
+  }
+
+  /* ── Layer cards ── */
+  .layers { display: flex; flex-direction: column; gap: .75rem; margin: 1.25rem 0; }
+  .layer-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+  }
+  .layer-band {
+    width: 6px;
+    flex-shrink: 0;
+  }
+  .layer-body { padding: .75rem 1rem; flex: 1; }
+  .layer-title { font-weight: 700; font-size: .95rem; color: var(--slate-800); margin: 0 0 .2rem; }
+  .layer-slots { font-size: .82rem; color: var(--slate-500); margin: 0; }
+  .layer-card:nth-child(1) .layer-band { background: var(--blue-600); }
+  .layer-card:nth-child(2) .layer-band { background: var(--indigo-700); }
+  .layer-card:nth-child(3) .layer-band { background: var(--slate-500); }
+  .layer-card:nth-child(4) .layer-band { background: var(--green-800); }
+
+  /* ── Status badges ── */
+  .badge {
+    display: inline-block;
+    padding: .18rem .55rem;
+    border-radius: 3px;
+    font-size: .75rem;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+  .badge-draft    { background: var(--slate-200);  color: var(--slate-700); }
+  .badge-complete { background: var(--green-100);  color: var(--green-800); }
+  .badge-reviewed { background: var(--blue-100);   color: var(--blue-900); }
+  .badge-gold     { background: var(--amber-100);  color: var(--amber-800); }
+
+  /* ── Status flow ── */
+  .status-flow {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin: .75rem 0;
+  }
+  .status-arrow { color: var(--slate-400); font-size: 1.1rem; }
+
+  /* ── UI element callouts ── */
+  .ui-ref {
+    display: inline-block;
+    background: var(--slate-100);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .1rem .45rem;
+    font-size: .82rem;
+    font-family: system-ui, sans-serif;
+    font-weight: 600;
+    color: var(--slate-700);
+    white-space: nowrap;
+  }
+
+  /* ── Inline code ── */
+  code {
+    background: var(--slate-100);
+    padding: .1rem .35rem;
+    border-radius: 3px;
+    font-size: .85em;
+    color: var(--slate-700);
+  }
+
+  /* ── Predicate table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .875rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 1rem 0;
+  }
+  thead th {
+    text-align: left;
+    padding: .5rem .75rem;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--slate-500);
+    background: var(--slate-50);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    color: var(--slate-400);
+    font-size: .8rem;
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 640px) {
+    .elmo-diagram { flex-direction: column; }
+    .elmo-part { border-right: none; border-bottom: 1px solid var(--border); }
+    .elmo-part:last-child { border-bottom: none; }
+    .masthead h1 { font-size: 1.5rem; }
+    .toc-bar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Masthead ── -->
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="masthead-product">Loom · User Guide</div>
+    <h1>Annotating your first paper<br>with the Causal Mosaic</h1>
+    <p class="masthead-sub">A step-by-step walkthrough for annotators — from log-in to submission.</p>
+  </div>
+</header>
+
+<!-- ── Table of contents ── -->
+<nav class="toc-bar" aria-label="Table of contents">
+  <a href="#overview">Overview</a>
+  <a href="#queue">Your queue</a>
+  <a href="#interface">The interface</a>
+  <a href="#nodes">Creating nodes</a>
+  <a href="#edges">Creating edges</a>
+  <a href="#layers">The four layers</a>
+  <a href="#completing">Completing &amp; submitting</a>
+  <a href="#tips">Tips &amp; shortcuts</a>
+</nav>
+
+<main class="body">
+
+  <!-- ── 1. Overview ── -->
+  <section id="overview">
+    <div class="section-num">Overview</div>
+    <h2>What you are annotating</h2>
+    <p>Loom captures <strong>causal claims</strong> from scientific papers. Each claim you find in a paper becomes a <em>causal edge</em> connecting two <em>nodes</em>. A node represents one ecological entity (a species, a process, an abiotic variable) described with a measurable attribute and a direction of change.</p>
+    <p>The annotation schema is called <strong>CAMO — Causal Mosaic</strong>. It asks you to decompose every causal sentence into two ELMO nodes and then characterise the causal relationship across four layers of increasing depth.</p>
+
+    <div class="callout callout-tip">
+      <strong>The goal in one sentence:</strong> find a sentence in the paper that asserts X causes Y, decompose X and Y into nodes, then fill in the edge form to record how strong the claim is, what philosophical account it rests on, and what evidence supports it.
+    </div>
+  </section>
+
+  <!-- ── 2. Your queue ── -->
+  <section id="queue">
+    <div class="section-num">Step 1</div>
+    <h2>Finding your papers</h2>
+    <p>After logging in you land on the Loom home page. Click <span class="ui-ref">My queue</span> in the top navigation to see every paper currently assigned to you.</p>
+
+    <div class="screenshot">
+      <span class="screenshot-icon">🖼</span>
+      <div class="screenshot-label">Screenshot</div>
+      <div class="screenshot-desc">My queue — list of assigned papers with status badges and an Open button for each</div>
+    </div>
+
+    <p>Each row shows the paper title, the project it belongs to, whether full-text (PDF) or abstract-only text is available, and your current status on that assignment:</p>
+    <ul>
+      <li><span class="badge badge-draft">Assigned</span> — not yet opened</li>
+      <li><span class="badge badge-complete" style="background:#dbeafe;color:#1e40af">In progress</span> — you have started but not submitted</li>
+      <li><span class="badge badge-complete">Submitted</span> — sent for review</li>
+    </ul>
+    <p>Click <span class="ui-ref">Open</span> to go to the document detail page, then click <span class="ui-ref">Annotate</span> to enter the annotation workspace.</p>
+
+    <div class="callout callout-note">
+      <strong>Abstract-only documents:</strong> if the row shows <span class="badge" style="background:#fef3c7;color:#92400e">Abstract</span>, you will only see the abstract text in the workspace — not the full paper. Annotate what you can from the abstract alone.
+    </div>
+  </section>
+
+  <!-- ── 3. The interface ── -->
+  <section id="interface">
+    <div class="section-num">Step 2</div>
+    <h2>Understanding the annotation interface</h2>
+    <p>The annotation workspace is a two-pane layout that fills the browser window.</p>
+
+    <div class="screenshot">
+      <span class="screenshot-icon">🖼</span>
+      <div class="screenshot-label">Screenshot</div>
+      <div class="screenshot-desc">Full annotation workspace — session bar across the top, paper text on the left, graph panel + form panel on the right</div>
+    </div>
+
+    <h3>Session bar (top strip)</h3>
+    <p>The bar at the top shows the paper title, your active annotation time, and the <span class="ui-ref">Submit</span> button. The timer counts only the seconds when the tab is in the foreground and you have been recently active — it automatically pauses when you switch away. You can also pause it manually with <span class="ui-ref">Pause</span>.</p>
+
+    <h3>Left pane — paper text</h3>
+    <p>The canonical text of the paper is displayed here. This is the text you read and highlight to create evidence spans. You can select any passage with your mouse; when you release the selection a small popup will offer <span class="ui-ref">Create Node</span> and <span class="ui-ref">Create Edge</span> actions that pre-fill the form with that highlighted span.</p>
+
+    <h3>Right pane — graph panel and form panel</h3>
+    <p>The right side has two sections stacked vertically:</p>
+    <ul>
+      <li><strong>Graph panel</strong> (top half) — lists every node and edge you have created for this paper. Use the <span class="ui-ref">+ Node</span> and <span class="ui-ref">+ Edge</span> buttons here to create new items without a highlight.</li>
+      <li><strong>Form panel</strong> (bottom half) — the active node or edge form appears here. Submitting a form refreshes the graph panel list automatically.</li>
+    </ul>
+  </section>
+
+  <!-- ── 4. Creating nodes ── -->
+  <section id="nodes">
+    <div class="section-num">Step 3</div>
+    <h2>Creating nodes: the ELMO decomposition</h2>
+    <p>A <strong>node</strong> in CAMO represents one side of a causal claim. Before you can create an edge you need at least two nodes — one for the cause and one for the effect.</p>
+    <p>Nodes follow the <strong>ELMO</strong> decomposition: every node has an <em>Entity</em>, an attribute it <em>eL</em>ates to (the measurable variable), and a <em>directiOn</em> of change.</p>
+
+    <div class="elmo-diagram" role="img" aria-label="ELMO decomposition: Entity, eLement/attribute, directiOn">
+      <div class="elmo-part">
+        <div class="elmo-letter">E</div>
+        <div class="elmo-name">Entity</div>
+        <div class="elmo-example">"invasive buckthorn"</div>
+      </div>
+      <div class="elmo-part">
+        <div class="elmo-letter">L</div>
+        <div class="elmo-name">Attribute</div>
+        <div class="elmo-example">"canopy cover"</div>
+      </div>
+      <div class="elmo-part">
+        <div class="elmo-letter">M</div>
+        <div class="elmo-name">—</div>
+        <div class="elmo-example" style="color:var(--slate-300)">(combined)</div>
+      </div>
+      <div class="elmo-part">
+        <div class="elmo-letter">O</div>
+        <div class="elmo-name">Direction</div>
+        <div class="elmo-example">"increases"</div>
+      </div>
+    </div>
+
+    <div class="callout callout-tip">
+      <strong>Example:</strong> the sentence "Buckthorn increases canopy cover, suppressing native seedlings" gives two nodes:<br>
+      Node 1 — <em>buckthorn / canopy cover / increases</em><br>
+      Node 2 — <em>native seedlings / abundance / decreases</em>
+    </div>
+
+    <h3>How to create a node</h3>
+    <ol class="steps">
+      <li>Highlight the passage in the paper text that mentions the entity (optional but recommended — it records the evidence span automatically).</li>
+      <li>In the popup that appears, click <span class="ui-ref">Create Node</span>, or click <span class="ui-ref">+ Node</span> in the graph panel header.</li>
+      <li>Fill in the node form that appears in the form panel:</li>
+    </ol>
+
+    <div class="screenshot">
+      <span class="screenshot-icon">🖼</span>
+      <div class="screenshot-label">Screenshot</div>
+      <div class="screenshot-desc">Add Node form — name field, Entity type dropdown, Entity term search, Variable attribute, Direction dropdown</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Field</th><th>What to enter</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Name</strong></td>
+          <td>A short, human-readable label for this node. Will appear in the graph panel list and in edge summaries. Keep it concise: "buckthorn cover ↑" is more scannable than the full ELMO sentence.</td>
+        </tr>
+        <tr>
+          <td><strong>Entity type</strong></td>
+          <td>Broad category: <em>biotic</em> (organism), <em>abiotic</em> (temperature, light), <em>process</em> (predation), <em>anthropogenic</em> (land use), <em>compound</em> (nutrient).</td>
+        </tr>
+        <tr>
+          <td><strong>Entity term</strong></td>
+          <td>Start typing to search the ontology (NCBITaxon for organisms, ENVO for environments). Select the best match; leave blank if nothing fits.</td>
+        </tr>
+        <tr>
+          <td><strong>Variable attribute</strong></td>
+          <td>The measurable property of the entity that changes. Search PATO (phenotype and trait ontology) for standardised terms such as "abundance", "biomass", "diversity".</td>
+        </tr>
+        <tr>
+          <td><strong>Direction</strong></td>
+          <td><em>increases</em>, <em>decreases</em>, or <em>neutral</em> (presence/absence). Use <em>not addressed</em> if the text does not specify.</td>
+        </tr>
+        <tr>
+          <td><strong>Notes</strong> (optional)</td>
+          <td>Any clarifying remarks about this node.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <ol class="steps" start="4">
+      <li>Click <span class="ui-ref">Save node</span>. The node appears in the graph panel's <em>Nodes</em> list immediately.</li>
+      <li>Repeat for the second node (the other side of the causal relationship).</li>
+    </ol>
+
+    <div class="callout callout-note">
+      <strong>Reuse nodes across edges.</strong> If the same entity appears as both subject and object in different causal claims, create one node and reference it in multiple edges. Do not duplicate it.
+    </div>
+  </section>
+
+  <!-- ── 5. Creating edges ── -->
+  <section id="edges">
+    <div class="section-num">Step 4</div>
+    <h2>Creating an edge</h2>
+    <p>An <strong>edge</strong> is the causal link between two nodes. Once you have at least two nodes, you can create an edge.</p>
+
+    <ol class="steps">
+      <li>Highlight the causal sentence in the paper text and click <span class="ui-ref">Create Edge</span> in the popup — or click <span class="ui-ref">+ Edge</span> in the graph panel header.</li>
+      <li>The edge form appears in the form panel. It is divided into four collapsible layers (described below). Fill them in from top to bottom.</li>
+    </ol>
+
+    <div class="screenshot">
+      <span class="screenshot-icon">🖼</span>
+      <div class="screenshot-label">Screenshot</div>
+      <div class="screenshot-desc">Add Edge form — Layer 1 open (subject/object dropdowns, predicate, claim strength, original sentence), Layers 2–4 collapsed below</div>
+    </div>
+
+    <ol class="steps" start="3">
+      <li>Select the <strong>Subject</strong> node (the cause) and the <strong>Object</strong> node (the effect) from the dropdowns. Both dropdowns list every node you have created for this paper.</li>
+      <li>Complete Layers 1–4 (see next section).</li>
+      <li>Click <span class="ui-ref">Save edge</span>. The edge appears in the graph panel's <em>Edges</em> list with a <span class="badge badge-draft">Draft</span> badge.</li>
+    </ol>
+  </section>
+
+  <!-- ── 6. The four layers ── -->
+  <section id="layers">
+    <div class="section-num">Step 5</div>
+    <h2>The four layers of a causal edge</h2>
+    <p>CAMO records four complementary perspectives on every causal claim. The first two layers are always visible; Layer 3 is collapsed by default (it contains the detailed causal features). Layer 4 records the evidence base.</p>
+
+    <div class="layers">
+      <div class="layer-card">
+        <div class="layer-band"></div>
+        <div class="layer-body">
+          <div class="layer-title">Layer 1 — Claim &amp; Predicate</div>
+          <div class="layer-slots">Subject · Object · Predicate · Claim strength · Original sentence</div>
+        </div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-band"></div>
+        <div class="layer-body">
+          <div class="layer-title">Layer 2 — Philosophical Account</div>
+          <div class="layer-slots">Philosophical account · Certainty grade</div>
+        </div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-band"></div>
+        <div class="layer-body">
+          <div class="layer-title">Layer 3 — Causal Features <span style="font-weight:400;color:var(--slate-400);font-size:.8rem">(collapsed — expand to fill)</span></div>
+          <div class="layer-slots">Mediation · Moderation · Context · Effect magnitude · Temporal extent · Study site · Mechanism known · Reversibility · Ecological level</div>
+        </div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-band"></div>
+        <div class="layer-body">
+          <div class="layer-title">Layer 4 — Evidential Basis</div>
+          <div class="layer-slots">Study design · Sample size qualifier · Effect size · Statistical significance</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Layer 1 — Claim &amp; Predicate</h3>
+    <p>This is the heart of the annotation. It captures <em>what</em> the paper claims happens and how strongly it is claimed.</p>
+
+    <table>
+      <thead><tr><th>Field</th><th>Guidance</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Predicate</strong></td>
+          <td>The directed causal verb linking subject to object.</td>
+        </tr>
+        <tr>
+          <td><strong>Claim strength</strong></td>
+          <td>How strongly is the claim stated? See linguistic cues below.</td>
+        </tr>
+        <tr>
+          <td><strong>Original sentence</strong></td>
+          <td>Paste (or it auto-fills from your highlight) the exact sentence that expresses the causal claim. This is your evidence anchor.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Predicates at a glance:</strong></p>
+    <table>
+      <thead><tr><th>Predicate</th><th>Meaning</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><code>positively_regulates</code></td><td>Subject increases the object's attribute</td><td>"Nitrogen addition increases plant biomass"</td></tr>
+        <tr><td><code>negatively_regulates</code></td><td>Subject decreases the object's attribute</td><td>"Predation reduces prey density"</td></tr>
+        <tr><td><code>regulates</code></td><td>Subject affects object; sign unspecified</td><td>"Temperature affects metabolic rate"</td></tr>
+        <tr><td><code>contributes_to</code></td><td>Subject is one of several factors</td><td>"Herbivory contributes to seedling mortality"</td></tr>
+        <tr><td><code>is_facilitated_by</code></td><td>Object is enabled by subject</td><td>"Germination is facilitated by soil moisture"</td></tr>
+        <tr><td><code>is_inhibited_by</code></td><td>Object is suppressed by subject</td><td>"Photosynthesis is inhibited by shade"</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Claim strength — linguistic cues:</strong></p>
+    <table>
+      <thead><tr><th>Strength</th><th>Cue words in the text</th></tr></thead>
+      <tbody>
+        <tr><td><code>necessary_condition</code></td><td>requires, must, cannot without, only if, prerequisite</td></tr>
+        <tr><td><code>sufficient_condition</code></td><td>sufficient to, causes by itself, enough to</td></tr>
+        <tr><td><code>strong_tendency</code></td><td>reliably, consistently, strongly, robustly tends to</td></tr>
+        <tr><td><code>tendency</code></td><td>tends to, generally, usually, often, commonly</td></tr>
+        <tr><td><code>weak_tendency</code></td><td>may, can, sometimes, under certain conditions</td></tr>
+        <tr><td><code>not_addressed</code></td><td>No explicit signal — use when genuinely ambiguous</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Layer 2 — Philosophical Account</h3>
+    <p>What makes the paper's causal claim <em>causal</em>? This layer asks you to identify the philosophical framework the authors (implicitly or explicitly) rely on.</p>
+
+    <table>
+      <thead><tr><th>Account</th><th>When to use it</th></tr></thead>
+      <tbody>
+        <tr><td><code>regularity</code></td><td>The claim is a law-like pattern: "whenever A, then B"</td></tr>
+        <tr><td><code>counterfactual</code></td><td>The claim rests on "but for X, Y would not have occurred"</td></tr>
+        <tr><td><code>mechanistic</code></td><td>A specific pathway or mechanism is named (via, through, mediates)</td></tr>
+        <tr><td><code>interventionist</code></td><td>Based on a manipulation: "removing grazers leads to…"</td></tr>
+        <tr><td><code>probabilistic</code></td><td>Framed as a change in probability or risk</td></tr>
+        <tr><td><code>not_addressed</code></td><td>No clear signal</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Certainty grade</strong> is a 0–1 slider expressing your confidence that this philosophical account applies. 0.9 means "clearly fits"; 0.5 means "plausible but uncertain".</p>
+
+    <h3>Layer 3 — Causal Features</h3>
+    <p>Layer 3 contains fifteen detailed fields that characterise the causal relationship. It is collapsed by default — click the summary bar to expand it. Fill in as much as the paper supports; leave fields as <code>not_addressed</code> when the paper provides no information.</p>
+    <p>Key fields to prioritise:</p>
+    <ul>
+      <li><strong>Mediation</strong> — is there a named mediating variable? (e.g. "via light competition")</li>
+      <li><strong>Moderation</strong> — does a third variable change the direction or strength of the effect?</li>
+      <li><strong>Ecological level</strong> — individual, population, community, ecosystem, landscape, or global?</li>
+      <li><strong>Mechanism known</strong> — yes / no / not addressed</li>
+      <li><strong>Reversibility</strong> — can the effect be reversed if the cause is removed?</li>
+    </ul>
+
+    <h3>Layer 4 — Evidential Basis</h3>
+    <p>What type of study produced this evidence?</p>
+    <table>
+      <thead><tr><th>Study design</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>experiment</code></td><td>Controlled experiment with random assignment</td></tr>
+        <tr><td><code>quasi_experiment</code></td><td>Natural or quasi-experiment (BACI, before-after, gradient)</td></tr>
+        <tr><td><code>observational</code></td><td>Correlational; no manipulation</td></tr>
+        <tr><td><code>meta_analysis</code></td><td>Quantitative synthesis across primary studies</td></tr>
+        <tr><td><code>review</code></td><td>Narrative or systematic review</td></tr>
+        <tr><td><code>model</code></td><td>Mathematical, statistical, or simulation model</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── 7. Completing and submitting ── -->
+  <section id="completing">
+    <div class="section-num">Step 6</div>
+    <h2>Completing edges and submitting your work</h2>
+
+    <h3>Marking an edge complete</h3>
+    <p>An edge starts as <span class="badge badge-draft">Draft</span>. Once you are satisfied with all four layers, mark it done by clicking <span class="ui-ref">✓ complete</span> in the edge row in the graph panel (or the <span class="ui-ref">✓ Mark complete</span> button at the bottom of the edge form). The badge changes to <span class="badge badge-complete">Complete</span>.</p>
+
+    <div class="status-flow">
+      <span class="badge badge-draft">Draft</span>
+      <span class="status-arrow">→</span>
+      <span class="badge badge-complete">Complete</span>
+      <span class="status-arrow">→</span>
+      <span class="badge badge-reviewed">Reviewed</span>
+      <span class="status-arrow">→</span>
+      <span class="badge badge-gold">Gold</span>
+    </div>
+
+    <p><em>Reviewed</em> and <em>Gold</em> are set by a project reviewer (adjudicator) — you do not need to worry about those.</p>
+
+    <div class="callout callout-warn">
+      <strong>Mark every edge complete before submitting.</strong> Draft edges signal to the reviewer that something is unfinished. If you truly cannot complete a field, leave it as <code>not_addressed</code> and mark the edge complete anyway.
+    </div>
+
+    <h3>Submitting your annotations</h3>
+    <p>When you have processed all the causal claims in the paper:</p>
+    <ol class="steps">
+      <li>Check the graph panel — every edge should show <span class="badge badge-complete">Complete</span>.</li>
+      <li>Click <span class="ui-ref">Submit</span> in the session bar. A confirmation dialog will appear.</li>
+      <li>Confirm. Your assignment status changes to <em>Submitted</em> and the paper moves to the reviewer's queue.</li>
+    </ol>
+
+    <div class="callout callout-note">
+      <strong>You can still view your annotations after submitting,</strong> but you cannot edit them unless the reviewer returns the assignment to you.
+    </div>
+
+    <div class="screenshot">
+      <span class="screenshot-icon">🖼</span>
+      <div class="screenshot-label">Screenshot</div>
+      <div class="screenshot-desc">Graph panel showing several complete edges, with the Submit button highlighted in the session bar</div>
+    </div>
+  </section>
+
+  <!-- ── 8. Tips ── -->
+  <section id="tips">
+    <div class="section-num">Tips</div>
+    <h2>Tips &amp; common questions</h2>
+
+    <h3>How many edges should I create per paper?</h3>
+    <p>Annotate every distinct causal claim you can find. A short methods paper might yield 2–3 edges; a review article can yield 15 or more. Aim for precision over quantity — one well-filled edge beats two half-filled ones.</p>
+
+    <h3>What counts as a causal claim?</h3>
+    <p>Look for verbs like <em>increases, decreases, drives, causes, suppresses, facilitates, inhibits, promotes, leads to, results in, reduces</em>. Correlational statements ("X was associated with Y") are weaker — annotate them with <code>weak_tendency</code> and <code>observational</code> study design rather than skipping them.</p>
+
+    <h3>Do I annotate the methods or the results?</h3>
+    <p>Annotate causal claims wherever they appear: introduction, results, discussion, abstract. The <em>original sentence</em> field preserves exactly where the claim came from.</p>
+
+    <h3>The ontology search returns no results</h3>
+    <p>Try a shorter or more general search term. The local index is preloaded from a snapshot — if a term genuinely does not exist, leave the field blank and note the preferred term in the node's Notes field. Do not invent terms.</p>
+
+    <h3>I made a mistake in a node</h3>
+    <p>Click <span class="ui-ref">edit</span> next to the node in the graph panel. Update the fields and click <span class="ui-ref">Save node</span>. Changes are applied immediately to all edges that reference this node.</p>
+
+    <h3>I made a mistake in an edge</h3>
+    <p>Click <span class="ui-ref">edit</span> next to the edge in the graph panel. If the edge is already <span class="badge badge-complete">Complete</span>, editing it reverts it to <span class="badge badge-draft">Draft</span> — remember to mark it complete again when you are done.</p>
+
+    <h3>Can I annotate the same claim from two angles?</h3>
+    <p>Yes. If a sentence supports both a primary causal claim and a secondary mediating pathway, create separate edges — one for each distinct claim. Annotate the mediating pathway in the Mediation fields of the primary edge, and also as its own edge if it is stated explicitly enough.</p>
+
+    <h3>Session timer paused itself</h3>
+    <p>The timer pauses automatically after 90 seconds of inactivity. Move the mouse, click anywhere on the page, or press a key to resume it. You can also toggle it manually with the <span class="ui-ref">Pause</span> button.</p>
+  </section>
+
+</main>
+
+<footer class="footer">
+  Loom · Knowledge annotation tool &nbsp;·&nbsp; Causal Mosaic (CAMO) schema
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,666 @@
+id: https://w3id.org/camo/0.4.0/
+name: camo
+title: Causal Mosaic (CAMO) Annotation Schema
+description: >-
+  Four-layer causal claim annotation schema for ecological literature.
+  Annotators decompose causal sentences into ELMO nodes (Entity + attribute
+  + direction) and annotate the causal edge across Layer 1 (claim strength
+  and predicate), Layer 2 (philosophical account), Layer 3 (fifteen causal
+  features), and Layer 4 (evidential basis).
+version: 0.4.0
+license: CC-BY-4.0
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  camo: https://w3id.org/camo/
+
+default_prefix: camo
+default_range: string
+
+imports:
+  - linkml:types
+
+subsets:
+  layer1:
+    description: "Layer 1 — Claim strength, predicate, and node endpoints"
+  layer2:
+    description: "Layer 2 — Philosophical account and certainty"
+  layer3:
+    description: "Layer 3 — Fifteen causal features"
+  layer4:
+    description: "Layer 4 — Evidential basis"
+
+# ────────────────────────────────────────────────────────────────
+# Enumerations
+# ────────────────────────────────────────────────────────────────
+
+enums:
+
+  EntityTypeEnum:
+    description: "Broad category of the ecological/biological entity"
+    permissible_values:
+      biotic:
+        description: "Living organism — taxon, population, or community"
+      abiotic:
+        description: "Non-living factor — temperature, light, soil chemistry"
+      process:
+        description: "Ecological or biological process — predation, nutrient cycling"
+      anthropogenic:
+        description: "Human-caused factor — land use, harvest, management"
+      compound:
+        description: "Chemical compound — nutrient, toxin, hormone"
+      not_addressed:
+        description: "Entity type not specified or not applicable"
+
+  DirectionEnum:
+    description: "Direction of change in the variable attribute"
+    permissible_values:
+      increases:
+        description: "The attribute level goes up / entity is at higher abundance"
+      decreases:
+        description: "The attribute level goes down / entity is at lower abundance"
+      neutral:
+        description: "No directional change; presence/absence"
+      not_addressed:
+        description: "Direction not specified or not applicable"
+
+  PredicateEnum:
+    description: "Directed causal predicate relating subject node to object node"
+    permissible_values:
+      positively_regulates:
+        description: "Subject increases the object's attribute"
+        annotations:
+          rosetta_template: "{subject} increases {object}"
+          fcm_sign: "+"
+      negatively_regulates:
+        description: "Subject decreases the object's attribute"
+        annotations:
+          rosetta_template: "{subject} decreases {object}"
+          fcm_sign: "-"
+      regulates:
+        description: "Subject affects object; sign unspecified"
+        annotations:
+          rosetta_template: "{subject} affects {object}"
+          fcm_sign: "?"
+      is_facilitated_by:
+        description: "Object is facilitated or enabled by subject"
+        annotations:
+          rosetta_template: "{object} is facilitated by {subject}"
+          fcm_sign: "+"
+      is_inhibited_by:
+        description: "Object is inhibited or suppressed by subject"
+        annotations:
+          rosetta_template: "{object} is inhibited by {subject}"
+          fcm_sign: "-"
+      contributes_to:
+        description: "Subject is one factor among several affecting object"
+        annotations:
+          rosetta_template: "{subject} contributes to {object}"
+          fcm_sign: "+"
+
+  ClaimStrengthEnum:
+    description: "Epistemic strength of the causal claim as expressed in text"
+    permissible_values:
+      necessary_condition:
+        description: "Object cannot occur without subject"
+        annotations:
+          linguistic_cues: "requires, must, cannot without, only if, prerequisite"
+          exemplars: "Plants require light for photosynthesis"
+      sufficient_condition:
+        description: "Subject alone is enough to bring about object"
+        annotations:
+          linguistic_cues: "causes by itself, sufficient to, enough to, by itself"
+          exemplars: "Harvesting alone is sufficient to cause local extinction"
+      strong_tendency:
+        description: "Subject reliably produces object under most conditions"
+        annotations:
+          linguistic_cues: "reliably, consistently, strongly, robustly tends to"
+          exemplars: "Predator removal robustly increases prey density"
+      tendency:
+        description: "Subject often produces object but not always"
+        annotations:
+          linguistic_cues: "tends to, generally, usually, often, commonly"
+          exemplars: "Invasive shrubs tend to reduce native plant diversity"
+      weak_tendency:
+        description: "Subject has a weak or context-dependent effect"
+        annotations:
+          linguistic_cues: "may, can, sometimes, under certain conditions, weakly"
+          exemplars: "Elevated CO2 may increase plant growth in some ecosystems"
+      not_addressed:
+        description: "Claim strength not assessed"
+
+  PhilosophicalAccountEnum:
+    description: "Philosophical framework underpinning the causal claim"
+    permissible_values:
+      regularity:
+        description: "Causal claim based on constant conjunction / lawlike regularity"
+        annotations:
+          linguistic_cues: "whenever A then B; always; invariably; as a rule; in all cases"
+          exemplars: "Whenever light availability increases, primary productivity increases (Humean regularity)"
+      counterfactual:
+        description: "Causal claim based on counterfactual dependence"
+        annotations:
+          linguistic_cues: "would not have occurred without; but for; if not for; in the absence of"
+          exemplars: "Species richness would not have declined but for the invasion"
+      mechanistic:
+        description: "Causal claim grounded in an identified causal mechanism or pathway"
+        annotations:
+          linguistic_cues: "via, through, by means of, mediates, pathway, mechanism"
+          exemplars: "Buckthorn reduces light via canopy shading, suppressing native seedlings"
+      interventionist:
+        description: "Causal claim about what would change under targeted intervention"
+        annotations:
+          linguistic_cues: "if we remove, if manipulated, experimental removal, addition"
+          exemplars: "Removing grazers leads to increased plant cover (manipulative experiment)"
+      probabilistic:
+        description: "Causal claim framed as a change in probability or risk"
+        annotations:
+          linguistic_cues: "increases probability, raises likelihood, risk factor, odds"
+          exemplars: "Habitat fragmentation increases local extinction probability"
+      not_addressed:
+        description: "Philosophical account not specified or not applicable"
+
+  StudyDesignEnum:
+    description: "Study design providing the evidence for the edge"
+    permissible_values:
+      experiment:
+        description: "Controlled experiment with random assignment to treatment"
+      quasi_experiment:
+        description: "Natural or quasi-experiment (BACI, before-after, gradient)"
+      observational:
+        description: "Observational or correlational study; no manipulation"
+      meta_analysis:
+        description: "Quantitative synthesis across multiple primary studies"
+      review:
+        description: "Narrative or systematic review"
+      model:
+        description: "Mathematical, statistical, or simulation model"
+      not_addressed:
+        description: "Study design not specified"
+
+  EcologicalLevelEnum:
+    description: "Level of ecological organization at which the effect operates"
+    permissible_values:
+      individual: {}
+      population: {}
+      community: {}
+      ecosystem: {}
+      landscape: {}
+      global: {}
+      not_addressed: {}
+
+  BooleanExtendedEnum:
+    description: "Three-valued Boolean: yes / no / not addressed"
+    permissible_values:
+      "yes": {}
+      "no": {}
+      not_addressed: {}
+
+# ────────────────────────────────────────────────────────────────
+# Classes
+# ────────────────────────────────────────────────────────────────
+
+classes:
+
+  TextSpan:
+    description: "Character-offset span anchoring a highlight to the canonical document text"
+    slots:
+      - start_char
+      - end_char
+      - span_text
+      - span_source
+
+  CausalNode:
+    description: >-
+      An ecological entity-attribute node (ELMO decomposition:
+      Entity + attribute + direction). One node per distinct entity-attribute
+      combination; shared across edges.
+    slots:
+      - node_id
+      - name
+      - entity_type
+      - entity_term
+      - variable_attribute
+      - direction
+      - process_context
+      - ecosystem_context
+      - part_qualifiers
+      - node_notes
+
+  MediationAnnotation:
+    description: "Whether a mediating variable is identified for this edge"
+    slots:
+      - has_mediator
+      - mediator_term
+      - mediator_notes
+
+  ModerationAnnotation:
+    description: "Whether a moderating variable is identified for this edge"
+    slots:
+      - has_moderator
+      - moderator_term
+      - moderator_direction
+      - moderator_notes
+
+  ContextAnnotation:
+    description: "Conditions or context under which the causal effect holds"
+    slots:
+      - conditioned_by
+      - context_notes
+
+  StrengthAnnotation:
+    description: "Qualitative and quantitative characterization of effect magnitude"
+    slots:
+      - effect_magnitude_qualifier
+      - dose_response
+      - threshold_effect
+      - linearity
+
+  TemporalExtent:
+    description: "Time scale and lag of the causal relationship"
+    slots:
+      - lag_time_value
+      - lag_time_unit
+      - duration_value
+      - duration_unit
+      - temporal_notes
+
+  StudySite:
+    description: "Geographic and ecological setting of the study"
+    slots:
+      - site_term
+      - site_description
+      - study_country
+
+  EvidentialBasis:
+    description: "Study design and statistical evidence supporting the causal edge"
+    slots:
+      - study_design
+      - n_observations
+      - statistical_test
+      - p_value
+      - effect_size
+      - effect_unit
+      - confidence_interval_low
+      - confidence_interval_high
+      - evidence_notes
+
+  CausalEdge:
+    description: >-
+      A directed causal edge between two CausalNodes, annotated across
+      four layers: claim strength (L1), philosophical account (L2),
+      causal features (L3), and evidential basis (L4).
+    slots:
+      # Layer 1
+      - edge_id
+      - subject
+      - object
+      - predicate
+      - claim_strength
+      - original_sentence
+      - source_spans
+      # Layer 2
+      - philosophical_account
+      - certainty_grade
+      # Layer 3
+      - mediation
+      - moderation
+      - context_annotation
+      - strength_annotation
+      - temporal_extent
+      - study_site
+      - mechanism_known
+      - reversibility
+      - ecological_level
+      - edge_notes
+      # Layer 4
+      - evidential_basis
+
+  GraphProvenance:
+    description: "Reproducibility metadata written on every export"
+    slots:
+      - schema_version_str
+      - ontology_snapshot_id
+      - exporter_version
+      - export_sha256
+      - exported_at
+
+  SourceDocument:
+    description: "Bibliographic metadata mirrored from the Loom Document record"
+    slots:
+      - doc_title
+      - doc_authors
+      - doc_year
+      - doc_doi
+      - doc_journal
+
+  CausalGraph:
+    tree_root: true
+    description: "A complete causal graph extracted from a single source document"
+    slots:
+      - graph_id
+      - source_document
+      - nodes
+      - edges
+      - provenance
+
+# ────────────────────────────────────────────────────────────────
+# Slots
+# ────────────────────────────────────────────────────────────────
+
+slots:
+
+  # TextSpan
+  start_char:
+    range: integer
+    description: "Start character offset (inclusive) in canonical text"
+    in_subset:
+      - layer1
+  end_char:
+    range: integer
+    description: "End character offset (exclusive) in canonical text"
+    in_subset:
+      - layer1
+  span_text:
+    range: string
+    description: "The exact highlighted text"
+  span_source:
+    range: string
+    description: "Canonical-text source identifier (document SHA-256)"
+
+  # CausalNode
+  node_id:
+    identifier: true
+    range: string
+    description: "Stable identifier for this node within the graph"
+  name:
+    range: string
+    description: "Human-readable label; auto-derived from entity + attribute"
+  entity_type:
+    range: EntityTypeEnum
+    ifabsent: not_addressed
+    description: "Broad category of the entity"
+    in_subset:
+      - layer1
+  entity_term:
+    range: uriorcurie
+    description: "Ontology term identifying the entity (e.g. NCBITaxon:4950 for common buckthorn)"
+    in_subset:
+      - layer1
+  variable_attribute:
+    range: uriorcurie
+    description: "The attribute or property that varies (e.g. PATO:0000070 for abundance)"
+    in_subset:
+      - layer1
+  direction:
+    range: DirectionEnum
+    ifabsent: not_addressed
+    description: "Whether this node's attribute is increasing, decreasing, or neutral"
+    in_subset:
+      - layer1
+  process_context:
+    range: uriorcurie
+    description: "Biological process providing context (GO term)"
+  ecosystem_context:
+    range: uriorcurie
+    description: "Ecosystem or habitat context (ENVO term)"
+  part_qualifiers:
+    range: uriorcurie
+    multivalued: true
+    description: "Part-of qualifiers (e.g. above-ground biomass, leaf)"
+  node_notes:
+    range: string
+    description: "Free-text notes about this node"
+
+  # CausalEdge — Layer 1
+  edge_id:
+    identifier: true
+    range: string
+  subject:
+    range: CausalNode
+    description: "The causal driver (source) node"
+    in_subset:
+      - layer1
+  object:
+    range: CausalNode
+    description: "The affected (target) node"
+    in_subset:
+      - layer1
+  predicate:
+    range: PredicateEnum
+    description: "Directed causal predicate"
+    in_subset:
+      - layer1
+  claim_strength:
+    range: ClaimStrengthEnum
+    ifabsent: not_addressed
+    description: "Epistemic strength of the claim as written"
+    in_subset:
+      - layer1
+  original_sentence:
+    range: string
+    description: "Verbatim sentence(s) expressing the causal claim"
+    in_subset:
+      - layer1
+  source_spans:
+    range: TextSpan
+    multivalued: true
+    inlined_as_list: true
+    description: "Character-offset spans grounding this edge in the source text"
+    in_subset:
+      - layer1
+
+  # CausalEdge — Layer 2
+  philosophical_account:
+    range: PhilosophicalAccountEnum
+    ifabsent: not_addressed
+    description: "Philosophical framework of the causal claim"
+    in_subset:
+      - layer2
+  certainty_grade:
+    range: float
+    description: "Annotator confidence in this edge (0.0 = uncertain, 1.0 = certain)"
+    minimum_value: 0.0
+    maximum_value: 1.0
+    in_subset:
+      - layer2
+
+  # CausalEdge — Layer 3
+  mediation:
+    range: MediationAnnotation
+    inlined: true
+    description: "Is there an identified mediating variable?"
+    in_subset:
+      - layer3
+  moderation:
+    range: ModerationAnnotation
+    inlined: true
+    description: "Is there an identified moderating variable?"
+    in_subset:
+      - layer3
+  context_annotation:
+    range: ContextAnnotation
+    inlined: true
+    description: "Conditions under which this effect holds"
+    in_subset:
+      - layer3
+  strength_annotation:
+    range: StrengthAnnotation
+    inlined: true
+    description: "Effect magnitude and dose-response characterization"
+    in_subset:
+      - layer3
+  temporal_extent:
+    range: TemporalExtent
+    inlined: true
+    description: "Time scale and lag of the causal relationship"
+    in_subset:
+      - layer3
+  study_site:
+    range: StudySite
+    inlined: true
+    description: "Geographic and ecological setting of the evidence"
+    in_subset:
+      - layer3
+  mechanism_known:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+    description: "Is a causal mechanism described or cited?"
+    in_subset:
+      - layer3
+  reversibility:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+    description: "Is the causal effect reversible?"
+    in_subset:
+      - layer3
+  ecological_level:
+    range: EcologicalLevelEnum
+    ifabsent: not_addressed
+    description: "Level of ecological organization at which the effect operates"
+    in_subset:
+      - layer3
+  edge_notes:
+    range: string
+    description: "Free-text notes about this edge"
+    in_subset:
+      - layer3
+
+  # CausalEdge — Layer 4
+  evidential_basis:
+    range: EvidentialBasis
+    inlined: true
+    description: "Study design and statistical evidence"
+    in_subset:
+      - layer4
+
+  # EvidentialBasis
+  study_design:
+    range: StudyDesignEnum
+    ifabsent: not_addressed
+  n_observations:
+    range: integer
+    description: "Sample size (n)"
+  statistical_test:
+    range: string
+  p_value:
+    range: float
+    minimum_value: 0.0
+    maximum_value: 1.0
+  effect_size:
+    range: float
+  effect_unit:
+    range: string
+  confidence_interval_low:
+    range: float
+  confidence_interval_high:
+    range: float
+  evidence_notes:
+    range: string
+
+  # TemporalExtent
+  lag_time_value:
+    range: float
+  lag_time_unit:
+    range: string
+    description: "e.g. days, years, generations"
+  duration_value:
+    range: float
+  duration_unit:
+    range: string
+  temporal_notes:
+    range: string
+
+  # StudySite
+  site_term:
+    range: uriorcurie
+    description: "ENVO term for the study ecosystem"
+  site_description:
+    range: string
+  study_country:
+    range: string
+
+  # MediationAnnotation
+  has_mediator:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+  mediator_term:
+    range: uriorcurie
+  mediator_notes:
+    range: string
+
+  # ModerationAnnotation
+  has_moderator:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+  moderator_term:
+    range: uriorcurie
+  moderator_direction:
+    range: DirectionEnum
+    ifabsent: not_addressed
+  moderator_notes:
+    range: string
+
+  # ContextAnnotation
+  conditioned_by:
+    range: uriorcurie
+    multivalued: true
+    description: "Conditions under which the effect holds (ENVO/PATO terms)"
+  context_notes:
+    range: string
+
+  # StrengthAnnotation
+  effect_magnitude_qualifier:
+    range: string
+    description: "Qualitative magnitude — e.g. large, moderate, small, negligible"
+  dose_response:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+  threshold_effect:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+  linearity:
+    range: BooleanExtendedEnum
+    ifabsent: not_addressed
+
+  # CausalGraph / GraphProvenance
+  graph_id:
+    identifier: true
+    range: string
+  nodes:
+    range: CausalNode
+    multivalued: true
+    inlined_as_list: true
+  edges:
+    range: CausalEdge
+    multivalued: true
+    inlined_as_list: true
+  provenance:
+    range: GraphProvenance
+    inlined: true
+  source_document:
+    range: SourceDocument
+    inlined: true
+  schema_version_str:
+    range: string
+  ontology_snapshot_id:
+    range: string
+  exporter_version:
+    range: string
+  export_sha256:
+    range: string
+  exported_at:
+    range: datetime
+
+  # SourceDocument
+  doc_title:
+    range: string
+  doc_authors:
+    range: string
+    multivalued: true
+  doc_year:
+    range: integer
+  doc_doi:
+    range: string
+  doc_journal:
+    range: string

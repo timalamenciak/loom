@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Export — {{ document.title|truncatechars:60 }}{% endblock %}
+
+{% block content %}
+<div style="max-width:860px;margin:0 auto">
+
+  <div style="margin-bottom:1.25rem">
+    <a href="{% url 'project-detail' pk=project.pk %}" class="muted">&larr; {{ project.name }}</a>
+    <h1 style="margin:.5rem 0 .2rem;font-size:1.4rem">Export Graph</h1>
+    <p class="muted" style="margin:0">{{ document.title }}</p>
+  </div>
+
+  {# Action bar #}
+  <div style="display:flex;gap:.6rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center">
+    <a href="?download=1" class="btn btn-primary">Download YAML</a>
+    <a href="{% url 'validate-graph' graph_pk=graph.pk %}" class="btn btn-secondary">Validate</a>
+    <a href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}" class="btn btn-secondary">
+      Back to annotation
+    </a>
+  </div>
+
+  {# Summary card #}
+  <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:1rem;margin-bottom:1.5rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.75rem">
+      <div>
+        <div class="muted" style="font-size:.75rem;margin-bottom:.15rem">Nodes</div>
+        <strong>{{ data.nodes|length }}</strong>
+      </div>
+      <div>
+        <div class="muted" style="font-size:.75rem;margin-bottom:.15rem">Edges</div>
+        <strong>{{ data.edges|length }}</strong>
+      </div>
+      <div>
+        <div class="muted" style="font-size:.75rem;margin-bottom:.15rem">Schema</div>
+        <strong>{{ data.provenance.schema_version_str }}</strong>
+      </div>
+      <div>
+        <div class="muted" style="font-size:.75rem;margin-bottom:.15rem">SHA-256</div>
+        <code style="font-size:.75rem">{{ sha256|slice:":16" }}…</code>
+      </div>
+    </div>
+  </div>
+
+  {# Rosetta Statements #}
+  {% if rosetta %}
+  <section style="margin-bottom:1.5rem">
+    <h2 style="font-size:1rem;margin:0 0 .6rem;color:#374151">Rosetta Statements</h2>
+    <ol style="margin:0;padding-left:1.5rem;font-size:.9rem;line-height:1.6">
+      {% for r in rosetta %}
+      <li style="margin-bottom:.25rem">
+        {{ r.statement }}
+        {% if r.certainty_grade is not None %}
+        <span class="muted" style="font-size:.78rem">&nbsp;(certainty: {{ r.certainty_grade }})</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  {# FCM Weights #}
+  {% if fcm %}
+  <section style="margin-bottom:1.5rem">
+    <h2 style="font-size:1rem;margin:0 0 .6rem;color:#374151">FCM Weights</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+      <thead>
+        <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600">Edge</th>
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600">Predicate</th>
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600">Claim strength</th>
+          <th style="padding:.35rem .5rem;color:#6b7280;font-weight:600;text-align:right">Weight</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in fcm %}
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.3rem .5rem;font-size:.75rem;color:#9ca3af">{{ w.edge_id|slice:":8" }}…</td>
+          <td style="padding:.3rem .5rem">{{ w.predicate }}</td>
+          <td style="padding:.3rem .5rem">{{ w.claim_strength|default:"—" }}</td>
+          <td style="padding:.3rem .5rem;text-align:right;font-family:monospace;font-weight:600;
+            color:{% if w.weight > 0 %}#065f46{% elif w.weight < 0 %}#991b1b{% else %}#6b7280{% endif %}">
+            {% if w.weight >= 0 %}+{% endif %}{{ w.weight }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {# YAML preview #}
+  <section>
+    <h2 style="font-size:1rem;margin:0 0 .6rem;color:#374151">YAML</h2>
+    <pre style="background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:6px;
+      font-size:.76rem;line-height:1.5;overflow-x:auto;max-height:520px;overflow-y:auto;
+      white-space:pre">{{ yaml_preview }}</pre>
+  </section>
+
+</div>
+{% endblock %}

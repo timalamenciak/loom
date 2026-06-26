@@ -1,0 +1,58 @@
+# loom_ui.yaml — UI sidecar for the Loom annotation workbench.
+# Augments the active CAMO LinkML schema without editing it.
+#
+# Layer grouping: which CausalEdge slots appear in each UI layer section.
+# Ontology routing: which ontology prefix(es) to prefer per slot.
+# Widget overrides: non-default widget type for a specific slot.
+
+layers:
+  - id: layer1
+    label: "Layer 1: Claim & Predicate"
+    collapsed_by_default: false
+    slots:
+      - edge_id
+      - subject
+      - object
+      - predicate
+      - claim_strength
+      - original_sentence
+      - source_spans
+
+  - id: layer2
+    label: "Layer 2: Philosophical Account"
+    collapsed_by_default: false
+    slots:
+      - philosophical_account
+      - certainty_grade
+
+  - id: layer3
+    label: "Layer 3: Causal Features"
+    collapsed_by_default: true
+    slots:
+      - mediation
+      - moderation
+      - context_annotation
+      - strength_annotation
+      - temporal_extent
+      - study_site
+      - mechanism_known
+      - reversibility
+      - ecological_level
+      - edge_notes
+
+  - id: layer4
+    label: "Layer 4: Evidential Basis"
+    collapsed_by_default: false
+    slots:
+      - evidential_basis
+
+# slot_name: [preferred_ontology_prefix, ...]
+ontology_routing:
+  entity_term: [NCBITaxon, ENVO]
+  variable_attribute: [PATO]
+  conditioned_by: [ENVO, PATO]
+  site_term: [ENVO]
+
+# slot_name: widget_type  (overrides schema_engine widget detection)
+widget_overrides:
+  original_sentence: textarea

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Import RIS — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> / <span>Import RIS</span>
+</div>
+
+<div class="form-wrap">
+  <h1>Import RIS file</h1>
+  <p class="muted">
+    Export your references from Zotero, Mendeley, PubMed, Web of Science, or any other
+    reference manager as a <strong>.ris</strong> file, then upload it here.
+    Duplicates (matched by DOI then title) are skipped automatically.
+  </p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+      {% if field.errors %}<div class="field-error">{{ field.errors }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Import</button>
+      <a href="{% url 'project-detail' project.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

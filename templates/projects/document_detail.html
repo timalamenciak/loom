@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ document.title|truncatechars:60 }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> /
+  <span>{{ document.title|truncatechars:50 }}</span>
+</div>
+
+<div class="page-header">
+  <h1>{{ document.title }}</h1>
+  <div class="header-actions">
+    {% for a in assignments %}{% if a.annotator == request.user %}
+    <a href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}"
+       class="btn btn-primary"
+       title="Open the annotation workspace for this paper">Start annotating</a>
+    {% endif %}{% endfor %}
+    {% if not document.has_pdf %}
+    <a href="{% url 'document-attach-pdf' project.pk document.pk %}"
+       class="btn btn-secondary"
+       title="Upload a PDF so the full paper text is available for annotation">Attach PDF</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-row"><span class="meta-label">Authors</span><span>{{ document.short_authors|default:"—" }}</span></div>
+  <div class="meta-row"><span class="meta-label">Year</span><span>{{ document.year|default:"—" }}</span></div>
+  <div class="meta-row"><span class="meta-label">Journal</span><span>{{ document.journal|default:"—" }}</span></div>
+  {% if document.doi %}
+  <div class="meta-row"><span class="meta-label">DOI</span><span><a href="https://doi.org/{{ document.doi }}" target="_blank" rel="noopener">{{ document.doi }}</a></span></div>
+  {% endif %}
+  <div class="meta-row"><span class="meta-label">Source</span><span>{{ document.get_source_display }}</span></div>
+  <div class="meta-row">
+    <span class="meta-label">Text</span>
+    <span>
+      {% if document.text_source == "pdf" %}<span class="tag tag-pdf">PDF attached</span>
+      {% elif document.text_source == "abstract" %}<span class="tag tag-abs">Abstract only</span>
+      {% else %}<span class="tag tag-none">No text — not yet annotatable</span>{% endif %}
+    </span>
+  </div>
+  {% if document.sha256 %}
+  <div class="meta-row"><span class="meta-label">SHA-256</span><span class="mono muted">{{ document.sha256 }}</span></div>
+  {% endif %}
+</div>
+
+{% if document.abstract %}
+<h2>Abstract</h2>
+<p class="abstract-text">{{ document.abstract }}</p>
+{% endif %}
+
+<h2>Assignments</h2>
+{% if assignments %}
+<table class="data-table" style="max-width:600px">
+  <thead>
+    <tr><th>Annotator</th><th>Status</th><th>Assigned</th><th>Last activity</th></tr>
+  </thead>
+  <tbody>
+    {% for a in assignments %}
+    <tr>
+      <td>{{ a.annotator.username }}</td>
+      <td><span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span></td>
+      <td class="muted">{{ a.assigned_at|date:"Y-m-d" }}</td>
+      <td class="muted">{{ a.updated_at|timesince }} ago</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">Not yet assigned. <a href="{% url 'document-assign' project.pk document.pk %}">Assign now.</a></p>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loom"
+version = "0.1.0"
+description = "Causal Mosaic annotation workbench"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.1",
+    "psycopg[binary]>=3.1",
+    "linkml-runtime>=1.7",
+    "linkml>=1.7",
+    "pronto>=2.5",
+    "pyyaml>=6.0",
+    "rispy>=0.9",
+    "gunicorn>=22.0",
+    "whitenoise>=6.7",
+    # PDF extraction: pdfplumber (MIT) — chosen over PyMuPDF (AGPL) at Phase 3
+    "pdfplumber>=0.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+    "black>=24.0",
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apps*", "loom*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "loom.settings.dev"
+testpaths = ["tests"]
+addopts = "--no-migrations"

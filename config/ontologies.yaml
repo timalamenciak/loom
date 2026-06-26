@@ -1,0 +1,54 @@
+# ontologies.yaml — Ontology sources for Loom.
+# Loaded by: python manage.py load_ontology <name>  (Phase 4)
+#
+# All sources are OBO-format URLs. The loader (apps/ontology) fetches,
+# parses with pronto, and indexes terms into OntologyTerm under a new
+# OntologySnapshot. Declare the full set here; preload a subset on boot.
+
+ontologies:
+  - name: envo
+    prefix: ENVO
+    url: http://purl.obolibrary.org/obo/envo.obo
+    description: "Environment Ontology"
+
+  - name: ncbitaxon
+    prefix: NCBITaxon
+    url: http://purl.obolibrary.org/obo/ncbitaxon.obo
+    description: "NCBI Taxonomy"
+
+  - name: pato
+    prefix: PATO
+    url: http://purl.obolibrary.org/obo/pato.obo
+    description: "Phenotypic Quality Ontology"
+
+  - name: go
+    prefix: GO
+    url: http://purl.obolibrary.org/obo/go.obo
+    description: "Gene Ontology (biological process, molecular function, cellular component)"
+
+  - name: chebi
+    prefix: CHEBI
+    url: http://purl.obolibrary.org/obo/chebi.obo
+    description: "Chemical Entities of Biological Interest"
+
+  - name: bfo
+    prefix: BFO
+    url: http://purl.obolibrary.org/obo/bfo.obo
+    description: "Basic Formal Ontology"
+
+  - name: ro
+    prefix: RO
+    url: http://purl.obolibrary.org/obo/ro.obo
+    description: "Relations Ontology"
+
+  - name: eco
+    prefix: ECO
+    url: http://purl.obolibrary.org/obo/eco.obo
+    description: "Evidence & Conclusion Ontology"
+
+# Preload on first boot (fast subset — full ontologies load on demand).
+# NCBITaxon is large; omit from default preload on Nibi if network is slow.
+preload:
+  - envo
+  - pato
+  - ro

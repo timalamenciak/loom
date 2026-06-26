@@ -1,0 +1,32 @@
+# Django
+*.pyc
+__pycache__/
+*.pyo
+db.sqlite3
+staticfiles/
+media/
+.env
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Dev tools
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db

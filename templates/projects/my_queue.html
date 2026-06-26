@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}My queue — Loom{% endblock %}
+
+{% block content %}
+<h1>My queue</h1>
+<p class="muted" style="margin-top:.25rem;margin-bottom:1.25rem">
+  Papers assigned to you for annotation. Click <strong>Open</strong> to view a paper's details, then click <strong>Start annotating</strong> to open the annotation workspace.
+</p>
+
+{% if assignments %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Project</th>
+      <th>Text</th>
+      <th>Status</th>
+      <th>Assigned</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in assignments %}
+    <tr>
+      <td><a href="{% url 'document-detail' a.project.pk a.document.pk %}">{{ a.document.title|truncatechars:65 }}</a></td>
+      <td><a href="{% url 'project-detail' a.project.pk %}">{{ a.project.name }}</a></td>
+      <td>
+        {% if a.document.text_source == "pdf" %}<span class="tag tag-pdf">PDF</span>
+        {% elif a.document.text_source == "abstract" %}<span class="tag tag-abs">Abstract</span>
+        {% else %}<span class="tag tag-none">None</span>{% endif %}
+      </td>
+      <td><span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span></td>
+      <td class="muted">{{ a.assigned_at|date:"Y-m-d" }}</td>
+      <td>
+        <a href="{% url 'document-detail' a.project.pk a.document.pk %}" class="btn btn-primary" style="font-size:.8rem;padding:.3rem .7rem">Open</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No documents assigned to you. Ask a project admin to assign you some work.</p>
+{% endif %}
+{% endblock %}

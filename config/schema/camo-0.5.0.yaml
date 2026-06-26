@@ -1,0 +1,316 @@
+id: https://w3id.org/camo/0.5.0/
+name: camo
+title: Causal Mosaic (CAMO) Annotation Schema
+description: >-
+  Version 0.5.0 — adds biotic_interaction_type slot to CausalEdge and
+  HypothesisRecord class.  Used as a stub to verify schema-driven form
+  updates require zero code changes.
+version: 0.5.0
+license: CC-BY-4.0
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  camo: https://w3id.org/camo/
+
+default_prefix: camo
+default_range: string
+
+imports:
+  - linkml:types
+
+subsets:
+  layer1:
+    description: "Layer 1 — Claim strength, predicate, and node endpoints"
+  layer2:
+    description: "Layer 2 — Philosophical account and certainty"
+  layer3:
+    description: "Layer 3 — Fifteen causal features"
+  layer4:
+    description: "Layer 4 — Evidential basis"
+
+enums:
+  EntityTypeEnum:
+    permissible_values:
+      biotic: {}
+      abiotic: {}
+      process: {}
+      anthropogenic: {}
+      compound: {}
+      not_addressed: {}
+
+  DirectionEnum:
+    permissible_values:
+      increases: {}
+      decreases: {}
+      neutral: {}
+      not_addressed: {}
+
+  PredicateEnum:
+    permissible_values:
+      positively_regulates:
+        annotations:
+          rosetta_template: "{subject} increases {object}"
+          fcm_sign: "+"
+      negatively_regulates:
+        annotations:
+          rosetta_template: "{subject} decreases {object}"
+          fcm_sign: "-"
+      regulates:
+        annotations:
+          rosetta_template: "{subject} affects {object}"
+          fcm_sign: "?"
+      is_facilitated_by: {}
+      is_inhibited_by: {}
+      contributes_to: {}
+
+  ClaimStrengthEnum:
+    permissible_values:
+      necessary_condition:
+        annotations:
+          linguistic_cues: "requires, must, cannot without"
+      sufficient_condition:
+        annotations:
+          linguistic_cues: "causes by itself, sufficient to"
+      strong_tendency:
+        annotations:
+          linguistic_cues: "reliably, consistently, strongly"
+      tendency:
+        annotations:
+          linguistic_cues: "tends to, generally, usually"
+      weak_tendency:
+        annotations:
+          linguistic_cues: "may, can, sometimes"
+      not_addressed: {}
+
+  PhilosophicalAccountEnum:
+    permissible_values:
+      regularity:
+        annotations:
+          linguistic_cues: "whenever A then B; always; invariably"
+      counterfactual:
+        annotations:
+          linguistic_cues: "would not have occurred without; but for"
+      mechanistic:
+        annotations:
+          linguistic_cues: "via, through, mediates, pathway"
+      interventionist:
+        annotations:
+          linguistic_cues: "if we remove, experimental"
+      probabilistic:
+        annotations:
+          linguistic_cues: "increases probability, raises likelihood"
+      not_addressed: {}
+
+  StudyDesignEnum:
+    permissible_values:
+      experiment: {}
+      quasi_experiment: {}
+      observational: {}
+      meta_analysis: {}
+      review: {}
+      model: {}
+      not_addressed: {}
+
+  EcologicalLevelEnum:
+    permissible_values:
+      individual: {}
+      population: {}
+      community: {}
+      ecosystem: {}
+      landscape: {}
+      global: {}
+      not_addressed: {}
+
+  BooleanExtendedEnum:
+    permissible_values:
+      "yes": {}
+      "no": {}
+      not_addressed: {}
+
+  # NEW in 0.5.0
+  BioticInteractionTypeEnum:
+    description: "Type of biotic interaction (new in v0.5)"
+    permissible_values:
+      predation: {}
+      herbivory: {}
+      parasitism: {}
+      competition: {}
+      mutualism: {}
+      commensalism: {}
+      facilitation: {}
+      not_addressed: {}
+
+classes:
+  TextSpan:
+    slots: [start_char, end_char, span_text, span_source]
+
+  CausalNode:
+    slots:
+      - node_id
+      - name
+      - entity_type
+      - entity_term
+      - variable_attribute
+      - direction
+      - process_context
+      - ecosystem_context
+      - part_qualifiers
+      - node_notes
+
+  MediationAnnotation:
+    slots: [has_mediator, mediator_term, mediator_notes]
+  ModerationAnnotation:
+    slots: [has_moderator, moderator_term, moderator_direction, moderator_notes]
+  ContextAnnotation:
+    slots: [conditioned_by, context_notes]
+  StrengthAnnotation:
+    slots: [effect_magnitude_qualifier, dose_response, threshold_effect, linearity]
+  TemporalExtent:
+    slots: [lag_time_value, lag_time_unit, duration_value, duration_unit, temporal_notes]
+  StudySite:
+    slots: [site_term, site_description, study_country]
+  EvidentialBasis:
+    slots:
+      - study_design
+      - n_observations
+      - statistical_test
+      - p_value
+      - effect_size
+      - effect_unit
+      - confidence_interval_low
+      - confidence_interval_high
+      - evidence_notes
+
+  CausalEdge:
+    slots:
+      - edge_id
+      - subject
+      - object
+      - predicate
+      - claim_strength
+      - original_sentence
+      - source_spans
+      - philosophical_account
+      - certainty_grade
+      - mediation
+      - moderation
+      - context_annotation
+      - strength_annotation
+      - temporal_extent
+      - study_site
+      - mechanism_known
+      - reversibility
+      - ecological_level
+      - biotic_interaction_type   # NEW in 0.5.0
+      - edge_notes
+      - evidential_basis
+
+  # NEW in 0.5.0
+  HypothesisRecord:
+    description: "A falsifiable hypothesis linked to an edge (new in v0.5)"
+    slots:
+      - hypothesis_id
+      - hypothesis_text
+      - hypothesis_tags
+
+  GraphProvenance:
+    slots:
+      - schema_version_str
+      - ontology_snapshot_id
+      - exporter_version
+      - export_sha256
+      - exported_at
+
+  SourceDocument:
+    slots: [doc_title, doc_authors, doc_year, doc_doi, doc_journal]
+
+  CausalGraph:
+    tree_root: true
+    slots: [graph_id, source_document, nodes, edges, provenance]
+
+slots:
+  start_char: { range: integer }
+  end_char: { range: integer }
+  span_text: { range: string }
+  span_source: { range: string }
+  node_id: { identifier: true, range: string }
+  name: { range: string }
+  entity_type: { range: EntityTypeEnum, ifabsent: not_addressed }
+  entity_term: { range: uriorcurie }
+  variable_attribute: { range: uriorcurie }
+  direction: { range: DirectionEnum, ifabsent: not_addressed }
+  process_context: { range: uriorcurie }
+  ecosystem_context: { range: uriorcurie }
+  part_qualifiers: { range: uriorcurie, multivalued: true }
+  node_notes: { range: string }
+  edge_id: { identifier: true, range: string }
+  subject: { range: CausalNode }
+  object: { range: CausalNode }
+  predicate: { range: PredicateEnum }
+  claim_strength: { range: ClaimStrengthEnum, ifabsent: not_addressed }
+  original_sentence: { range: string }
+  source_spans: { range: TextSpan, multivalued: true, inlined_as_list: true }
+  philosophical_account: { range: PhilosophicalAccountEnum, ifabsent: not_addressed }
+  certainty_grade: { range: float, minimum_value: 0.0, maximum_value: 1.0 }
+  mediation: { range: MediationAnnotation, inlined: true }
+  moderation: { range: ModerationAnnotation, inlined: true }
+  context_annotation: { range: ContextAnnotation, inlined: true }
+  strength_annotation: { range: StrengthAnnotation, inlined: true }
+  temporal_extent: { range: TemporalExtent, inlined: true }
+  study_site: { range: StudySite, inlined: true }
+  mechanism_known: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  reversibility: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  ecological_level: { range: EcologicalLevelEnum, ifabsent: not_addressed }
+  edge_notes: { range: string }
+  evidential_basis: { range: EvidentialBasis, inlined: true }
+  # NEW in 0.5.0
+  biotic_interaction_type: { range: BioticInteractionTypeEnum, ifabsent: not_addressed, description: "Type of biotic interaction (new in v0.5)" }
+  # HypothesisRecord
+  hypothesis_id: { identifier: true, range: string }
+  hypothesis_text: { range: string }
+  hypothesis_tags: { range: string, multivalued: true }
+  study_design: { range: StudyDesignEnum, ifabsent: not_addressed }
+  n_observations: { range: integer }
+  statistical_test: { range: string }
+  p_value: { range: float, minimum_value: 0.0, maximum_value: 1.0 }
+  effect_size: { range: float }
+  effect_unit: { range: string }
+  confidence_interval_low: { range: float }
+  confidence_interval_high: { range: float }
+  evidence_notes: { range: string }
+  lag_time_value: { range: float }
+  lag_time_unit: { range: string }
+  duration_value: { range: float }
+  duration_unit: { range: string }
+  temporal_notes: { range: string }
+  site_term: { range: uriorcurie }
+  site_description: { range: string }
+  study_country: { range: string }
+  has_mediator: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  mediator_term: { range: uriorcurie }
+  mediator_notes: { range: string }
+  has_moderator: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  moderator_term: { range: uriorcurie }
+  moderator_direction: { range: DirectionEnum, ifabsent: not_addressed }
+  moderator_notes: { range: string }
+  conditioned_by: { range: uriorcurie, multivalued: true }
+  context_notes: { range: string }
+  effect_magnitude_qualifier: { range: string }
+  dose_response: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  threshold_effect: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  linearity: { range: BooleanExtendedEnum, ifabsent: not_addressed }
+  graph_id: { identifier: true, range: string }
+  nodes: { range: CausalNode, multivalued: true, inlined_as_list: true }
+  edges: { range: CausalEdge, multivalued: true, inlined_as_list: true }
+  provenance: { range: GraphProvenance, inlined: true }
+  source_document: { range: SourceDocument, inlined: true }
+  schema_version_str: { range: string }
+  ontology_snapshot_id: { range: string }
+  exporter_version: { range: string }
+  export_sha256: { range: string }
+  exported_at: { range: datetime }
+  doc_title: { range: string }
+  doc_authors: { range: string, multivalued: true }
+  doc_year: { range: integer }
+  doc_doi: { range: string }
+  doc_journal: { range: string }

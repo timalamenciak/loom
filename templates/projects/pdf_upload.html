@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Upload PDF — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> / <span>Upload PDF</span>
+</div>
+
+<div class="form-wrap">
+  <h1>Upload PDF</h1>
+  <p class="muted">
+    Creates a new document record from a standalone PDF.
+    To attach a PDF to an existing RIS record, use the <em>Attach PDF</em> link on that document.
+  </p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+      {% if field.errors %}<div class="field-error">{{ field.errors }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Upload</button>
+      <a href="{% url 'project-detail' project.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

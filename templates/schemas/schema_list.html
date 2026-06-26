@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Schema Versions — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> › Schema Versions
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <h1>Schema Versions</h1>
+</div>
+
+{% if schemas %}
+<table>
+  <thead>
+    <tr>
+      <th>Version</th>
+      <th>SHA-256</th>
+      <th>Loaded</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for sv in schemas %}
+    <tr>
+      <td><a href="{% url 'schema-detail' sv.pk %}">{{ sv.version }}</a></td>
+      <td><code style="font-size:.75rem">{{ sv.sha256|slice:":16" }}…</code></td>
+      <td>{{ sv.loaded_at|date:"Y-m-d H:i" }} UTC</td>
+      <td>
+        {% if sv.is_active %}
+          <span class="badge badge-complete">Active</span>
+        {% else %}
+          <span class="badge badge-draft">Inactive</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if not sv.is_active %}
+        <form method="post" action="{% url 'schema-activate' sv.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="btn-sm">Set active</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'schema-detail' sv.pk %}" class="btn-sm">Preview spec</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No schemas loaded. Run <code>python manage.py load_schema config/schema/camo-0.4.0.yaml --activate</code>.</p>
+{% endif %}
+{% endblock %}

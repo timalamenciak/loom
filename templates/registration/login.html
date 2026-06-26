@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Log in — Loom{% endblock %}
+
+{% block extra_head %}
+<style>
+  .login-wrap { max-width: 380px; margin: 5rem auto; }
+  .login-brand { font-size: 1.8rem; font-weight: 700; color: #1e293b; margin-bottom: .25rem; }
+  .login-sub { color: #64748b; margin-bottom: 2rem; font-size: .95rem; }
+  .field { margin-bottom: 1.25rem; }
+  .field label { display: block; font-size: .85rem; font-weight: 600; color: #374151; margin-bottom: .35rem; }
+  .field input { width: 100%; padding: .55rem .75rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: .95rem; }
+  .field input:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
+  .field .errors { color: #b91c1c; font-size: .83rem; margin-top: .25rem; }
+  .login-btn { width: 100%; padding: .6rem; background: #1e293b; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; margin-top: .5rem; }
+  .login-btn:hover { background: #0f172a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="login-brand">Loom</div>
+  <div class="login-sub">Knowledge annotation tool</div>
+
+  {% if form.non_field_errors %}
+  <div class="message message-error" style="margin-bottom:1rem">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<div class="errors">{{ field.errors }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="login-btn">Log in</button>
+  </form>
+</div>
+{% endblock %}

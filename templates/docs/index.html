@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Help &amp; documentation — Loom{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Help &amp; documentation</h1>
+</div>
+
+<div style="max-width:640px">
+
+  <h2 style="margin-top:0">Guides</h2>
+
+  <div style="display:flex;flex-direction:column;gap:.75rem">
+
+    <a href="{% url 'docs-annotating-first-paper' %}"
+       style="display:block;background:#fff;border:1px solid #e5e7eb;border-radius:6px;
+              padding:1rem 1.25rem;text-decoration:none;color:inherit;
+              transition:box-shadow .15s">
+      <div style="font-weight:700;color:#1e293b;margin-bottom:.25rem">
+        Annotating your first paper with the Causal Mosaic
+      </div>
+      <div style="font-size:.875rem;color:#6b7280">
+        Step-by-step walkthrough for annotators &mdash; ELMO nodes, the four edge layers,
+        claim strength, philosophical accounts, and how to submit.
+      </div>
+    </a>
+
+  </div>
+
+  <h2>Quick reference</h2>
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:.875rem;margin:0">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:.5rem .85rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;
+                     font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">
+            Status badge
+          </th>
+          <th style="text-align:left;padding:.5rem .85rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;
+                     font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">
+            Meaning
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-assigned">Assigned</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Paper assigned to you but not yet opened</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-in_progress">In progress</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">You have started annotating</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-submitted">Submitted</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Sent for review &mdash; awaiting adjudication</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-reviewed">Reviewed</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Reviewer has examined your annotations</td>
+        </tr>
+        <tr>
+          <td style="padding:.5rem .85rem"><span class="badge badge-returned">Returned</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Returned to you for corrections</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:1.5rem;background:#fff;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:.875rem;margin:0">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:.5rem .85rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;
+                     font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">
+            Edge status
+          </th>
+          <th style="text-align:left;padding:.5rem .85rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;
+                     font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">
+            Meaning
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-assigned">Draft</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Saved but not yet marked complete</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-reviewed">Complete</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Marked done by annotator &mdash; ready for review</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:.5rem .85rem"><span class="badge badge-in_progress">Reviewed</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Examined by a reviewer</td>
+        </tr>
+        <tr>
+          <td style="padding:.5rem .85rem"><span class="badge badge-submitted">Gold</span></td>
+          <td style="padding:.5rem .85rem;color:#374151">Adjudicated as the canonical annotation</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Validate — {{ document.title|truncatechars:60 }}{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto">
+
+  <div style="margin-bottom:1.25rem">
+    <a href="{% url 'export-graph' graph_pk=graph.pk %}" class="muted">&larr; Export</a>
+    <h1 style="margin:.5rem 0 .2rem;font-size:1.4rem">Validation Report</h1>
+    <p class="muted" style="margin:0">{{ document.title }}</p>
+  </div>
+
+  <div style="padding:.75rem 1rem;border-radius:6px;margin-bottom:1.25rem;font-weight:600;
+    {% if is_valid %}background:#d1fae5;color:#065f46;border:1px solid #6ee7b7
+    {% else %}background:#fee2e2;color:#991b1b;border:1px solid #fca5a5{% endif %}">
+    {% if is_valid %}
+      &#10004; Graph passes LinkML validation
+    {% else %}
+      &#10008; Validation errors found
+    {% endif %}
+  </div>
+
+  {% if messages %}
+  <ul style="margin:0 0 1.5rem;padding-left:1.5rem;font-size:.88rem;line-height:1.6">
+    {% for msg in messages %}
+    <li style="margin-bottom:.25rem">{{ msg }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No messages.</p>
+  {% endif %}
+
+  <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+    <a href="{% url 'export-graph' graph_pk=graph.pk %}" class="btn btn-secondary">Back to export</a>
+    <a href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}" class="btn btn-secondary">
+      Back to annotation
+    </a>
+  </div>
+
+</div>
+{% endblock %}
