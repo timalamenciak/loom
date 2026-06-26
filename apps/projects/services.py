@@ -10,8 +10,6 @@ import zipfile
 import rispy
 from django.core.files.base import ContentFile
 
-from apps.documents.services import extract_text_from_pdf
-
 from .models import Assignment, Document, Project
 
 
@@ -116,6 +114,7 @@ class BundleImportResult:
     attached: list[Document] = field(default_factory=list)
     already_had_pdf: list[Document] = field(default_factory=list)
     unmatched_pdfs: list[str] = field(default_factory=list)
+    extraction_deferred: list[Document] = field(default_factory=list)
     extraction_failed: list[Document] = field(default_factory=list)
 
 
@@ -232,9 +231,8 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
                 continue
 
             attach_pdf_to_document(doc, io.BytesIO(archive.read(info)), safe_name)
-            if not extract_text_from_pdf(doc):
-                result.extraction_failed.append(doc)
             result.attached.append(doc)
+            result.extraction_deferred.append(doc)
 
     return result
 

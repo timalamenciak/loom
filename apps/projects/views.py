@@ -310,6 +310,15 @@ class RISBundleImportView(LoginRequiredMixin, View):
                 request,
                 "Could not match PDF(s): " + ", ".join(result.unmatched_pdfs[:10]),
             )
+        if result.extraction_deferred:
+            messages.info(
+                request,
+                (
+                    f"Text extraction was deferred for {len(result.extraction_deferred)} "
+                    "PDF(s). Run the extract_text command for this project before full-text "
+                    "annotation."
+                ),
+            )
         if result.extraction_failed:
             messages.warning(
                 request,

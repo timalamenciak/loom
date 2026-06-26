@@ -11,7 +11,7 @@ from django.utils.safestring import mark_safe
 from django.views import View
 
 from apps.documents.models import TextSpan
-from apps.documents.services import render_highlighted_text
+from apps.documents.services import ensure_canonical_text, render_highlighted_text
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 from apps.schemas.schema_engine import get_schema_view
@@ -93,6 +93,7 @@ class AnnotationView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
+        ensure_canonical_text(document)
 
         schema_version, lsv = _get_active_schema()
         if not lsv:

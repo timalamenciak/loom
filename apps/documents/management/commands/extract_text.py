@@ -13,7 +13,7 @@ class Command(BaseCommand):
         group.add_argument("--all", action="store_true", help="All PDFs without canonical_text")
 
     def handle(self, *args, **options):
-        from apps.documents.services import extract_text_from_pdf
+        from apps.documents.services import extract_text_from_pdf, pdf_text_needs_extraction
 
         if options["document"]:
             docs = Document.objects.filter(pk=options["document"])
@@ -27,11 +27,10 @@ class Command(BaseCommand):
         else:
             docs = Document.objects.filter(
                 pdf_file__isnull=False,
-                canonical_text__isnull=True,
             ).exclude(pdf_file="")
 
         total = ok = 0
-        for doc in docs:
+        for doc in (doc for doc in docs if options["document"] or pdf_text_needs_extraction(doc)):
             total += 1
             if extract_text_from_pdf(doc):
                 ok += 1

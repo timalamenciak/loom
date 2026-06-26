@@ -50,6 +50,17 @@ def extract_text_from_pdf(document) -> bool:
     return True
 
 
+def pdf_text_needs_extraction(document) -> bool:
+    """Return True when a PDF is attached but full-text extraction is not done."""
+    if not document.pdf_file:
+        return False
+    if not document.canonical_text:
+        return True
+    if document.abstract and document.canonical_text.strip() == document.abstract.strip():
+        return not bool(document.page_map)
+    return False
+
+
 def set_abstract_as_canonical(document) -> bool:
     """Use the RIS abstract as canonical text for PDF-less records."""
     if not document.abstract:
@@ -62,10 +73,10 @@ def set_abstract_as_canonical(document) -> bool:
 
 def ensure_canonical_text(document) -> bool:
     """Guarantee canonical_text is populated; return True if text is now available."""
+    if pdf_text_needs_extraction(document) and extract_text_from_pdf(document):
+        return True
     if document.canonical_text:
         return True
-    if document.pdf_file:
-        return extract_text_from_pdf(document)
     return set_abstract_as_canonical(document)
 
 

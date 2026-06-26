@@ -188,6 +188,29 @@ def test_import_zipped_ris_bundle_attaches_pdfs_by_doi(project, settings, tmp_pa
 
 
 @pytest.mark.django_db
+def test_import_zipped_ris_bundle_defers_text_extraction(
+    project, settings, tmp_path, monkeypatch
+):
+    settings.MEDIA_ROOT = tmp_path
+    upload = _zip_upload(
+        {
+            "refs.ris": SAMPLE_RIS.encode(),
+            "Buckthorn invasion reduces native plant diversity.pdf": b"%PDF-1.4 buckthorn",
+        }
+    )
+
+    def fail_if_called(document):
+        raise AssertionError("bundle import should not extract PDF text in the request")
+
+    monkeypatch.setattr("apps.documents.services.extract_text_from_pdf", fail_if_called)
+    result = import_zipped_ris_bundle(project, upload)
+
+    doc = Document.objects.get(doi="10.1234/test.2021")
+    assert result.attached == [doc]
+    assert result.extraction_deferred == [doc]
+
+
+@pytest.mark.django_db
 def test_import_zipped_ris_bundle_skips_existing_pdf(project, settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     created, _ = import_ris_file(project, io.BytesIO(SAMPLE_RIS.encode()))
