@@ -233,9 +233,8 @@ const SpanSelector = {
         if (this._nodeFormUrl) {
             popup.querySelector('#spa-node')?.addEventListener('click', () => {
                 close();
-                // HTMX GET with span_pk into #form-panel
                 const url = `${this._nodeFormUrl}?span_pk=${spanPk}`;
-                htmx.ajax('GET', url, { target: '#form-panel', swap: 'innerHTML' });
+                this._loadAnnotationForm(url);
             });
         }
 
@@ -243,9 +242,18 @@ const SpanSelector = {
             popup.querySelector('#spa-edge')?.addEventListener('click', () => {
                 close();
                 const url = `${this._edgeFormUrl}?span_pk=${spanPk}`;
-                htmx.ajax('GET', url, { target: '#form-panel', swap: 'innerHTML' });
+                this._loadAnnotationForm(url);
             });
         }
+    },
+
+    _loadAnnotationForm(url) {
+        const ajax = window.htmx?.ajax || window.LoomAnnotationActions?.ajax;
+        if (ajax) {
+            ajax('GET', url, { target: '#form-panel', swap: 'innerHTML' });
+            return;
+        }
+        window.location.href = url;
     },
 };
 

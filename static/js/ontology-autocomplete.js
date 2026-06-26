@@ -201,6 +201,8 @@ const OntologyAutocomplete = {
     },
 };
 
+window.OntologyAutocomplete = OntologyAutocomplete;
+
 function _esc(str) {
     return String(str)
         .replace(/&/g, '&amp;')
