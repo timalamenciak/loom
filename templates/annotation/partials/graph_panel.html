@@ -1,6 +1,6 @@
 {# Graph panel: node + edge lists with inline actions.
    HTMX target: #graph-panel
-   Optionally includes an OOB swap to clear #form-panel when _oob_clear_form is True. #}
+   Optionally includes an OOB swap to clear #form-panel when oob_clear_form is True. #}
 
 <div class="gp-header">
   <span class="gp-counts">
@@ -85,7 +85,7 @@
   {% endif %}
 </section>
 
-{% if _oob_clear_form %}
+{% if oob_clear_form %}
 <div id="form-panel" hx-swap-oob="true">
   <p class="empty muted" style="padding:1rem;text-align:center">Select an action above to annotate.</p>
 </div>

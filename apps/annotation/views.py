@@ -301,7 +301,7 @@ class NodeCreateView(LoginRequiredMixin, View):
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
-            ctx["_oob_clear_form"] = True
+            ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, f'Node "{node.name}" created.')
@@ -350,7 +350,7 @@ class NodeEditView(LoginRequiredMixin, View):
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
-            ctx["_oob_clear_form"] = True
+            ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, f'Node "{node.name}" updated.')
@@ -371,7 +371,7 @@ class NodeDeleteView(LoginRequiredMixin, View):
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
-            ctx["_oob_clear_form"] = True
+            ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, f'Node "{name}" deleted.')
@@ -465,7 +465,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
-            ctx["_oob_clear_form"] = True
+            ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, "Edge created.")
@@ -528,7 +528,7 @@ class EdgeEditView(LoginRequiredMixin, View):
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
-            ctx["_oob_clear_form"] = True
+            ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, "Edge updated.")
