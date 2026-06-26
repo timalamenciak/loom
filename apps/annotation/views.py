@@ -1,11 +1,12 @@
 """Phase 5 annotation views — full annotation surface, session timer, node/edge CRUD."""
 
 import json
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.safestring import mark_safe
 from django.views import View
@@ -31,6 +32,7 @@ from .services import (
     update_node,
 )
 
+logger = logging.getLogger(__name__)
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -83,6 +85,45 @@ def _graph_panel_ctx(project, document, graph):
     }
 
 
+def _user_graph_queryset(document, user):
+    return CausalGraph.objects.filter(document=document, annotator=user).order_by(
+        "-updated_at", "-created_at", "-pk"
+    )
+
+
+def _get_or_create_user_graph(document, user, schema_version, assignment=None):
+    """Return a deterministic graph for this annotator/document pair.
+
+    Older data may contain more than one graph for the same annotator and
+    document because the model does not enforce uniqueness. Avoid
+    get_or_create(), which raises MultipleObjectsReturned in that case.
+    """
+    if assignment and assignment.graph_id:
+        graph = assignment.graph
+        if graph.document_id == document.pk and graph.annotator_id == user.pk:
+            return graph, False
+
+    graph = _user_graph_queryset(document, user).first()
+    if graph:
+        return graph, False
+
+    return (
+        CausalGraph.objects.create(
+            document=document,
+            annotator=user,
+            schema_version=schema_version,
+        ),
+        True,
+    )
+
+
+def _get_user_graph_or_404(document, user):
+    graph = _user_graph_queryset(document, user).first()
+    if graph is None:
+        raise Http404("No annotation graph found.")
+    return graph
+
+
 # ── Main annotation surface ───────────────────────────────────────────────────
 
 
@@ -90,6 +131,18 @@ class AnnotationView(LoginRequiredMixin, View):
     template_name = "annotation/annotate.html"
 
     def get(self, request, pk, doc_pk):
+        try:
+            return self._get(request, pk, doc_pk)
+        except Exception:
+            logger.exception(
+                "Annotation workspace failed for project=%s document=%s user=%s",
+                pk,
+                doc_pk,
+                getattr(request.user, "pk", None),
+            )
+            raise
+
+    def _get(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
@@ -100,24 +153,21 @@ class AnnotationView(LoginRequiredMixin, View):
             messages.error(request, "No active schema. Ask an admin to load one.")
             return redirect("project-detail", pk=pk)
 
-        # Get or create graph for this annotator
-        graph, created = CausalGraph.objects.get_or_create(
-            document=document,
-            annotator=request.user,
-            defaults={"schema_version": schema_version},
-        )
-        if created:
-            emit_audit(request.user, "graph.create", "CausalGraph", graph.pk)
-
         # Session tracking via assignment
         assignment = Assignment.objects.filter(
             document=document, annotator=request.user
         ).first()
 
+        graph, created = _get_or_create_user_graph(
+            document, request.user, schema_version, assignment=assignment
+        )
+        if created:
+            emit_audit(request.user, "graph.create", "CausalGraph", graph.pk)
+
         session = None
         if assignment:
-            # Link graph to assignment if not already set
-            if not assignment.graph_id:
+            # Link this assignment to the graph the workspace will use.
+            if assignment.graph_id != graph.pk:
                 assignment.graph = graph
                 assignment.save(update_fields=["graph"])
             # Advance assignment to in_progress on first open
@@ -178,7 +228,7 @@ class GraphPanelView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         ctx = _graph_panel_ctx(project, document, graph)
         return render(request, "annotation/partials/graph_panel.html", ctx)
 
@@ -193,7 +243,7 @@ class NodeFormView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
 
         _, lsv = _get_active_schema()
         ui = _load_ui_config()
@@ -232,7 +282,7 @@ class NodeCreateView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
         span_pk = raw.pop("_source_span_pk", None)
@@ -263,7 +313,7 @@ class NodeEditView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         _, lsv = _get_active_schema()
@@ -290,7 +340,7 @@ class NodeEditView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
@@ -312,7 +362,7 @@ class NodeDeleteView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         name = node.name
@@ -346,7 +396,7 @@ class EdgeFormView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
 
         _, lsv = _get_active_schema()
         ui = _load_ui_config()
@@ -383,7 +433,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
         span_pk = raw.pop("_source_span_pk", None)
@@ -427,7 +477,7 @@ class EdgeEditView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         _, lsv = _get_active_schema()
@@ -458,7 +508,7 @@ class EdgeEditView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
@@ -490,7 +540,7 @@ class EdgeAdvanceView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = get_object_or_404(CausalGraph, document=document, annotator=request.user)
+        graph = _get_user_graph_or_404(document, request.user)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         old_status = edge.status

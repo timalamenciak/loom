@@ -10,7 +10,6 @@ import json
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Pure-Python tests (no DB)
 # ---------------------------------------------------------------------------
@@ -267,6 +266,35 @@ class TestAnnotationView:
         url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
         client.get(url)
         assert WorkSession.objects.filter(assignment=assignment).exists()
+
+    def test_get_handles_duplicate_existing_graphs(
+        self, project_and_user, document, assignment, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph1 = CausalGraph.objects.create(
+            document=document,
+            annotator=user,
+            schema_version=schema_version,
+        )
+        graph2 = CausalGraph.objects.create(
+            document=document,
+            annotator=user,
+            schema_version=schema_version,
+        )
+        client = Client()
+        client.login(username=user.username, password="pw")
+
+        url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
+        resp = client.get(url)
+
+        assert resp.status_code == 200
+        assert CausalGraph.objects.filter(document=document, annotator=user).count() == 2
+        assignment.refresh_from_db()
+        assert assignment.graph_id in {graph1.pk, graph2.pk}
 
 
 # ---------------------------------------------------------------------------
