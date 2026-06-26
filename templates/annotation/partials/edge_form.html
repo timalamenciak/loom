@@ -1,6 +1,4 @@
 {% load annotation_extras %}
-{# Edge creation / edit form. Rendered into #form-panel via HTMX GET. #}
-
 <div class="form-panel-inner">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
     <h3 style="margin:0;font-size:1rem">{% if edge %}Edit Edge{% else %}Add Edge{% endif %}</h3>
@@ -38,7 +36,6 @@
       </summary>
       <div style="padding-top:.5rem">
         {% for slot in layer.slots %}
-          {# Skip system/internal slots in the form #}
           {% if slot.name != "edge_id" and slot.name != "source_spans" %}
             {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}
           {% endif %}

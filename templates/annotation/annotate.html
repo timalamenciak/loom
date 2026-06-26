@@ -130,18 +130,18 @@
       <div class="document-pane-header">
         <span class="document-pane-title">{{ document.title|truncatechars:110 }}</span>
         {% if document.pdf_file %}
-        <a class="btn btn-secondary btn-sm" href="{{ document.pdf_file.url }}" target="_blank" rel="noopener">Open PDF</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'document-pdf' doc_pk=document.pk %}" target="_blank" rel="noopener">Open PDF</a>
         {% endif %}
       </div>
 
       {% if document.pdf_file %}
       <div class="pdf-frame-wrap">
         <object class="pdf-frame"
-                data="{{ document.pdf_file.url }}#view=FitH"
+                data="{% url 'document-pdf' doc_pk=document.pk %}#view=FitH"
                 type="application/pdf"
                 aria-label="{{ document.title }}">
           <iframe class="pdf-frame"
-                  src="{{ document.pdf_file.url }}#view=FitH"
+                  src="{% url 'document-pdf' doc_pk=document.pk %}#view=FitH"
                   title="{{ document.title }}"></iframe>
         </object>
       </div>

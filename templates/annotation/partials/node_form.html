@@ -1,6 +1,4 @@
 {% load annotation_extras %}
-{# Node creation / edit form. Rendered into #form-panel via HTMX GET. #}
-
 <div class="form-panel-inner">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
     <h3 style="margin:0;font-size:1rem">{% if node %}Edit Node{% else %}Add Node{% endif %}</h3>
@@ -26,7 +24,6 @@
 
     {% for layer in node_spec %}
       {% for slot in layer.slots %}
-        {# Skip internal / system slots #}
         {% if slot.name != "node_id" and slot.name != "source_spans" %}
           {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}
         {% endif %}

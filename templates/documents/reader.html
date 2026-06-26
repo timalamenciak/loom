@@ -66,7 +66,7 @@
   GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 
-  const pdfUrl = '{{ document.pdf_file.url|escapejs }}';
+  const pdfUrl = '{% url "document-pdf" doc_pk=document.pk %}';
   const container = document.getElementById('pdf-viewer');
   if (container && pdfUrl) {
     try {

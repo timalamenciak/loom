@@ -1,6 +1,4 @@
 {% load annotation_extras %}
-{# Render a single slot dict from the form spec.
-   Context: slot, current_data, graph_nodes, prefix (optional) #}
 
 {% with field_name=prefix|default:""|add:slot.name %}
 {% if slot.widget == "select" %}
@@ -82,7 +80,6 @@
 </fieldset>
 
 {% elif slot.name == "original_sentence" or slot.name == "edge_notes" or slot.name == "mechanism_description" %}
-{# textarea override for known long-text slots #}
 <div class="field">
   <label for="id_{{ field_name }}">{{ slot.label }}</label>
   {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
@@ -90,7 +87,6 @@
 </div>
 
 {% else %}
-{# text / number / date fallback #}
 <div class="field">
   <label for="id_{{ field_name }}">
     {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}

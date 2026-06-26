@@ -3,10 +3,12 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.views import View
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from apps.projects.models import Document, ProjectMembership
 
@@ -49,6 +51,27 @@ class DocumentReaderView(LoginRequiredMixin, View):
                 "has_text": bool(document.canonical_text),
             },
         )
+
+
+@method_decorator(xframe_options_sameorigin, name="dispatch")
+class DocumentPdfView(LoginRequiredMixin, View):
+    """Permission-checked inline PDF response for embedded readers."""
+
+    def get(self, request, doc_pk):
+        document = get_object_or_404(Document, pk=doc_pk)
+        _require_member(request, document)
+        if not document.pdf_file:
+            raise Http404("No PDF is attached to this document.")
+
+        try:
+            pdf = document.pdf_file.open("rb")
+        except FileNotFoundError as exc:
+            raise Http404("PDF file not found.") from exc
+
+        filename = document.pdf_file.name.rsplit("/", 1)[-1]
+        response = FileResponse(pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
 
 
 class SpanCreateView(LoginRequiredMixin, View):
