@@ -116,6 +116,10 @@
 
         window.LoomAnnotationActions = {
             ajax: fallbackAjax,
+            /** Direct form-panel loader — call from onclick to bypass event delegation. */
+            load: function (url, targetSel) {
+                return requestHtml('GET', url, { target: targetSel });
+            },
             installed: true,
         };
 

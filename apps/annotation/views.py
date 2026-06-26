@@ -251,6 +251,13 @@ class NodeFormView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user)
 
         _, lsv = _get_active_schema()
+        if not lsv:
+            from django.http import HttpResponse
+            return HttpResponse(
+                '<p class="message message-error" style="padding:1rem">'
+                "No active schema — ask an administrator to load one.</p>",
+                content_type="text/html; charset=utf-8",
+            )
         ui = _load_ui_config()
         node_spec = lsv.form_spec(
             "CausalNode", ontology_routing=ui.get("ontology_routing", {})
@@ -322,6 +329,13 @@ class NodeEditView(LoginRequiredMixin, View):
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         _, lsv = _get_active_schema()
+        if not lsv:
+            from django.http import HttpResponse
+            return HttpResponse(
+                '<p class="message message-error" style="padding:1rem">'
+                "No active schema — ask an administrator to load one.</p>",
+                content_type="text/html; charset=utf-8",
+            )
         ui = _load_ui_config()
         node_spec = lsv.form_spec(
             "CausalNode", ontology_routing=ui.get("ontology_routing", {})
@@ -404,6 +418,13 @@ class EdgeFormView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user)
 
         _, lsv = _get_active_schema()
+        if not lsv:
+            from django.http import HttpResponse
+            return HttpResponse(
+                '<p class="message message-error" style="padding:1rem">'
+                "No active schema — ask an administrator to load one.</p>",
+                content_type="text/html; charset=utf-8",
+            )
         ui = _load_ui_config()
         edge_spec = _edge_form_spec(lsv, ui)
         nodes, _ = _graph_nodes_edges(graph)
@@ -486,6 +507,13 @@ class EdgeEditView(LoginRequiredMixin, View):
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         _, lsv = _get_active_schema()
+        if not lsv:
+            from django.http import HttpResponse
+            return HttpResponse(
+                '<p class="message message-error" style="padding:1rem">'
+                "No active schema — ask an administrator to load one.</p>",
+                content_type="text/html; charset=utf-8",
+            )
         ui = _load_ui_config()
         edge_spec = _edge_form_spec(lsv, ui)
         nodes, _ = _graph_nodes_edges(graph)

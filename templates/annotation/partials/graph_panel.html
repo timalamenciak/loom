@@ -7,15 +7,11 @@
   <div class="gp-actions">
     <a class="btn btn-secondary btn-sm"
        href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}?form=node"
-       hx-get="{% url 'node-form' pk=project.pk doc_pk=document.pk %}"
-       hx-target="#form-panel"
-       hx-swap="innerHTML"
+       onclick="if(window.LoomAnnotationActions){LoomAnnotationActions.load('{% url 'node-form' pk=project.pk doc_pk=document.pk %}','#form-panel');return false;}"
        title="Add a new entity node.">+ Add node</a>
     <a class="btn btn-secondary btn-sm"
        href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}?form=edge"
-       hx-get="{% url 'edge-form' pk=project.pk doc_pk=document.pk %}"
-       hx-target="#form-panel"
-       hx-swap="innerHTML"
+       onclick="if(window.LoomAnnotationActions){LoomAnnotationActions.load('{% url 'edge-form' pk=project.pk doc_pk=document.pk %}','#form-panel');return false;}"
        title="Add a causal edge between two existing nodes.">+ Add edge</a>
   </div>
 </div>
@@ -32,9 +28,7 @@
       </div>
       <div class="gp-item-actions">
         <button class="action-link"
-                hx-get="{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}"
-                hx-target="#form-panel"
-                hx-swap="innerHTML"
+                onclick="if(window.LoomAnnotationActions)LoomAnnotationActions.load('{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}','#form-panel')"
                 title="Edit this node's name, entity type, and other fields">Edit</button>
       </div>
     </li>
@@ -60,9 +54,7 @@
       </div>
       <div class="gp-item-actions">
         <button class="action-link"
-                hx-get="{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}"
-                hx-target="#form-panel"
-                hx-swap="innerHTML"
+                onclick="if(window.LoomAnnotationActions)LoomAnnotationActions.load('{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}','#form-panel')"
                 title="Edit this edge's predicate, claim strength, and annotation layers">Edit</button>
         {% if edge.status == "draft" %}
         <form method="post"
