@@ -1,9 +1,9 @@
 /**
  * annotation-actions.js
  *
- * Small local fallback for the HTMX patterns used by the annotation screen.
- * The app still uses HTMX when it is available; this keeps Add Node/Add Edge
- * usable in offline Docker/self-hosted environments where CDN scripts fail.
+ * Small local handler for the HTMX patterns used by the annotation screen.
+ * This keeps Add Node/Add Edge usable even when CDN HTMX is absent, late, or
+ * present but not bound to these controls.
  */
 
 (function () {
@@ -105,8 +105,10 @@
         });
     }
 
-    function realHtmxAvailable() {
-        return Boolean(window.htmx && typeof window.htmx.ajax === 'function');
+    function stopHtmx(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
     }
 
     function installFallback() {
@@ -118,12 +120,11 @@
         };
 
         document.addEventListener('click', (event) => {
-            if (realHtmxAvailable()) return;
             if (!event.target.closest) return;
 
             const getEl = event.target.closest('[hx-get]');
             if (getEl && !getEl.disabled) {
-                event.preventDefault();
+                stopHtmx(event);
                 requestHtml('GET', getEl.getAttribute('hx-get'), {
                     targetElement: targetFor(getEl),
                 });
@@ -135,9 +136,12 @@
             if (postEl.closest('form[hx-post]')) return;
 
             const confirmText = postEl.getAttribute('hx-confirm');
-            if (confirmText && !window.confirm(confirmText)) return;
+            if (confirmText && !window.confirm(confirmText)) {
+                stopHtmx(event);
+                return;
+            }
 
-            event.preventDefault();
+            stopHtmx(event);
             const data = new URLSearchParams(parseHxVals(postEl));
             if (!data.has('csrfmiddlewaretoken')) {
                 const token = csrfToken(document);
@@ -148,23 +152,22 @@
                 body: data,
                 csrfToken: data.get('csrfmiddlewaretoken') || csrfToken(document),
             });
-        });
+        }, true);
 
         document.addEventListener('submit', (event) => {
-            if (realHtmxAvailable()) return;
             if (!event.target.closest) return;
 
             const form = event.target.closest('form[hx-post]');
             if (!form) return;
 
-            event.preventDefault();
+            stopHtmx(event);
             const data = new FormData(form);
             requestHtml('POST', form.getAttribute('hx-post'), {
                 targetElement: targetFor(form),
                 body: data,
                 csrfToken: csrfToken(form),
             });
-        });
+        }, true);
     }
 
     function escapeHtml(value) {
