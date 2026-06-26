@@ -170,9 +170,15 @@
 
       <div class="form-panel-wrap">
         <div id="form-panel">
+          {% if initial_form == "node" %}
+            {% include "annotation/partials/node_form.html" with current_data=empty_form_data node=None graph_nodes=nodes %}
+          {% elif initial_form == "edge" %}
+            {% include "annotation/partials/edge_form.html" with current_data=empty_form_data edge=None graph_nodes=nodes %}
+          {% else %}
           <p class="empty muted" style="padding:.5rem 0;text-align:center;font-size:.83rem">
             Select "+ Node" or "+ Edge" to start annotating.
           </p>
+          {% endif %}
         </div>
       </div>
 

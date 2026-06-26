@@ -8,11 +8,9 @@
             title="Close this form without saving">&times;</button>
   </div>
 
-  <form{% if node %}
-        hx-post="{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}"
-       {% else %}
-        hx-post="{% url 'node-create' pk=project.pk doc_pk=document.pk %}"
-       {% endif %}
+  <form method="post"
+        action="{% if node %}{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}{% else %}{% url 'node-create' pk=project.pk doc_pk=document.pk %}{% endif %}"
+        hx-post="{% if node %}{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}{% else %}{% url 'node-create' pk=project.pk doc_pk=document.pk %}{% endif %}"
         hx-target="#graph-panel"
         hx-swap="innerHTML">
     {% csrf_token %}

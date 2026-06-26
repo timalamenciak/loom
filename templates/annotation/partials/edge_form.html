@@ -14,11 +14,9 @@
   </div>
   {% endif %}
 
-  <form{% if edge %}
-        hx-post="{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}"
-       {% else %}
-        hx-post="{% url 'edge-create' pk=project.pk doc_pk=document.pk %}"
-       {% endif %}
+  <form method="post"
+        action="{% if edge %}{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}{% else %}{% url 'edge-create' pk=project.pk doc_pk=document.pk %}{% endif %}"
+        hx-post="{% if edge %}{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}{% else %}{% url 'edge-create' pk=project.pk doc_pk=document.pk %}{% endif %}"
         hx-target="#graph-panel"
         hx-swap="innerHTML">
     {% csrf_token %}

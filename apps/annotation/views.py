@@ -199,6 +199,9 @@ class AnnotationView(LoginRequiredMixin, View):
         )
 
         nodes, edges = _graph_nodes_edges(graph)
+        initial_form = request.GET.get("form", "")
+        if initial_form not in {"node", "edge"}:
+            initial_form = ""
 
         return render(
             request,
@@ -216,6 +219,8 @@ class AnnotationView(LoginRequiredMixin, View):
                 "highlighted_text": highlighted_text,
                 "spans": spans,
                 "graph_nodes": nodes,
+                "initial_form": initial_form,
+                "empty_form_data": {},
             },
         )
 
