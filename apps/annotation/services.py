@@ -1,22 +1,39 @@
 """Service layer for annotation writes. All ORM mutations go through here."""
 
+from contextlib import nullcontext
+
+from django.db import transaction
+from django.db.models import Q
+
 from .models import CausalGraph, Edge, Node, WorkSession
 
 # ── Graph ─────────────────────────────────────────────────────────────────────
 
 
-def create_graph(document, annotator, schema_version) -> CausalGraph:
-    return CausalGraph.objects.create(
+@transaction.atomic
+def create_graph(
+    document, annotator, schema_version, ontology_snapshot=None
+) -> CausalGraph:
+    graph = CausalGraph.objects.create(
         document=document,
         annotator=annotator,
         schema_version=schema_version,
+        ontology_snapshot=ontology_snapshot,
     )
+    emit_audit(annotator, "graph.create", "CausalGraph", graph.pk)
+    return graph
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 
 
-def create_node(graph: CausalGraph, data: dict, origin: str = Node.ORIGIN_HUMAN) -> Node:
+@transaction.atomic
+def create_node(
+    graph: CausalGraph,
+    data: dict,
+    origin: str = Node.ORIGIN_HUMAN,
+    actor=None,
+) -> Node:
     name = data.get("name", "").strip() or _derive_name(data)
     category = data.get("entity_type", "")
     node = Node.objects.create(
@@ -27,27 +44,34 @@ def create_node(graph: CausalGraph, data: dict, origin: str = Node.ORIGIN_HUMAN)
         origin=origin,
         schema_version=graph.schema_version,
     )
+    emit_audit(actor or graph.annotator, "node.create", "Node", node.pk, data)
     return node
 
 
-def update_node(node: Node, data: dict) -> Node:
+@transaction.atomic
+def update_node(node: Node, data: dict, actor=None) -> Node:
     node.name = data.get("name", "").strip() or _derive_name(data)
     node.category = data.get("entity_type", node.category)
     node.data = data
     node.save(update_fields=["name", "category", "data"])
+    emit_audit(actor or node.graph.annotator, "node.update", "Node", node.pk, data)
     return node
 
 
 # ── Edges ─────────────────────────────────────────────────────────────────────
 
 
+@transaction.atomic
 def create_edge(
     graph: CausalGraph,
     subject: Node,
     object_node: Node,
     data: dict,
     origin: str = Edge.ORIGIN_HUMAN,
+    actor=None,
 ) -> Edge:
+    if subject.graph_id != graph.pk or object_node.graph_id != graph.pk:
+        raise ValueError("Edge endpoints must belong to the edge graph.")
     edge = Edge.objects.create(
         graph=graph,
         subject=subject,
@@ -58,15 +82,22 @@ def create_edge(
         origin=origin,
         schema_version=graph.schema_version,
     )
+    emit_audit(actor or graph.annotator, "edge.create", "Edge", edge.pk, data)
     return edge
 
 
+@transaction.atomic
 def update_edge(
     edge: Edge,
     data: dict,
     subject: Node = None,
     object_node: Node = None,
+    actor=None,
 ) -> Edge:
+    if subject is not None and subject.graph_id != edge.graph_id:
+        raise ValueError("Edge subject must belong to the edge graph.")
+    if object_node is not None and object_node.graph_id != edge.graph_id:
+        raise ValueError("Edge object must belong to the edge graph.")
     if subject is not None:
         edge.subject = subject
     if object_node is not None:
@@ -75,7 +106,21 @@ def update_edge(
     edge.claim_strength = data.get("claim_strength", edge.claim_strength)
     edge.data = data
     edge.save()
+    emit_audit(actor or edge.graph.annotator, "edge.update", "Edge", edge.pk, data)
     return edge
+
+
+@transaction.atomic
+def delete_node(node: Node, actor) -> None:
+    """Delete a node and its connected edges, recording every graph mutation."""
+    connected = Edge.objects.filter(graph=node.graph).filter(
+        Q(subject=node) | Q(object=node)
+    )
+    for edge in connected:
+        emit_audit(actor, "edge.delete", "Edge", edge.pk)
+        edge.delete()
+    emit_audit(actor, "node.delete", "Node", node.pk)
+    node.delete()
 
 
 def advance_edge_status(edge: Edge, actor) -> Edge:
@@ -83,9 +128,20 @@ def advance_edge_status(edge: Edge, actor) -> Edge:
     transitions = {
         Edge.STATUS_DRAFT: Edge.STATUS_COMPLETE,
     }
-    if edge.status in transitions:
-        edge.status = transitions[edge.status]
-        edge.save(update_fields=["status"])
+    context = transaction.atomic() if actor is not None else nullcontext()
+    with context:
+        if edge.status in transitions:
+            old_status = edge.status
+            edge.status = transitions[edge.status]
+            edge.save(update_fields=["status"])
+            if actor is not None:
+                emit_audit(
+                    actor,
+                    "edge.advance",
+                    "Edge",
+                    edge.pk,
+                    {"from": old_status, "to": edge.status},
+                )
     return edge
 
 
@@ -95,15 +151,27 @@ def adjudicate_edge(edge: Edge, actor) -> Edge:
         Edge.STATUS_COMPLETE: Edge.STATUS_REVIEWED,
         Edge.STATUS_REVIEWED: Edge.STATUS_GOLD,
     }
-    if edge.status in transitions:
-        edge.status = transitions[edge.status]
-        edge.save(update_fields=["status"])
+    context = transaction.atomic() if actor is not None else nullcontext()
+    with context:
+        if edge.status in transitions:
+            old_status = edge.status
+            edge.status = transitions[edge.status]
+            edge.save(update_fields=["status"])
+            if actor is not None:
+                emit_audit(
+                    actor,
+                    "edge.adjudicate",
+                    "Edge",
+                    edge.pk,
+                    {"from": old_status, "to": edge.status},
+                )
     return edge
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
 
+@transaction.atomic
 def open_session(assignment, annotator) -> "WorkSession":
     """Return the current open WorkSession, creating one if needed."""
     session = WorkSession.objects.filter(
@@ -121,17 +189,21 @@ def heartbeat(session, active_delta: int, idle_delta: int) -> None:
     """Accumulate time deltas sent by the client heartbeat."""
     from django.db.models import F
 
-    WorkSession.objects.filter(pk=session.pk).update(
+    WorkSession.objects.filter(pk=session.pk, ended_at__isnull=True).update(
         active_seconds=F("active_seconds") + max(0, active_delta),
         idle_seconds=F("idle_seconds") + max(0, idle_delta),
     )
     session.refresh_from_db()
 
 
+@transaction.atomic
 def close_session(session) -> None:
     """Mark a session ended and record wall-clock open_seconds."""
     from django.utils import timezone
 
+    session.refresh_from_db()
+    if session.ended_at is not None:
+        return
     now = timezone.now()
     open_sec = int((now - session.started_at).total_seconds())
     WorkSession.objects.filter(pk=session.pk).update(
@@ -144,26 +216,28 @@ def close_session(session) -> None:
         "session.close",
         "WorkSession",
         session.pk,
-        {"active_seconds": session.active_seconds, "open_seconds": session.open_seconds},
+        {
+            "active_seconds": session.active_seconds,
+            "open_seconds": session.open_seconds,
+        },
     )
 
 
 # ── Audit ─────────────────────────────────────────────────────────────────────
 
 
-def emit_audit(actor, action: str, target_type: str, target_id="", diff: dict = None) -> None:
-    try:
-        from apps.audit.models import AuditEvent
+def emit_audit(
+    actor, action: str, target_type: str, target_id="", diff: dict = None
+) -> None:
+    from apps.audit.models import AuditEvent
 
-        AuditEvent.objects.create(
-            actor=actor,
-            action=action,
-            target_type=target_type,
-            target_id=str(target_id),
-            diff=diff or {},
-        )
-    except Exception:
-        pass
+    AuditEvent.objects.create(
+        actor=actor,
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id),
+        diff=diff or {},
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

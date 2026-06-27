@@ -62,7 +62,7 @@ const SessionTimer = {
 
         // Final flush on navigation away; keepalive keeps the request alive
         window.addEventListener('beforeunload', () => {
-            if (this._pk && (this._pendingActive > 0 || this._pendingIdle > 0)) {
+            if (this._pk) {
                 const payload = JSON.stringify({
                     active_delta: this._pendingActive,
                     idle_delta: this._pendingIdle,
@@ -148,7 +148,7 @@ const SessionTimer = {
         this._pendingIdle = 0;
 
         try {
-            await fetch(this._url, {
+            const response = await fetch(this._url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -157,8 +157,12 @@ const SessionTimer = {
                 },
                 body: JSON.stringify({ active_delta: active, idle_delta: idle, ended }),
             });
+            if (!response.ok) throw new Error(`Heartbeat failed: ${response.status}`);
         } catch {
-            // Network hiccup: deltas lost but acceptable for this metric
+            if (!ended) {
+                this._pendingActive += active;
+                this._pendingIdle += idle;
+            }
         }
     },
 };

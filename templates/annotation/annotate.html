@@ -225,16 +225,17 @@
 
 {# ── HTMX CSRF + ontology autocomplete re-init after HTMX swaps ── #}
 <script>
+  window.loomOntologySearchUrl = "{% url 'project-ontology-search' project.pk %}?graph={{ graph.pk }}";
   // Re-attach ontology autocomplete whenever HTMX swaps new content into the form panel
   document.getElementById('form-panel')?.addEventListener('htmx:afterSwap', () => {
-    window.OntologyAutocomplete?.init('/ontology/search/');
+    window.OntologyAutocomplete?.init(window.loomOntologySearchUrl);
   });
 
   // Also handle the case where htmx:afterSettle fires (for OOB swaps)
   document.addEventListener('htmx:afterSettle', (e) => {
     const target = e.detail.target;
     if (target && target.id === 'form-panel') {
-      window.OntologyAutocomplete?.init('/ontology/search/');
+      window.OntologyAutocomplete?.init(window.loomOntologySearchUrl);
     }
   });
 </script>

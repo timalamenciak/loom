@@ -20,7 +20,15 @@ class EdgeInline(admin.TabularInline):
 
 @admin.register(CausalGraph)
 class CausalGraphAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "document", "annotator", "schema_version", "status", "created_at"]
+    list_display = [
+        "__str__",
+        "document",
+        "annotator",
+        "schema_version",
+        "ontology_snapshot",
+        "status",
+        "created_at",
+    ]
     list_filter = ["status", "schema_version"]
     search_fields = ["document__title", "annotator__username"]
     inlines = [NodeInline, EdgeInline]
@@ -38,7 +46,14 @@ class NodeAdmin(admin.ModelAdmin):
 
 @admin.register(Edge)
 class EdgeAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "graph", "predicate", "claim_strength", "status", "origin"]
+    list_display = [
+        "__str__",
+        "graph",
+        "predicate",
+        "claim_strength",
+        "status",
+        "origin",
+    ]
     list_filter = ["status", "origin", "predicate"]
     raw_id_fields = ["subject", "object"]
     readonly_fields = ["edge_id", "created_at", "updated_at"]

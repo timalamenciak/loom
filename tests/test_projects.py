@@ -291,7 +291,9 @@ def test_assign_idempotent(project_with_annotator, annotator, admin_user):
 
 
 @pytest.mark.django_db
-def test_annotator_queue_shows_only_assigned(client, project_with_annotator, annotator, admin_user):
+def test_annotator_queue_shows_only_assigned(
+    client, project_with_annotator, annotator, admin_user
+):
     """Annotator sees exactly their assigned documents, nothing more."""
     import_ris_file(project_with_annotator, io.BytesIO(SAMPLE_RIS.encode()))
     docs = list(project_with_annotator.documents.all())
@@ -322,7 +324,9 @@ def test_non_member_cannot_see_project(client, project):
 @pytest.mark.django_db
 def test_annotator_cannot_import_ris(client, project_with_annotator, annotator):
     client.force_login(annotator)
-    response = client.get(reverse("project-import-ris", args=[project_with_annotator.pk]))
+    response = client.get(
+        reverse("project-import-ris", args=[project_with_annotator.pk])
+    )
     assert response.status_code == 403
 
 
@@ -349,6 +353,24 @@ def test_project_list_view(client, project, admin_user):
     response = client.get(reverse("project-list"))
     assert response.status_code == 200
     assert project in response.context["projects"]
+
+
+@pytest.mark.django_db
+def test_project_list_counts_are_not_multiplied_by_joins(client, project, admin_user):
+    second_user = User.objects.create_user("second-member", password="pw")
+    ProjectMembership.objects.create(
+        project=project,
+        user=second_user,
+        role=ProjectMembership.ROLE_ANNOTATOR,
+    )
+    Document.objects.create(project=project, source="manual", title="One")
+    Document.objects.create(project=project, source="manual", title="Two")
+
+    client.force_login(admin_user)
+    listed = client.get(reverse("project-list")).context["projects"].get(pk=project.pk)
+
+    assert listed.doc_count == 2
+    assert listed.member_count == 2
 
 
 @pytest.mark.django_db

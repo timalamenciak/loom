@@ -56,3 +56,5 @@ ontology_routing:
 # slot_name: widget_type  (overrides schema_engine widget detection)
 widget_overrides:
   original_sentence: textarea
+  edge_notes: textarea
+  mechanism_description: textarea

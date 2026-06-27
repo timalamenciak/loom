@@ -10,6 +10,22 @@ class Project(models.Model):
         on_delete=models.PROTECT,
         related_name="owned_projects",
     )
+    active_schema = models.ForeignKey(
+        "schemas.SchemaVersion",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="projects",
+    )
+    ontology_snapshot = models.ForeignKey(
+        "ontology.OntologySnapshot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="projects",
+    )
+    ontology_names = models.JSONField(default=list, blank=True)
+    auto_infer_ontologies = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -37,7 +53,9 @@ class ProjectMembership(models.Model):
         (ROLE_ANNOTATOR, "Annotator"),
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="memberships")
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="memberships"
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -64,7 +82,9 @@ class Document(models.Model):
         (SOURCE_MANUAL, "Manual"),
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="documents")
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="documents"
+    )
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
 
     # PDF — nullable until a file is attached
@@ -148,8 +168,12 @@ class Assignment(models.Model):
         related_name="assignments",
     )
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="assignments")
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="assignments")
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="assignments"
+    )
+    document = models.ForeignKey(
+        Document, on_delete=models.CASCADE, related_name="assignments"
+    )
     annotator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -161,7 +185,9 @@ class Assignment(models.Model):
         related_name="assignments_given",
     )
     assigned_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ASSIGNED)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_ASSIGNED
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -22,3 +22,11 @@ def dict_get(d, key):
         return ""
     val = d.get(key)
     return "" if val is None else val
+
+
+@register.filter
+def is_checked(value):
+    """Return whether a schema boolean value should render as checked."""
+    if value is True:
+        return True
+    return str(value).strip().lower() in {"true", "1", "yes", "on"}

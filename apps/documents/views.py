@@ -13,7 +13,12 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from apps.projects.models import Document, ProjectMembership
 
 from .models import TextSpan
-from .services import create_span, ensure_canonical_text, render_highlighted_text
+from .services import (
+    create_span,
+    delete_span,
+    ensure_canonical_text,
+    render_highlighted_text,
+)
 
 
 def _require_member(request, document):
@@ -99,7 +104,9 @@ class SpanCreateView(LoginRequiredMixin, View):
         if request.headers.get("HX-Request"):
             # span-select.js (annotation surface) wants JSON so it can open the form panel
             if request.headers.get("X-Span-Select") == "true":
-                return JsonResponse({"span_pk": span.pk, "start_char": start, "end_char": end})
+                return JsonResponse(
+                    {"span_pk": span.pk, "start_char": start, "end_char": end}
+                )
             return render(
                 request,
                 "documents/partials/span_list.html",
@@ -114,7 +121,7 @@ class SpanDeleteView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk)
         _require_member(request, document)
         span = get_object_or_404(TextSpan, pk=span_pk, document=document)
-        span.delete()
+        delete_span(span, request.user)
         spans = TextSpan.objects.filter(document=document).order_by("start_char")
 
         if request.headers.get("HX-Request"):

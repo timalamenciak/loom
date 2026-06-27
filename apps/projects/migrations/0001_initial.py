@@ -213,10 +213,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="document",
             constraint=models.UniqueConstraint(
-                condition=(
-                    models.Q(("doi__isnull", False))
-                    & ~models.Q(("doi", ""))
-                ),
+                condition=(models.Q(("doi__isnull", False)) & ~models.Q(("doi", ""))),
                 fields=("project", "doi"),
                 name="unique_document_doi_per_project",
             ),

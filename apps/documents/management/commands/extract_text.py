@@ -8,9 +8,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         group = parser.add_mutually_exclusive_group(required=True)
-        group.add_argument("--document", type=int, metavar="ID", help="Single document ID")
-        group.add_argument("--project", type=int, metavar="ID", help="All PDF docs in project")
-        group.add_argument("--all", action="store_true", help="All PDFs without canonical_text")
+        group.add_argument(
+            "--document", type=int, metavar="ID", help="Single document ID"
+        )
+        group.add_argument(
+            "--project", type=int, metavar="ID", help="All PDF docs in project"
+        )
+        group.add_argument(
+            "--all", action="store_true", help="All PDFs without canonical_text"
+        )
 
     def handle(self, *args, **options):
         from apps.documents.services import (
@@ -33,13 +39,17 @@ class Command(BaseCommand):
             ).exclude(pdf_file="")
 
         total = ok = 0
-        for doc in (doc for doc in docs if options["document"] or pdf_text_needs_extraction(doc)):
+        for doc in (
+            doc for doc in docs if options["document"] or pdf_text_needs_extraction(doc)
+        ):
             total += 1
             if extract_text_from_pdf(doc):
                 ok += 1
                 chars = len(doc.canonical_text or "")
                 pages = len(doc.page_map or [])
-                self.stdout.write(f"  ✓ [{doc.pk}] {doc.title[:60]}  ({chars} chars, {pages} pages)")
+                self.stdout.write(
+                    f"  ✓ [{doc.pk}] {doc.title[:60]}  ({chars} chars, {pages} pages)"
+                )
             else:
                 self.stdout.write(
                     self.style.WARNING(

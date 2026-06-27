@@ -55,6 +55,14 @@ class TestEngineNoDB:
         assert "layer1" in layer_ids
         assert "layer4" in layer_ids
 
+    def test_widget_overrides_come_from_sidecar_configuration(self):
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_040))
+        spec = lsv.form_spec(
+            "CausalEdge", widget_overrides={"original_sentence": "textarea"}
+        )
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+        assert slots["original_sentence"]["widget"] == "textarea"
+
     def test_claim_strength_is_select_with_choices(self):
         lsv = LoomSchemaView(_StubSchemaVersion(CAMO_040))
         spec = lsv.form_spec("CausalEdge")
@@ -190,6 +198,13 @@ class TestSchemaVersionModel:
     def test_sha256_computed_on_save(self, schema_040):
         assert len(schema_040.sha256) == 64
 
+    def test_sha256_updates_with_linkml_yaml_update_fields(self, schema_040):
+        old_digest = schema_040.sha256
+        schema_040.linkml_yaml += "\n# revised\n"
+        schema_040.save(update_fields=["linkml_yaml"])
+        schema_040.refresh_from_db()
+        assert schema_040.sha256 != old_digest
+
     def test_get_active_returns_active(self, schema_040):
         active = SchemaVersion.get_active()
         assert active is not None
@@ -301,9 +316,10 @@ class TestSchemaEngine:
             "object",
             "claim_strength",
         }
-        assert next(slot for slot in edge_slots if slot["name"] == "subject")[
-            "widget"
-        ] == "node_picker"
+        assert (
+            next(slot for slot in edge_slots if slot["name"] == "subject")["widget"]
+            == "node_picker"
+        )
 
 
 # ── Schema switching (Phase 2 acceptance criterion) ───────────────────────────

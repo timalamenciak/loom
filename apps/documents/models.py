@@ -36,7 +36,10 @@ class TextSpan(models.Model):
     class Meta:
         ordering = ["start_char"]
         indexes = [
-            models.Index(fields=["document", "start_char", "end_char"]),
+            models.Index(
+                fields=["document", "start_char", "end_char"],
+                name="documents_t_documen_7414e6_idx",
+            ),
         ]
 
     def __str__(self):

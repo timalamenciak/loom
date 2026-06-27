@@ -33,9 +33,9 @@ class FCMWeight:
     edge_id: str
     predicate: str
     claim_strength: str
-    sign: int   # +1, -1, or 0
+    sign: int  # +1, -1, or 0
     strength: float
-    weight: float   # sign * strength, rounded to 4 dp
+    weight: float  # sign * strength, rounded to 4 dp
 
 
 _STRENGTH_WEIGHT: dict[str, float] = {

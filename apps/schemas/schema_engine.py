@@ -88,6 +88,7 @@ class LoomSchemaView:
         class_name: str,
         ui_layers: list[dict] | None = None,
         ontology_routing: dict | None = None,
+        widget_overrides: dict | None = None,
     ) -> list[dict]:
         """
         Build a layered form spec for *class_name*.
@@ -96,15 +97,24 @@ class LoomSchemaView:
         """
         if ontology_routing is None:
             ontology_routing = {}
+        if widget_overrides is None:
+            widget_overrides = {}
 
         slot_names = self._all_slot_names(class_name)
         slot_specs = {
-            name: self._slot_spec(name, class_name, ontology_routing)
+            name: self._slot_spec(name, class_name, ontology_routing, widget_overrides)
             for name in slot_names
         }
 
         if not ui_layers:
-            return [{"id": "all", "label": "", "collapsed_by_default": False, "slots": list(slot_specs.values())}]
+            return [
+                {
+                    "id": "all",
+                    "label": "",
+                    "collapsed_by_default": False,
+                    "slots": list(slot_specs.values()),
+                }
+            ]
 
         result = []
         assigned: set[str] = set()
@@ -117,7 +127,9 @@ class LoomSchemaView:
                     {
                         "id": layer["id"],
                         "label": layer["label"],
-                        "collapsed_by_default": layer.get("collapsed_by_default", False),
+                        "collapsed_by_default": layer.get(
+                            "collapsed_by_default", False
+                        ),
                         "slots": layer_slots,
                     }
                 )
@@ -126,7 +138,14 @@ class LoomSchemaView:
         # Remainder (slots not listed in any layer)
         remainder = [s for k, s in slot_specs.items() if k not in assigned]
         if remainder:
-            result.append({"id": "other", "label": "Other", "collapsed_by_default": True, "slots": remainder})
+            result.append(
+                {
+                    "id": "other",
+                    "label": "Other",
+                    "collapsed_by_default": True,
+                    "slots": remainder,
+                }
+            )
 
         return result
 
@@ -143,12 +162,20 @@ class LoomSchemaView:
             return []
         return [slot.name for slot in self._sv.class_induced_slots(class_name)]
 
-    def _slot_spec(self, slot_name: str, class_name: str, ontology_routing: dict) -> dict:
+    def _slot_spec(
+        self,
+        slot_name: str,
+        class_name: str,
+        ontology_routing: dict,
+        widget_overrides: dict,
+    ) -> dict:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
 
         # Widget classification
-        if slot_name in ("subject", "object") and slot_range == "causalnode":
+        if slot_name in widget_overrides:
+            widget = widget_overrides[slot_name]
+        elif slot_name in ("subject", "object") and slot_range == "causalnode":
             widget = "node_picker"
         elif slot_range in _PRIMITIVE_WIDGET:
             widget = _PRIMITIVE_WIDGET[slot_range]
@@ -174,12 +201,15 @@ class LoomSchemaView:
             spec["choices"] = self._enum_choices(slot.range)
 
         if widget == "fieldset":
-            is_inlined = getattr(slot, "inlined", False) or getattr(slot, "inlined_as_list", False)
+            is_inlined = getattr(slot, "inlined", False) or getattr(
+                slot, "inlined_as_list", False
+            )
             if is_inlined and slot.range:
                 spec["nested_spec"] = self.form_spec(
                     slot.range,
                     ui_layers=None,
                     ontology_routing=ontology_routing,
+                    widget_overrides=widget_overrides,
                 )
 
         return spec

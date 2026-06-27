@@ -11,10 +11,16 @@ class MembershipInline(admin.TabularInline):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ["name", "created_by", "created_at"]
+    list_display = [
+        "name",
+        "created_by",
+        "active_schema",
+        "ontology_snapshot",
+        "created_at",
+    ]
     search_fields = ["name"]
     inlines = [MembershipInline]
-    raw_id_fields = ["created_by"]
+    raw_id_fields = ["created_by", "active_schema", "ontology_snapshot"]
 
 
 @admin.register(Document)
@@ -31,7 +37,14 @@ class DocumentAdmin(admin.ModelAdmin):
 
 @admin.register(Assignment)
 class AssignmentAdmin(admin.ModelAdmin):
-    list_display = ["document", "annotator", "project", "status", "assigned_at", "updated_at"]
+    list_display = [
+        "document",
+        "annotator",
+        "project",
+        "status",
+        "assigned_at",
+        "updated_at",
+    ]
     list_filter = ["project", "status"]
     search_fields = ["document__title", "annotator__username"]
     raw_id_fields = ["document", "annotator", "assigned_by"]

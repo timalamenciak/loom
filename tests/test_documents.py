@@ -6,6 +6,8 @@ DB tests (TestCreateSpan, TestSetAbstractAsCanonical, etc.) need:
   docker compose up -d db
 """
 
+from html.parser import HTMLParser
+
 import pytest
 
 from apps.documents.services import (
@@ -89,6 +91,40 @@ class TestRenderHighlightedText:
         result = render_highlighted_text(text, spans)
         assert 'data-span-pk="42"' in result
 
+    def test_overlapping_spans_produce_valid_non_nested_marks(self):
+        class MarkDepthParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.depth = 0
+                self.max_depth = 0
+                self.text = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "mark":
+                    self.depth += 1
+                    self.max_depth = max(self.max_depth, self.depth)
+
+            def handle_endtag(self, tag):
+                if tag == "mark":
+                    self.depth -= 1
+
+            def handle_data(self, data):
+                self.text.append(data)
+
+        text = "abcdefgh"
+        spans = [
+            _FakeSpan(pk=1, start_char=0, end_char=5, text="abcde"),
+            _FakeSpan(pk=2, start_char=2, end_char=8, text="cdefgh"),
+        ]
+        result = render_highlighted_text(text, spans)
+        parser = MarkDepthParser()
+        parser.feed(result)
+
+        assert parser.depth == 0
+        assert parser.max_depth == 1
+        assert "".join(parser.text) == text
+        assert 'data-span-pks="1,2"' in result
+
 
 # ---------------------------------------------------------------------------
 # DB-backed tests (need Postgres)
@@ -98,12 +134,14 @@ class TestRenderHighlightedText:
 @pytest.fixture
 def user(db):
     from django.contrib.auth import get_user_model
+
     return get_user_model().objects.create_user("reader_test", password="x")
 
 
 @pytest.fixture
 def document(db, user):
     from apps.projects.models import Document, Project
+
     proj = Project.objects.create(name="Reader Test", created_by=user)
     return Document.objects.create(
         project=proj,
@@ -143,7 +181,9 @@ class TestSetAbstractAsCanonical:
         created, _ = import_ris_file(proj, io.BytesIO(ris_content.encode()))
         assert len(created) == 1
         doc = created[0]
-        assert doc.canonical_text == "Nitrogen increases biomass in temperate grasslands."
+        assert (
+            doc.canonical_text == "Nitrogen increases biomass in temperate grasslands."
+        )
 
 
 class TestCreateSpan:
@@ -175,6 +215,7 @@ class TestCreateSpan:
         create_span(document, 8, 9)  # E
 
         from apps.documents.models import TextSpan
+
         spans = list(TextSpan.objects.filter(document=document))
         assert [s.start_char for s in spans] == [0, 4, 8]
 
@@ -210,7 +251,10 @@ class TestDocumentReaderView:
 
     def test_reader_403_for_non_member(self, db, user, document):
         from django.test import Client
-        other = __import__("django.contrib.auth", fromlist=["get_user_model"]).get_user_model()
+
+        other = __import__(
+            "django.contrib.auth", fromlist=["get_user_model"]
+        ).get_user_model()
         other_user = other.objects.create_user("outsider", password="x")
 
         client = Client()

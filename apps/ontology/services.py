@@ -40,7 +40,10 @@ def search_terms(
     if snapshot is None:
         return []
 
-    qs = OntologyTerm.objects.filter(snapshot=snapshot, obsolete=False)
+    qs = OntologyTerm.objects.filter(
+        Q(snapshot=snapshot) | Q(release__snapshots=snapshot),
+        obsolete=False,
+    ).distinct()
     if prefixes:
         qs = qs.filter(prefix__in=prefixes)
 
@@ -72,9 +75,18 @@ def search_terms(
     )
 
 
-def term_by_curie(curie: str, snapshot: OntologySnapshot | None = None) -> OntologyTerm | None:
+def term_by_curie(
+    curie: str, snapshot: OntologySnapshot | None = None
+) -> OntologyTerm | None:
     if snapshot is None:
         snapshot = get_active_snapshot()
     if snapshot is None:
         return None
-    return OntologyTerm.objects.filter(snapshot=snapshot, curie__iexact=curie).first()
+    return (
+        OntologyTerm.objects.filter(
+            Q(snapshot=snapshot) | Q(release__snapshots=snapshot),
+            curie__iexact=curie,
+        )
+        .distinct()
+        .first()
+    )

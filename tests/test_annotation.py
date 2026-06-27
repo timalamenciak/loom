@@ -67,6 +67,45 @@ class TestDictGetFilter:
         assert dict_get(d, "mediation__other") == ""
 
 
+class TestSchemaFieldRendering:
+    def test_nested_edit_value_is_repopulated(self):
+        from django.template.loader import render_to_string
+
+        html = render_to_string(
+            "annotation/partials/form_field.html",
+            {
+                "slot": {
+                    "name": "mediator_notes",
+                    "label": "Mediator Notes",
+                    "widget": "text",
+                    "required": False,
+                    "description": "",
+                },
+                "prefix": "mediation__",
+                "current_data": {"mediation": {"mediator_notes": "soil moisture"}},
+            },
+        )
+        assert 'name="mediation__mediator_notes"' in html
+        assert 'value="soil moisture"' in html
+
+    def test_false_string_does_not_check_boolean(self):
+        from django.template.loader import render_to_string
+
+        html = render_to_string(
+            "annotation/partials/form_field.html",
+            {
+                "slot": {
+                    "name": "dose_response",
+                    "label": "Dose Response",
+                    "widget": "checkbox",
+                },
+                "prefix": "strength__",
+                "current_data": {"strength": {"dose_response": "false"}},
+            },
+        )
+        assert "checked" not in html
+
+
 # ---------------------------------------------------------------------------
 # DB fixtures
 # ---------------------------------------------------------------------------
@@ -291,7 +330,9 @@ class TestAnnotationView:
         resp = client.get(url)
 
         assert resp.status_code == 200
-        assert CausalGraph.objects.filter(document=document, annotator=user).count() == 2
+        assert (
+            CausalGraph.objects.filter(document=document, annotator=user).count() == 2
+        )
         assignment.refresh_from_db()
         assert assignment.graph_id in {graph1.pk, graph2.pk}
 
@@ -315,13 +356,54 @@ class TestNodeCreate:
         url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/"
         resp = client.post(
             url,
-            {"entity_type": "biotic", "entity_term": "NCBITaxon:712036", "direction": "increases"},
+            {
+                "entity_type": "biotic",
+                "entity_term": "NCBITaxon:712036",
+                "direction": "increases",
+            },
             HTTP_HX_REQUEST="true",
         )
         assert resp.status_code == 200
         assert Node.objects.filter(graph=graph).exists()
         node = Node.objects.filter(graph=graph).first()
         assert node.data.get("entity_type") == "biotic"
+
+    def test_delete_node_also_deletes_connected_edges(
+        self, project_and_user, document, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Edge, Node
+        from apps.audit.models import AuditEvent
+
+        project, user = project_and_user
+        subject = Node.objects.create(
+            graph=graph, name="Subject", data={}, schema_version=schema_version
+        )
+        object_node = Node.objects.create(
+            graph=graph, name="Object", data={}, schema_version=schema_version
+        )
+        edge = Edge.objects.create(
+            graph=graph,
+            subject=subject,
+            object=object_node,
+            data={},
+            schema_version=schema_version,
+        )
+        client = Client()
+        client.force_login(user)
+
+        resp = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
+            f"nodes/{subject.pk}/delete/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert resp.status_code == 200
+        assert not Node.objects.filter(pk=subject.pk).exists()
+        assert not Edge.objects.filter(pk=edge.pk).exists()
+        assert AuditEvent.objects.filter(action="edge.delete").exists()
+        assert AuditEvent.objects.filter(action="node.delete").exists()
 
 
 class TestEdgeCreate:
@@ -378,6 +460,26 @@ class TestEdgeCreate:
         url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/edges/"
         resp = client.post(url, {"predicate": "positive"}, HTTP_HX_REQUEST="true")
         assert resp.status_code == 400
+
+    def test_service_rejects_nodes_from_another_graph(
+        self, project_and_user, document, graph, schema_version
+    ):
+        from apps.annotation.models import CausalGraph, Node
+        from apps.annotation.services import create_edge
+
+        project, user = project_and_user
+        other_graph = CausalGraph.objects.create(
+            document=document, annotator=user, schema_version=schema_version
+        )
+        local = Node.objects.create(
+            graph=graph, name="Local", data={}, schema_version=schema_version
+        )
+        foreign = Node.objects.create(
+            graph=other_graph, name="Foreign", data={}, schema_version=schema_version
+        )
+
+        with pytest.raises(ValueError, match="endpoints"):
+            create_edge(graph, local, foreign, {})
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +542,50 @@ class TestHeartbeat:
         session.refresh_from_db()
         assert session.ended_at is not None
         assert session.active_seconds == 20
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            [],
+            {"active_delta": "not-a-number"},
+            {"active_delta": -1},
+            {"ended": "false"},
+        ],
+    )
+    def test_invalid_payload_returns_400(self, project_and_user, assignment, payload):
+        from django.test import Client
+
+        from apps.annotation.services import open_session
+
+        _, user = project_and_user
+        session = open_session(assignment, user)
+        client = Client()
+        client.force_login(user)
+        resp = client.post(
+            f"/annotation/sessions/{session.pk}/heartbeat/",
+            json.dumps(payload),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_closed_session_rejects_more_time(self, project_and_user, assignment):
+        from django.test import Client
+
+        from apps.annotation.services import close_session, open_session
+
+        _, user = project_and_user
+        session = open_session(assignment, user)
+        close_session(session)
+        client = Client()
+        client.force_login(user)
+        resp = client.post(
+            f"/annotation/sessions/{session.pk}/heartbeat/",
+            json.dumps({"active_delta": 10}),
+            content_type="application/json",
+        )
+        session.refresh_from_db()
+        assert resp.status_code == 409
+        assert session.active_seconds == 0
 
 
 # ---------------------------------------------------------------------------

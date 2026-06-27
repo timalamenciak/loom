@@ -28,5 +28,16 @@ services:
       db:
         condition: service_healthy
 
+  ontology-worker:
+    build: .
+    command: python manage.py process_ontology_loads --watch
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:

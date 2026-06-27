@@ -11,7 +11,7 @@
     <option value="">— Select —</option>
     {% for c in slot.choices %}
     <option value="{{ c.value }}"
-            {% if current_data|dict_get:slot.name == c.value %}selected{% endif %}
+            {% if current_data|dict_get:field_name == c.value %}selected{% endif %}
             title="{{ c.description }}">{{ c.label }}</option>
     {% endfor %}
   </select>
@@ -34,7 +34,7 @@
     <option value="">— Choose node —</option>
     {% for node in graph_nodes %}
     <option value="{{ node.node_id }}"
-            {% if current_data|dict_get:slot.name == node.node_id %}selected{% endif %}>
+            {% if current_data|dict_get:field_name == node.node_id %}selected{% endif %}>
       {{ node.name }}{% if node.category %} ({{ node.category }}){% endif %}
     </option>
     {% endfor %}
@@ -53,17 +53,17 @@
          id="id_{{ field_name }}_label"
          data-ontology-prefixes="{{ slot.ontology_prefixes|join:',' }}"
          data-curie-target="id_{{ field_name }}"
-         value="{{ current_data|dict_get:slot.name }}"
+         value="{{ current_data|dict_get:field_name }}"
          placeholder="Search ontology…"
          autocomplete="off">
   <input type="hidden" name="{{ field_name }}" id="id_{{ field_name }}"
-         value="{{ current_data|dict_get:slot.name }}">
+         value="{{ current_data|dict_get:field_name }}">
 </div>
 
 {% elif slot.widget == "checkbox" %}
 <div class="field" style="display:flex;align-items:center;gap:.5rem">
   <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}"
-         {% if current_data|dict_get:slot.name %}checked{% endif %}>
+         {% if current_data|dict_get:field_name|is_checked %}checked{% endif %}>
   <label for="id_{{ field_name }}" style="margin:0">{{ slot.label }}</label>
 </div>
 
@@ -79,11 +79,11 @@
   {% endif %}
 </fieldset>
 
-{% elif slot.name == "original_sentence" or slot.name == "edge_notes" or slot.name == "mechanism_description" %}
+{% elif slot.widget == "textarea" %}
 <div class="field">
   <label for="id_{{ field_name }}">{{ slot.label }}</label>
   {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
-  <textarea name="{{ field_name }}" id="id_{{ field_name }}" rows="3">{{ current_data|dict_get:slot.name }}</textarea>
+  <textarea name="{{ field_name }}" id="id_{{ field_name }}" rows="3">{{ current_data|dict_get:field_name }}</textarea>
 </div>
 
 {% else %}
@@ -93,7 +93,7 @@
   </label>
   {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
   <input type="{{ slot.widget }}" name="{{ field_name }}" id="id_{{ field_name }}"
-         value="{{ current_data|dict_get:slot.name }}"
+         value="{{ current_data|dict_get:field_name }}"
          {% if slot.required %}required{% endif %}>
 </div>
 {% endif %}

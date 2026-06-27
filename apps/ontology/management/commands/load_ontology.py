@@ -54,7 +54,9 @@ class Command(BaseCommand):
         elif options["preload"]:
             names = preload_names()
         elif not names:
-            self.stdout.write("Available ontologies: " + ", ".join(list_ontology_names()))
+            self.stdout.write(
+                "Available ontologies: " + ", ".join(list_ontology_names())
+            )
             self.stdout.write("Preload set: " + ", ".join(preload_names()))
             return
 
@@ -76,7 +78,7 @@ class Command(BaseCommand):
         for name in names:
             self.stdout.write(f"Loading {name} …")
             try:
-                _, count = load_ontology(
+                snapshot, count = load_ontology(
                     name,
                     source=source_override,
                     snapshot=snapshot,
@@ -91,4 +93,8 @@ class Command(BaseCommand):
             snapshot.is_active = True
             snapshot.save(update_fields=["is_active"])
 
-        self.stdout.write(self.style.SUCCESS(f"\nDone. {total_terms:,} terms in snapshot {snapshot.pk}."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\nDone. {total_terms:,} terms in snapshot {snapshot.pk}."
+            )
+        )

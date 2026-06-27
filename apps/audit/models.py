@@ -17,9 +17,13 @@ class AuditEvent(models.Model):
     class Meta:
         ordering = ["-ts"]
         indexes = [
-            models.Index(fields=["actor", "ts"]),
-            models.Index(fields=["action", "ts"]),
+            models.Index(fields=["actor", "ts"], name="audit_audit_actor_i_0b33df_idx"),
+            models.Index(
+                fields=["action", "ts"], name="audit_audit_action__f7a99b_idx"
+            ),
         ]
 
     def __str__(self):
-        return f"{self.actor.username} {self.action} {self.target_type}#{self.target_id}"
+        return (
+            f"{self.actor.username} {self.action} {self.target_type}#{self.target_id}"
+        )

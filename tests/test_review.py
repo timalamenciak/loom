@@ -9,7 +9,9 @@ from pathlib import Path
 
 import pytest
 
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
+)
 
 
 # ── Pure-Python: adjudication service ────────────────────────────────────────
@@ -72,16 +74,19 @@ class TestAdjudicateEdge:
 class TestSchemaDiff:
     def _sv_stub(self, yaml_text):
         from unittest.mock import MagicMock
+
         sv = MagicMock()
         sv.linkml_yaml = yaml_text
         return sv
 
     def _slot_names(self, sv):
         from apps.export.management.commands.migrate_graph import _slot_names
+
         return _slot_names(sv)
 
     def _enum_values(self, sv):
         from apps.export.management.commands.migrate_graph import _enum_values
+
         return _enum_values(sv)
 
     def test_slot_names_from_real_schema(self):
@@ -103,15 +108,29 @@ class TestSchemaDiff:
 
     def test_has_value_flat(self):
         from apps.export.management.commands.migrate_graph import _has_value
+
         assert _has_value({"predicate": "pos"}, "predicate") is True
         assert _has_value({"predicate": ""}, "predicate") is False
         assert _has_value({}, "predicate") is False
 
     def test_has_value_nested(self):
         from apps.export.management.commands.migrate_graph import _has_value
+
         data = {"mediation": {"has_mediator": "yes"}}
         assert _has_value(data, "mediation__has_mediator") is True
         assert _has_value(data, "mediation__mediator_notes") is False
+
+
+def test_audit_admin_is_append_only():
+    from django.contrib.admin.sites import AdminSite
+
+    from apps.audit.admin import AuditEventAdmin
+    from apps.audit.models import AuditEvent
+
+    admin = AuditEventAdmin(AuditEvent, AdminSite())
+    assert admin.has_add_permission(None) is False
+    assert admin.has_change_permission(None) is False
+    assert admin.has_delete_permission(None) is False
 
 
 # ── DB fixtures ───────────────────────────────────────────────────────────────
@@ -138,6 +157,7 @@ def project_with_roles(db):
 @pytest.fixture
 def schema_version(db):
     from apps.schemas.models import SchemaVersion
+
     if not SCHEMA_PATH.exists():
         pytest.skip("CAMO schema not found")
     return SchemaVersion.objects.create(
@@ -154,33 +174,47 @@ def submitted_graph(project_with_roles, schema_version):
 
     project, admin, annotator, reviewer = project_with_roles
     doc = Document.objects.create(
-        project=project, source="manual",
+        project=project,
+        source="manual",
         title="Buckthorn paper",
         canonical_text="Rhamnus cathartica increases soil N.",
     )
     assignment = Assignment.objects.create(
-        project=project, document=doc,
-        annotator=annotator, assigned_by=admin,
+        project=project,
+        document=doc,
+        annotator=annotator,
+        assigned_by=admin,
         status=Assignment.STATUS_SUBMITTED,
     )
     graph = CausalGraph.objects.create(
-        document=doc, annotator=annotator, schema_version=schema_version,
+        document=doc,
+        annotator=annotator,
+        schema_version=schema_version,
     )
     assignment.graph = graph
     assignment.save(update_fields=["graph"])
 
     node_a = Node.objects.create(
-        graph=graph, node_id="na", name="Buckthorn",
-        data={"entity_type": "biotic"}, schema_version=schema_version,
+        graph=graph,
+        node_id="na",
+        name="Buckthorn",
+        data={"entity_type": "biotic"},
+        schema_version=schema_version,
     )
     node_b = Node.objects.create(
-        graph=graph, node_id="nb", name="Soil N",
-        data={"entity_type": "abiotic"}, schema_version=schema_version,
+        graph=graph,
+        node_id="nb",
+        name="Soil N",
+        data={"entity_type": "abiotic"},
+        schema_version=schema_version,
     )
     edge = Edge.objects.create(
-        graph=graph, edge_id="e1",
-        subject=node_a, object=node_b,
-        predicate="positively_regulates", claim_strength="tendency",
+        graph=graph,
+        edge_id="e1",
+        subject=node_a,
+        object=node_b,
+        predicate="positively_regulates",
+        claim_strength="tendency",
         status=Edge.STATUS_COMPLETE,
         data={"philosophical_account": "mechanistic", "certainty_grade": "0.8"},
         schema_version=schema_version,
@@ -197,7 +231,9 @@ class TestAdjudicateEdgeDB:
 
         from apps.annotation.models import Edge
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         client = Client()
         client.login(username="reviewer_u", password="pw")
         url = f"/annotation/{project.pk}/documents/{doc.pk}/review/graphs/{graph.pk}/edges/{edge.pk}/adjudicate/"
@@ -212,7 +248,9 @@ class TestAdjudicateEdgeDB:
         from apps.annotation.models import Edge
         from apps.annotation.services import adjudicate_edge
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         # First advance to reviewed
         adjudicate_edge(edge, reviewer)
 
@@ -227,7 +265,9 @@ class TestAdjudicateEdgeDB:
     def test_annotator_cannot_adjudicate(self, submitted_graph):
         from django.test import Client
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         client = Client()
         client.login(username="annotator_u", password="pw")
         url = f"/annotation/{project.pk}/documents/{doc.pk}/review/graphs/{graph.pk}/edges/{edge.pk}/adjudicate/"
@@ -237,7 +277,9 @@ class TestAdjudicateEdgeDB:
     def test_review_document_view(self, submitted_graph):
         from django.test import Client
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         client = Client()
         client.login(username="reviewer_u", password="pw")
         resp = client.get(f"/annotation/{project.pk}/documents/{doc.pk}/review/")
@@ -254,7 +296,9 @@ class TestTimeReport:
 
         from apps.annotation.models import WorkSession
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
 
         # Create a session with known active time
         WorkSession.objects.create(
@@ -282,7 +326,9 @@ class TestTimeReport:
     def test_non_admin_cannot_download(self, submitted_graph):
         from django.test import Client
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         client = Client()
         client.login(username="annotator_u", password="pw")
         resp = client.get(f"/projects/{project.pk}/time-report.csv")
@@ -296,7 +342,9 @@ class TestIRRExport:
     def test_csv_contains_edge_data(self, submitted_graph):
         from django.test import Client
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         client = Client()
         client.login(username="admin_u", password="pw")
         resp = client.get(f"/projects/{project.pk}/irr-export.csv")
@@ -312,7 +360,9 @@ class TestIRRExport:
     def test_non_admin_cannot_download(self, submitted_graph):
         from django.test import Client
 
-        project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
         client = Client()
         client.login(username="annotator_u", password="pw")
         resp = client.get(f"/projects/{project.pk}/irr-export.csv")

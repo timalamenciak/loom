@@ -13,6 +13,7 @@ from django.views import View
 
 from apps.documents.models import TextSpan
 from apps.documents.services import ensure_canonical_text, render_highlighted_text
+from apps.ontology.models import OntologySnapshot
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 from apps.schemas.schema_engine import get_schema_view
@@ -24,7 +25,9 @@ from .services import (
     advance_edge_status,
     close_session,
     create_edge,
+    create_graph,
     create_node,
+    delete_node,
     emit_audit,
     heartbeat,
     open_session,
@@ -42,7 +45,9 @@ def _load_ui_config():
 
     import yaml
 
-    config_path = Path(__file__).resolve().parent.parent.parent / "config" / "loom_ui.yaml"
+    config_path = (
+        Path(__file__).resolve().parent.parent.parent / "config" / "loom_ui.yaml"
+    )
     try:
         with config_path.open() as f:
             return yaml.safe_load(f) or {}
@@ -60,7 +65,9 @@ def _get_active_schema():
 def _require_member(request, project):
     if request.user.is_superuser:
         return
-    if not ProjectMembership.objects.filter(project=project, user=request.user).exists():
+    if not ProjectMembership.objects.filter(
+        project=project, user=request.user
+    ).exists():
         raise PermissionDenied
 
 
@@ -70,7 +77,9 @@ def _is_htmx(request):
 
 def _graph_nodes_edges(graph):
     nodes = list(graph.nodes.order_by("name"))
-    edges = list(graph.edges.select_related("subject", "object").order_by("-created_at"))
+    edges = list(
+        graph.edges.select_related("subject", "object").order_by("-created_at")
+    )
     return nodes, edges
 
 
@@ -91,7 +100,9 @@ def _user_graph_queryset(document, user):
     )
 
 
-def _get_or_create_user_graph(document, user, schema_version, assignment=None):
+def _get_or_create_user_graph(
+    document, user, schema_version, ontology_snapshot=None, assignment=None
+):
     """Return a deterministic graph for this annotator/document pair.
 
     Older data may contain more than one graph for the same annotator and
@@ -108,10 +119,11 @@ def _get_or_create_user_graph(document, user, schema_version, assignment=None):
         return graph, False
 
     return (
-        CausalGraph.objects.create(
-            document=document,
-            annotator=user,
-            schema_version=schema_version,
+        create_graph(
+            document,
+            user,
+            schema_version,
+            ontology_snapshot=ontology_snapshot,
         ),
         True,
     )
@@ -148,22 +160,31 @@ class AnnotationView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk, project=project)
         ensure_canonical_text(document)
 
-        schema_version, lsv = _get_active_schema()
-        if not lsv:
-            messages.error(request, "No active schema. Ask an admin to load one.")
-            return redirect("project-detail", pk=pk)
-
         # Session tracking via assignment
         assignment = Assignment.objects.filter(
             document=document, annotator=request.user
         ).first()
 
-        graph, created = _get_or_create_user_graph(
-            document, request.user, schema_version, assignment=assignment
-        )
-        if created:
-            emit_audit(request.user, "graph.create", "CausalGraph", graph.pk)
+        existing_graph = _user_graph_queryset(document, request.user).first()
+        new_graph_schema = project.active_schema or SchemaVersion.get_active()
+        if not new_graph_schema and not existing_graph:
+            messages.error(
+                request,
+                "This project has no LinkML schema. Ask the owner to configure it.",
+            )
+            return redirect("project-detail", pk=pk)
 
+        graph, _created = _get_or_create_user_graph(
+            document,
+            request.user,
+            new_graph_schema,
+            ontology_snapshot=(
+                project.ontology_snapshot or OntologySnapshot.get_active()
+            ),
+            assignment=assignment,
+        )
+        schema_version = graph.schema_version
+        lsv = get_schema_view(schema_version)
         session = None
         if assignment:
             # Link this assignment to the graph the workspace will use.
@@ -187,15 +208,18 @@ class AnnotationView(LoginRequiredMixin, View):
                 render_highlighted_text(document.canonical_text, spans)
             )
 
-        # Form specs from active schema
+        # Form specs from the graph-pinned schema
         ui = _load_ui_config()
         node_spec = lsv.form_spec(
-            "CausalNode", ontology_routing=ui.get("ontology_routing", {})
+            "CausalNode",
+            ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
         )
         edge_spec = lsv.form_spec(
             "CausalEdge",
             ui_layers=ui.get("layers"),
             ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
         )
 
         nodes, edges = _graph_nodes_edges(graph)
@@ -250,9 +274,10 @@ class NodeFormView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk, project=project)
         graph = _get_user_graph_or_404(document, request.user)
 
-        _, lsv = _get_active_schema()
+        lsv = get_schema_view(graph.schema_version)
         if not lsv:
             from django.http import HttpResponse
+
             return HttpResponse(
                 '<p class="message message-error" style="padding:1rem">'
                 "No active schema — ask an administrator to load one.</p>",
@@ -260,7 +285,9 @@ class NodeFormView(LoginRequiredMixin, View):
             )
         ui = _load_ui_config()
         node_spec = lsv.form_spec(
-            "CausalNode", ontology_routing=ui.get("ontology_routing", {})
+            "CausalNode",
+            ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
         )
 
         prefill: dict = {}
@@ -300,14 +327,20 @@ class NodeCreateView(LoginRequiredMixin, View):
         span_pk = raw.pop("_source_span_pk", None)
         data = _unflatten_post(raw)
 
-        node = create_node(graph, data)
-        emit_audit(request.user, "node.create", "Node", node.pk, data)
+        node = create_node(graph, data, actor=request.user)
 
         if span_pk:
             try:
                 span = TextSpan.objects.get(pk=int(span_pk), document=document)
                 span.node = node
                 span.save(update_fields=["node"])
+                emit_audit(
+                    request.user,
+                    "span.link",
+                    "TextSpan",
+                    span.pk,
+                    {"node_id": node.pk},
+                )
             except (TextSpan.DoesNotExist, ValueError):
                 pass
 
@@ -328,9 +361,10 @@ class NodeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
-        _, lsv = _get_active_schema()
+        lsv = get_schema_view(graph.schema_version)
         if not lsv:
             from django.http import HttpResponse
+
             return HttpResponse(
                 '<p class="message message-error" style="padding:1rem">'
                 "No active schema — ask an administrator to load one.</p>",
@@ -364,8 +398,7 @@ class NodeEditView(LoginRequiredMixin, View):
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
         data = _unflatten_post(raw)
-        update_node(node, data)
-        emit_audit(request.user, "node.update", "Node", node.pk, data)
+        update_node(node, data, actor=request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
@@ -385,8 +418,7 @@ class NodeDeleteView(LoginRequiredMixin, View):
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         name = node.name
-        emit_audit(request.user, "node.delete", "Node", node.pk)
-        node.delete()
+        delete_node(node, request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
@@ -405,6 +437,7 @@ def _edge_form_spec(lsv, ui):
         "CausalEdge",
         ui_layers=ui.get("layers"),
         ontology_routing=ui.get("ontology_routing", {}),
+        widget_overrides=ui.get("widget_overrides", {}),
     )
 
 
@@ -417,9 +450,10 @@ class EdgeFormView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk, project=project)
         graph = _get_user_graph_or_404(document, request.user)
 
-        _, lsv = _get_active_schema()
+        lsv = get_schema_view(graph.schema_version)
         if not lsv:
             from django.http import HttpResponse
+
             return HttpResponse(
                 '<p class="message message-error" style="padding:1rem">'
                 "No active schema — ask an administrator to load one.</p>",
@@ -478,14 +512,20 @@ class EdgeCreateView(LoginRequiredMixin, View):
         object_node = get_object_or_404(Node, graph=graph, node_id=object_id)
 
         data = _unflatten_post(raw)
-        edge = create_edge(graph, subject, object_node, data)
-        emit_audit(request.user, "edge.create", "Edge", edge.pk, data)
+        edge = create_edge(graph, subject, object_node, data, actor=request.user)
 
         if span_pk:
             try:
                 span = TextSpan.objects.get(pk=int(span_pk), document=document)
                 span.edge = edge
                 span.save(update_fields=["edge"])
+                emit_audit(
+                    request.user,
+                    "span.link",
+                    "TextSpan",
+                    span.pk,
+                    {"edge_id": edge.pk},
+                )
             except (TextSpan.DoesNotExist, ValueError):
                 pass
 
@@ -506,9 +546,10 @@ class EdgeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        _, lsv = _get_active_schema()
+        lsv = get_schema_view(graph.schema_version)
         if not lsv:
             from django.http import HttpResponse
+
             return HttpResponse(
                 '<p class="message message-error" style="padding:1rem">'
                 "No active schema — ask an administrator to load one.</p>",
@@ -549,15 +590,24 @@ class EdgeEditView(LoginRequiredMixin, View):
         object_id = raw.pop("object", None)
 
         subject = (
-            get_object_or_404(Node, graph=graph, node_id=subject_id) if subject_id else None
+            get_object_or_404(Node, graph=graph, node_id=subject_id)
+            if subject_id
+            else None
         )
         object_node = (
-            get_object_or_404(Node, graph=graph, node_id=object_id) if object_id else None
+            get_object_or_404(Node, graph=graph, node_id=object_id)
+            if object_id
+            else None
         )
 
         data = _unflatten_post(raw)
-        update_edge(edge, data, subject=subject, object_node=object_node)
-        emit_audit(request.user, "edge.update", "Edge", edge.pk, data)
+        update_edge(
+            edge,
+            data,
+            subject=subject,
+            object_node=object_node,
+            actor=request.user,
+        )
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
@@ -576,15 +626,7 @@ class EdgeAdvanceView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        old_status = edge.status
         advance_edge_status(edge, request.user)
-        emit_audit(
-            request.user,
-            "edge.advance",
-            "Edge",
-            edge.pk,
-            {"from": old_status, "to": edge.status},
-        )
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph)
@@ -605,15 +647,36 @@ class HeartbeatView(LoginRequiredMixin, View):
         except (json.JSONDecodeError, ValueError):
             return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-        active_delta = max(0, int(data.get("active_delta", 0)))
-        idle_delta = max(0, int(data.get("idle_delta", 0)))
-        ended = bool(data.get("ended", False))
+        if not isinstance(data, dict):
+            return JsonResponse({"error": "JSON body must be an object"}, status=400)
+        if session.ended_at is not None:
+            return JsonResponse({"error": "Session has already ended"}, status=409)
+
+        try:
+            active_delta = _nonnegative_int(data.get("active_delta", 0))
+            idle_delta = _nonnegative_int(data.get("idle_delta", 0))
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {"error": "Time deltas must be non-negative integers"}, status=400
+            )
+        ended = data.get("ended", False)
+        if not isinstance(ended, bool):
+            return JsonResponse({"error": "ended must be a boolean"}, status=400)
 
         heartbeat(session, active_delta, idle_delta)
         if ended:
             close_session(session)
 
         return JsonResponse({"ok": True, "active_seconds": session.active_seconds})
+
+
+def _nonnegative_int(value) -> int:
+    if isinstance(value, bool):
+        raise TypeError
+    parsed = int(value)
+    if parsed < 0:
+        raise ValueError
+    return parsed
 
 
 # ── Submit assignment ─────────────────────────────────────────────────────────
@@ -629,7 +692,9 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         )
 
         # Close all open sessions
-        for s in WorkSession.objects.filter(assignment=assignment, ended_at__isnull=True):
+        for s in WorkSession.objects.filter(
+            assignment=assignment, ended_at__isnull=True
+        ):
             close_session(s)
 
         submittable = {Assignment.STATUS_ASSIGNED, Assignment.STATUS_IN_PROGRESS}
@@ -654,7 +719,10 @@ def _require_reviewer_or_admin(request, project):
         return
     try:
         m = ProjectMembership.objects.get(project=project, user=request.user)
-        if m.role not in (ProjectMembership.ROLE_REVIEWER, ProjectMembership.ROLE_ADMIN):
+        if m.role not in (
+            ProjectMembership.ROLE_REVIEWER,
+            ProjectMembership.ROLE_ADMIN,
+        ):
             raise PermissionDenied
     except ProjectMembership.DoesNotExist:
         raise PermissionDenied
@@ -681,8 +749,9 @@ class ReviewDocumentView(LoginRequiredMixin, View):
             graph = assignment.graph
             nodes, edges = _graph_nodes_edges(graph) if graph else ([], [])
             active = (
-                WorkSession.objects.filter(assignment=assignment)
-                .aggregate(Sum("active_seconds"))["active_seconds__sum"]
+                WorkSession.objects.filter(assignment=assignment).aggregate(
+                    Sum("active_seconds")
+                )["active_seconds__sum"]
                 or 0
             )
             annotator_data.append(
@@ -696,9 +765,12 @@ class ReviewDocumentView(LoginRequiredMixin, View):
                 }
             )
 
-        is_admin = request.user.is_superuser or ProjectMembership.objects.filter(
-            project=project, user=request.user, role=ProjectMembership.ROLE_ADMIN
-        ).exists()
+        is_admin = (
+            request.user.is_superuser
+            or ProjectMembership.objects.filter(
+                project=project, user=request.user, role=ProjectMembership.ROLE_ADMIN
+            ).exists()
+        )
 
         return render(
             request,
@@ -722,15 +794,7 @@ class AdjudicateEdgeView(LoginRequiredMixin, View):
         graph = get_object_or_404(CausalGraph, pk=graph_pk, document=document)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        old_status = edge.status
         adjudicate_edge(edge, request.user)
-        emit_audit(
-            request.user,
-            "edge.adjudicate",
-            "Edge",
-            edge.pk,
-            {"from": old_status, "to": edge.status},
-        )
 
         return redirect("review-document", pk=pk, doc_pk=doc_pk)
 
@@ -742,15 +806,22 @@ class SchemaDemoView(LoginRequiredMixin, View):
     def get(self, request):
         schema_version, lsv = _get_active_schema()
         if not lsv:
-            return render(request, "annotation/schema_demo.html", {"schema_version": None})
+            return render(
+                request, "annotation/schema_demo.html", {"schema_version": None}
+            )
 
         ui = _load_ui_config()
         edge_spec = lsv.form_spec(
             "CausalEdge",
             ui_layers=ui.get("layers"),
             ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
         )
-        node_spec = lsv.form_spec("CausalNode", ontology_routing=ui.get("ontology_routing", {}))
+        node_spec = lsv.form_spec(
+            "CausalNode",
+            ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
+        )
 
         return render(
             request,

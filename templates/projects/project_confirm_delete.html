@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'project-settings' project.pk %}">Project settings</a> / Delete</div>
+<div class="form-wrap settings-card danger-zone">
+  <h1>Delete “{{ project.name }}”?</h1>
+  <p>This permanently deletes:</p>
+  <ul>
+    <li>{{ project.documents.count }} document{{ project.documents.count|pluralize }}</li>
+    <li>{{ project.assignments.count }} assignment{{ project.assignments.count|pluralize }}</li>
+    <li>{{ project.memberships.count }} project membership{{ project.memberships.count|pluralize }}</li>
+    <li>all annotation graphs, nodes, edges, spans, work sessions, and uploaded PDFs</li>
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label for="{{ form.confirmation.id_for_label }}">{{ form.confirmation.label }}</label>
+      {{ form.confirmation }}
+      <div class="help">Enter exactly: <code>{{ project.name }}</code></div>
+      {% if form.confirmation.errors %}<div class="field-error">{{ form.confirmation.errors }}</div>{% endif %}
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-danger">Permanently delete project</button>
+      <a href="{% url 'project-settings' project.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

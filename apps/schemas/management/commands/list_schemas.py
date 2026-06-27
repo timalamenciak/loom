@@ -9,7 +9,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         versions = SchemaVersion.objects.all()
         if not versions:
-            self.stdout.write("No schemas loaded. Run: python manage.py load_schema <file.yaml> --activate")
+            self.stdout.write(
+                "No schemas loaded. Run: python manage.py load_schema <file.yaml> --activate"
+            )
             return
         for sv in versions:
             active = " [ACTIVE]" if sv.is_active else ""

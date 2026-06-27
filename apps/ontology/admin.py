@@ -1,13 +1,20 @@
 from django.contrib import admin
 
-from .models import OntologySnapshot, OntologyTerm
+from .models import OntologyLoadRequest, OntologyRelease, OntologySnapshot, OntologyTerm
+
+
+@admin.register(OntologyRelease)
+class OntologyReleaseAdmin(admin.ModelAdmin):
+    list_display = ["prefix", "name", "status", "term_count", "loaded_at"]
+    list_filter = ["status", "prefix"]
+    readonly_fields = ["source_sha256", "loaded_at", "term_count"]
 
 
 @admin.register(OntologySnapshot)
 class OntologySnapshotAdmin(admin.ModelAdmin):
     list_display = ["name", "is_active", "built_at", "prefix_summary"]
     list_filter = ["is_active"]
-    readonly_fields = ["built_at", "source_versions"]
+    readonly_fields = ["built_at", "source_versions", "manifest_sha256"]
     actions = ["set_active"]
 
     @admin.display(description="Prefixes loaded")
@@ -24,7 +31,14 @@ class OntologySnapshotAdmin(admin.ModelAdmin):
 
 @admin.register(OntologyTerm)
 class OntologyTermAdmin(admin.ModelAdmin):
-    list_display = ["curie", "label", "prefix", "obsolete", "snapshot"]
-    list_filter = ["prefix", "obsolete", "snapshot"]
+    list_display = ["curie", "label", "prefix", "obsolete", "release", "snapshot"]
+    list_filter = ["prefix", "obsolete", "release", "snapshot"]
     search_fields = ["curie", "label", "synonym_labels"]
-    readonly_fields = ["snapshot", "curie", "prefix"]
+    readonly_fields = ["snapshot", "release", "curie", "prefix"]
+
+
+@admin.register(OntologyLoadRequest)
+class OntologyLoadRequestAdmin(admin.ModelAdmin):
+    list_display = ["project", "status", "requested_by", "created_at", "finished_at"]
+    list_filter = ["status"]
+    readonly_fields = ["created_at", "started_at", "finished_at", "error"]

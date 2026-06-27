@@ -14,12 +14,14 @@ from apps.schemas.models import SchemaVersion
 
 def _slot_names(sv):
     from linkml_runtime.utils.schemaview import SchemaView
+
     schema = SchemaView(sv.linkml_yaml)
     return set(schema.all_slots().keys())
 
 
 def _enum_values(sv):
     from linkml_runtime.utils.schemaview import SchemaView
+
     schema = SchemaView(sv.linkml_yaml)
     return {
         name: set(enum.permissible_values.keys())
@@ -75,7 +77,9 @@ class Command(BaseCommand):
             )
 
         if old_sv.pk == new_sv.pk:
-            self.stdout.write(self.style.WARNING("Graph is already on this schema version."))
+            self.stdout.write(
+                self.style.WARNING("Graph is already on this schema version.")
+            )
             return
 
         self.stdout.write(f"\n{'='*60}")
@@ -176,5 +180,7 @@ class Command(BaseCommand):
                 )
             )
         else:
-            self.stdout.write(self.style.SUCCESS("No breaking changes — safe to migrate."))
+            self.stdout.write(
+                self.style.SUCCESS("No breaking changes — safe to migrate.")
+            )
         self.stdout.write("")

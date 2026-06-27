@@ -2,6 +2,23 @@
 
 Self-hosted annotation workbench for the **Causal Mosaic (CAMO)** schema. Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
 
+Current package version: **0.1.0** (semantic versioning). The single source of
+truth is `loom.__version__`; build metadata and export provenance derive from it.
+
+## What is implemented
+
+- Project membership, per-document assignment, review, and adjudication
+- PDF upload, RIS and RIS/PDF bundle import, canonical-text extraction, and spans
+- Schema-derived node and edge forms pinned to each project and graph
+- Project-pinned ontology snapshots with local search and queued loading
+- Active/idle/open time tracking for annotation sessions
+- Audited graph writes and LinkML-validated YAML export with SHA-256 provenance
+- Deterministic Rosetta statements and fuzzy cognitive map weights
+
+Loom stores schema payloads in JSON rather than CAMO-specific relational
+columns. Adding or changing a CAMO slot belongs in the LinkML schema and, when
+presentation needs help, `config/loom_ui.yaml`—not in a Django form or model.
+
 ## Requirements
 
 - Python 3.11+
@@ -27,14 +44,19 @@ docker compose up -d
 make migrate
 make superuser
 
-# 5. Load the CAMO schema
-docker compose exec web python manage.py load_schema config/schema/camo-0.4.0.yaml --activate
+# 5. Load a bundled CAMO schema
+docker compose exec web python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
 
 # 6. (Optional) Preload ontologies
 docker compose exec web python manage.py load_ontology --all
 ```
 
 Open http://localhost:8000 and log in.
+
+Project owners can then open **Project → Settings** to pin a LinkML schema,
+review automatically inferred ontology requirements, select additional
+configured ontologies, or delete the project. Ontology downloads run in the
+`ontology-worker` Compose service so large term sets do not block web requests.
 
 ## Environment variables
 
@@ -62,8 +84,8 @@ pip install -e ".[dev]"
 # Apply migrations
 python manage.py migrate
 
-# Load schema and (optionally) ontologies
-python manage.py load_schema config/schema/camo-0.4.0.yaml --activate
+# Load a schema and (optionally) ontologies
+python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
 python manage.py load_ontology --all
 
 # Create admin user
@@ -77,7 +99,7 @@ python manage.py runserver
 
 ```bash
 # Schema
-python manage.py load_schema config/schema/camo-0.4.0.yaml --activate
+python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
 python manage.py list_schemas
 
 # Projects and documents
@@ -88,9 +110,11 @@ python manage.py attach_pdf <document_id> paper.pdf
 # Ontologies
 python manage.py load_ontology envo
 python manage.py load_ontology --all
+python manage.py process_ontology_loads       # process queued project loads once
+python manage.py process_ontology_loads --watch
 
 # Export and validation
-python manage.py export_graph <graph_id> --format yaml --validate -o out.yaml
+python manage.py export_graph <graph_id> --validate -o out.yaml
 python manage.py validate_graph <graph_id>
 
 # Schema migration assistant (read-only report)
@@ -105,17 +129,32 @@ make stop         # docker compose down
 make migrate      # run pending migrations
 make lint         # ruff + black check
 make fmt          # ruff + black auto-fix
-make test         # pytest (pure-Python tests; DB tests require Postgres)
+make test         # pytest against the configured database
 make clean        # remove containers, volumes, caches
 ```
+
+`make test` uses the configured PostgreSQL database. When PostgreSQL or Docker
+is unavailable, run the complete suite with the local SQLite fallback:
+
+```bash
+# macOS/Linux
+DJANGO_SETTINGS_MODULE=loom.settings.test_sqlite pytest
+
+# PowerShell
+$env:DJANGO_SETTINGS_MODULE="loom.settings.test_sqlite"; pytest
+```
+
+The repository currently contains 206 automated tests. CI also runs Ruff and
+Black checks before the PostgreSQL-backed suite.
 
 ## Production deployment
 
 1. Set `DEBUG=False` and `ALLOWED_HOSTS` in `.env`.
 2. Use `loom.settings.prod` as the settings module (`DJANGO_SETTINGS_MODULE`).
 3. Serve static files with WhiteNoise (already configured) or an upstream proxy.
-4. Run with gunicorn: `gunicorn loom.wsgi:application --bind 0.0.0.0:8000`
-5. Put Nginx or Caddy in front for TLS termination.
+4. Run `python manage.py collectstatic --noinput` during deployment.
+5. Run with gunicorn: `gunicorn loom.wsgi:application --bind 0.0.0.0:8000`
+6. Put Nginx or Caddy in front for TLS termination.
 
 `prod.py` enforces `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, and a one-year HSTS header — ensure your proxy passes the `X-Forwarded-Proto` header.
 
@@ -132,7 +171,7 @@ loom/
     schemas/            # CAMO LinkML versions, SchemaView wrapper
     documents/          # PDF upload, RIS import, text extraction
     annotation/         # graphs, nodes, edges, annotation UI
-    ontology/           # local term index, OLS fallback
+    ontology/           # local ontology term index and search
     export/             # YAML serializer, LinkML validation, Rosetta/FCM rendering
     audit/              # append-only AuditEvent log
   config/
@@ -153,3 +192,14 @@ loom/
 | `admin` | All reviewer capabilities + manage members, assignments, export CSVs |
 
 Roles are per-project. A user can be an admin in one project and an annotator in another.
+
+## Versioning
+
+Loom follows semantic versioning while it is pre-1.0:
+
+- Patch releases fix behavior without changing supported workflows.
+- Minor releases may add or revise application workflows.
+- The CAMO schema has its own independently pinned version on every graph.
+
+Update `loom/__init__.py` for an application release. Do not manually change
+the exporter version or duplicate the package version elsewhere.

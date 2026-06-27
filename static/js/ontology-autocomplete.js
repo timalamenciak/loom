@@ -30,6 +30,8 @@ const OntologyAutocomplete = {
     },
 
     attach(input) {
+        if (input.dataset.ontologyAutocompleteAttached === 'true') return;
+        input.dataset.ontologyAutocompleteAttached = 'true';
         let debounceTimer = null;
         const dropdown = this._buildDropdown();
         input.setAttribute('autocomplete', 'off');
@@ -109,7 +111,8 @@ const OntologyAutocomplete = {
 
     async _fetch(input, dropdown, q) {
         const prefixes = input.dataset.ontologyPrefixes || '';
-        const url = `${this._searchUrl}?q=${encodeURIComponent(q)}&prefixes=${encodeURIComponent(prefixes)}`;
+        const separator = this._searchUrl.includes('?') ? '&' : '?';
+        const url = `${this._searchUrl}${separator}q=${encodeURIComponent(q)}&prefixes=${encodeURIComponent(prefixes)}`;
 
         let data;
         try {

@@ -17,14 +17,14 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     # Loom apps — uncomment as each phase lands
     "apps.accounts",
-    "apps.projects",     # Phase 1
-    "apps.schemas",      # Phase 2
-    "apps.annotation",   # Phase 2 (models) — full UI in Phase 5
-    "apps.documents",    # Phase 3
-    "apps.ontology",     # Phase 4
-    "apps.export",      # Phase 6
+    "apps.projects",  # Phase 1
+    "apps.schemas",  # Phase 2
+    "apps.annotation",  # Phase 2 (models) — full UI in Phase 5
+    "apps.documents",  # Phase 3
+    "apps.ontology",  # Phase 4
+    "apps.export",  # Phase 6
     # "apps.llm",        # Phase 12 (seam only, disabled by flag)
-    "apps.audit",      # Phase 5
+    "apps.audit",  # Phase 5
 ]
 
 MIDDLEWARE = [
@@ -72,7 +72,9 @@ DATABASES = {
 AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},

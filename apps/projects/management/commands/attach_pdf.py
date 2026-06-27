@@ -13,7 +13,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            doc = Document.objects.select_related("project").get(pk=options["document_id"])
+            doc = Document.objects.select_related("project").get(
+                pk=options["document_id"]
+            )
         except Document.DoesNotExist:
             raise CommandError(f"No document with id {options['document_id']}.")
 
@@ -24,7 +26,5 @@ class Command(BaseCommand):
             raise CommandError(f"File not found: {options['pdf_file']}")
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Attached PDF to document #{doc.pk}: {doc.title[:60]}"
-            )
+            self.style.SUCCESS(f"Attached PDF to document #{doc.pk}: {doc.title[:60]}")
         )

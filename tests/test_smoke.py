@@ -52,3 +52,13 @@ def test_llm_proposals_disabled():
     from django.conf import settings
 
     assert settings.LLM_PROPOSALS_ENABLED is False
+
+
+def test_package_exposes_semantic_version():
+    import re
+
+    from apps.export.serializer import EXPORTER_VERSION
+    from loom import __version__
+
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", __version__)
+    assert EXPORTER_VERSION == f"loom-{__version__}"

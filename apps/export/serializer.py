@@ -11,75 +11,95 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 
-EXPORTER_VERSION = "loom-0.1.0"
+from linkml_runtime.utils.schemaview import SchemaView
 
-# EvidentialBasis / TemporalExtent integer slots
-_INTEGER_SLOTS = {"n_observations"}
+from loom import __version__
 
-# Float slots
-_FLOAT_SLOTS = {
-    "certainty_grade",
-    "p_value",
-    "effect_size",
-    "confidence_interval_low",
-    "confidence_interval_high",
-    "lag_time_value",
-    "duration_value",
-}
+EXPORTER_VERSION = f"loom-{__version__}"
 
 
-def _cast(slot_name: str, value):
+def _schema_slot_ranges(schema_yaml: str) -> dict[str, str]:
+    """Return slot ranges from the graph-pinned schema."""
+    view = SchemaView(schema_yaml)
+    return {
+        name: (slot.range or "string").lower()
+        for name, slot in view.all_slots().items()
+    }
+
+
+def _cast(slot_name: str, value, slot_ranges: dict[str, str] | None = None):
     """Return value cast to the schema-correct Python type."""
     if value is None or value == "":
         return None
-    if slot_name in _INTEGER_SLOTS:
+    slot_range = (slot_ranges or {}).get(slot_name, "")
+    if slot_range in {"integer", "int"}:
         try:
             return int(value)
         except (ValueError, TypeError):
             return value
-    if slot_name in _FLOAT_SLOTS:
+    if slot_range in {"float", "double", "decimal"}:
         try:
             return float(value)
         except (ValueError, TypeError):
             return value
+    if slot_range in {"boolean", "bool"}:
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
     return value
 
 
-def _clean(d: dict) -> dict:
+def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
     """Strip None/empty-string values recursively; cast numeric fields by slot name."""
     out: dict = {}
     for k, v in d.items():
         if isinstance(v, dict):
-            cleaned = _clean(v)
+            cleaned = _clean(v, slot_ranges)
             if cleaned:
                 out[k] = cleaned
         elif isinstance(v, list):
-            cleaned = [item for item in v if item not in (None, "")]
+            cleaned = []
+            for item in v:
+                if isinstance(item, dict):
+                    nested = _clean(item, slot_ranges)
+                    if nested:
+                        cleaned.append(nested)
+                else:
+                    casted = _cast(k, item, slot_ranges)
+                    if casted is not None and casted != "":
+                        cleaned.append(casted)
             if cleaned:
                 out[k] = cleaned
         else:
-            casted = _cast(k, v)
+            casted = _cast(k, v, slot_ranges)
             if casted is not None and casted != "":
                 out[k] = casted
     return out
 
 
-def _serialize_node(node) -> dict:
+def _serialize_node(node, slot_ranges: dict[str, str]) -> dict:
     base = {"node_id": node.node_id, "name": node.name}
     merged = {**node.data, **base}
-    return _clean(merged)
+    return _clean(merged, slot_ranges)
 
 
-def _serialize_spans(edge) -> list[dict]:
+def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
     out = []
     for s in edge.spans.all().order_by("start_char"):
-        span = _clean({"start_char": s.start_char, "end_char": s.end_char, "span_text": s.text})
+        span = _clean(
+            {"start_char": s.start_char, "end_char": s.end_char, "span_text": s.text},
+            slot_ranges,
+        )
         if span:
             out.append(span)
     return out
 
 
-def _serialize_edge(edge) -> dict:
+def _serialize_edge(edge, slot_ranges: dict[str, str]) -> dict:
     base = {
         "edge_id": edge.edge_id,
         "subject": edge.subject.node_id,
@@ -92,17 +112,17 @@ def _serialize_edge(edge) -> dict:
     if edge.claim_strength:
         merged["claim_strength"] = edge.claim_strength
 
-    result = _clean(merged)
+    result = _clean(merged, slot_ranges)
 
     # DB-linked spans are authoritative; replace any JSONB source_spans
-    spans = _serialize_spans(edge)
+    spans = _serialize_spans(edge, slot_ranges)
     if spans:
         result["source_spans"] = spans
 
     return result
 
 
-def _serialize_source_document(document) -> dict:
+def _serialize_source_document(document, slot_ranges: dict[str, str]) -> dict:
     d: dict = {}
     if document.title:
         d["doc_title"] = document.title
@@ -114,7 +134,7 @@ def _serialize_source_document(document) -> dict:
         d["doc_doi"] = document.doi
     if document.journal:
         d["doc_journal"] = document.journal
-    return d
+    return _clean(d, slot_ranges)
 
 
 def serialize_graph(graph) -> dict:
@@ -124,14 +144,19 @@ def serialize_graph(graph) -> dict:
     Does not include provenance — caller adds it with build_provenance() after
     serializing to YAML and computing the SHA-256.
     """
-    nodes = [_serialize_node(n) for n in graph.nodes.all().order_by("name")]
+    slot_ranges = _schema_slot_ranges(graph.schema_version.linkml_yaml)
+    nodes = [
+        _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
+    ]
     edges = [
-        _serialize_edge(e)
-        for e in graph.edges.select_related("subject", "object").all().order_by("-created_at")
+        _serialize_edge(e, slot_ranges)
+        for e in graph.edges.select_related("subject", "object")
+        .all()
+        .order_by("-created_at")
     ]
     return {
         "graph_id": str(graph.pk),
-        "source_document": _serialize_source_document(graph.document),
+        "source_document": _serialize_source_document(graph.document, slot_ranges),
         "nodes": nodes,
         "edges": edges,
     }
@@ -141,7 +166,7 @@ def build_provenance(
     graph,
     yaml_bytes: bytes,
     *,
-    ontology_snapshot_id: str = "none",
+    ontology_snapshot_id: str | None = None,
 ) -> dict:
     """
     Build GraphProvenance dict.
@@ -149,6 +174,13 @@ def build_provenance(
     SHA-256 is computed over yaml_bytes — the caller passes the serialized YAML
     produced *before* provenance is embedded, so the hash is reproducible.
     """
+    if ontology_snapshot_id is None:
+        snapshot = getattr(graph, "ontology_snapshot", None)
+        if snapshot:
+            fingerprint = snapshot.manifest_sha256 or f"legacy-{snapshot.pk}"
+            ontology_snapshot_id = f"snapshot-{snapshot.pk}:{fingerprint}"
+        else:
+            ontology_snapshot_id = "none"
     return {
         "schema_version_str": graph.schema_version.version,
         "ontology_snapshot_id": ontology_snapshot_id,

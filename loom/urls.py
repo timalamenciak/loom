@@ -21,7 +21,9 @@ urlpatterns = [
     ),
     path(
         "docs/annotating-your-first-paper/",
-        login_required(TemplateView.as_view(template_name="docs/annotating-your-first-paper.html")),
+        login_required(
+            TemplateView.as_view(template_name="docs/annotating-your-first-paper.html")
+        ),
         name="docs-annotating-first-paper",
     ),
     path(

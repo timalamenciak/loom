@@ -17,7 +17,9 @@ class SchemaVersionAdmin(admin.ModelAdmin):
     @admin.action(description="Set selected schema as active")
     def set_active(self, request, queryset):
         if queryset.count() != 1:
-            self.message_user(request, "Select exactly one schema to activate.", level="error")
+            self.message_user(
+                request, "Select exactly one schema to activate.", level="error"
+            )
             return
         sv = queryset.first()
         sv.is_active = True

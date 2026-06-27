@@ -18,28 +18,17 @@ from apps.export.validators import validate_graph_data
 
 def _require_access(request, graph):
     project = graph.document.project
+    if request.user.is_superuser:
+        return
     if not project.memberships.filter(user=request.user).exists():
         raise Http404
-
-
-def _ontology_snapshot_id(graph) -> str:
-    try:
-        from apps.ontology.models import OntologyTerm
-        count = OntologyTerm.objects.count()
-        return f"local-{count}"
-    except Exception:
-        return "none"
 
 
 def _export_data(graph) -> tuple[dict, str, str]:
     """Return (data_dict, final_yaml, sha256) for a graph."""
     data = serialize_graph(graph)
     pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
-    prov = build_provenance(
-        graph,
-        pre_yaml.encode(),
-        ontology_snapshot_id=_ontology_snapshot_id(graph),
-    )
+    prov = build_provenance(graph, pre_yaml.encode())
     data["provenance"] = prov
     final_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
     return data, final_yaml, prov["export_sha256"]
@@ -50,7 +39,9 @@ class ExportGraphView(LoginRequiredMixin, View):
 
     def get(self, request, graph_pk):
         graph = get_object_or_404(
-            CausalGraph.objects.select_related("document__project", "schema_version"),
+            CausalGraph.objects.select_related(
+                "document__project", "schema_version", "ontology_snapshot"
+            ),
             pk=graph_pk,
         )
         _require_access(request, graph)
@@ -59,7 +50,9 @@ class ExportGraphView(LoginRequiredMixin, View):
 
         if request.GET.get("download"):
             resp = HttpResponse(final_yaml, content_type="application/x-yaml")
-            resp["Content-Disposition"] = f'attachment; filename="graph-{graph_pk}.yaml"'
+            resp["Content-Disposition"] = (
+                f'attachment; filename="graph-{graph_pk}.yaml"'
+            )
             return resp
 
         schema_yaml = graph.schema_version.linkml_yaml
@@ -87,7 +80,9 @@ class ValidateGraphView(LoginRequiredMixin, View):
 
     def get(self, request, graph_pk):
         graph = get_object_or_404(
-            CausalGraph.objects.select_related("document__project", "schema_version"),
+            CausalGraph.objects.select_related(
+                "document__project", "schema_version", "ontology_snapshot"
+            ),
             pk=graph_pk,
         )
         _require_access(request, graph)

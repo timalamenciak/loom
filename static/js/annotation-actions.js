@@ -33,7 +33,7 @@
     }
 
     function initFormEnhancements() {
-        window.OntologyAutocomplete?.init('/ontology/search/');
+        window.OntologyAutocomplete?.init(window.loomOntologySearchUrl || '/ontology/search/');
     }
 
     function swapHtml(target, html) {

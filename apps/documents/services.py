@@ -2,6 +2,8 @@
 
 import html as _html
 
+from django.db import transaction
+
 from .models import TextSpan
 
 # ---------------------------------------------------------------------------
@@ -55,7 +57,10 @@ def pdf_text_needs_extraction(document) -> bool:
         return False
     if not document.canonical_text:
         return True
-    if document.abstract and document.canonical_text.strip() == document.abstract.strip():
+    if (
+        document.abstract
+        and document.canonical_text.strip() == document.abstract.strip()
+    ):
         return not bool(document.page_map)
     return False
 
@@ -84,6 +89,7 @@ def ensure_canonical_text(document) -> bool:
 # ---------------------------------------------------------------------------
 
 
+@transaction.atomic
 def create_span(
     document,
     start_char: int,
@@ -93,13 +99,33 @@ def create_span(
     """Create a TextSpan; snaps the text snippet from canonical_text."""
     canonical = document.canonical_text or ""
     text = canonical[start_char:end_char]
-    return TextSpan.objects.create(
+    span = TextSpan.objects.create(
         document=document,
         start_char=start_char,
         end_char=end_char,
         text=text,
         created_by=created_by,
     )
+    if created_by is not None:
+        from apps.annotation.services import emit_audit
+
+        emit_audit(
+            created_by,
+            "span.create",
+            "TextSpan",
+            span.pk,
+            {"start_char": start_char, "end_char": end_char},
+        )
+    return span
+
+
+@transaction.atomic
+def delete_span(span: TextSpan, actor) -> None:
+    """Delete a span through the audited document service boundary."""
+    from apps.annotation.services import emit_audit
+
+    emit_audit(actor, "span.delete", "TextSpan", span.pk)
+    span.delete()
 
 
 # ---------------------------------------------------------------------------
@@ -108,46 +134,38 @@ def create_span(
 
 
 def render_highlighted_text(canonical_text: str, spans) -> str:
-    """Return HTML with <mark> tags injected around each span region.
-
-    Uses an event-sweep so overlapping spans close before opening at the
-    same boundary, preventing malformed nesting.
-    """
+    """Return escaped HTML with valid, non-nested marks for span regions."""
     if not canonical_text:
         return ""
 
-    # (char_pos, sort_key, html_fragment)
-    #   sort_key 0 = close, 1 = open  →  closes are emitted before opens at the same pos
-    events: list[tuple] = []
+    valid_spans: list[tuple[int, int, object]] = []
+    boundaries = {0, len(canonical_text)}
     for span in spans:
         s, e = span.start_char, span.end_char
         if s < 0 or e <= s or s > len(canonical_text):
             continue
         e = min(e, len(canonical_text))
-        events.append(
-            (
-                s,
-                1,
-                (
-                    f'<mark class="span-highlight" data-span-pk="{span.pk}"'
-                    f' title="{_html.escape(span.text[:80])}"'
-                    f' data-href="#span-{span.pk}">'
-                ),
-            )
-        )
-        events.append((e, 0, "</mark>"))
-
-    events.sort(key=lambda ev: (ev[0], ev[1]))
+        valid_spans.append((s, e, span))
+        boundaries.update((s, e))
 
     parts: list[str] = []
-    pos = 0
-    for char_pos, _, tag in events:
-        if char_pos > pos:
-            parts.append(_html.escape(canonical_text[pos:char_pos]))
-        parts.append(tag)
-        pos = max(pos, char_pos)
-
-    if pos < len(canonical_text):
-        parts.append(_html.escape(canonical_text[pos:]))
+    ordered = sorted(boundaries)
+    for start, end in zip(ordered, ordered[1:]):
+        if end <= start:
+            continue
+        text = _html.escape(canonical_text[start:end])
+        active = [span for s, e, span in valid_spans if s < end and e > start]
+        if not active:
+            parts.append(text)
+            continue
+        primary = active[0]
+        span_ids = ",".join(str(span.pk) for span in active)
+        titles = " | ".join(span.text[:80] for span in active)
+        parts.append(
+            f'<mark class="span-highlight" data-span-pk="{primary.pk}"'
+            f' data-span-pks="{_html.escape(span_ids, quote=True)}"'
+            f' title="{_html.escape(titles, quote=True)}"'
+            f' data-href="#span-{primary.pk}">{text}</mark>'
+        )
 
     return "".join(parts)

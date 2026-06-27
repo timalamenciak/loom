@@ -19,7 +19,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         try:
             graph = CausalGraph.objects.select_related(
-                "document", "schema_version"
+                "document", "schema_version", "ontology_snapshot"
             ).get(pk=options["graph_pk"])
         except CausalGraph.DoesNotExist:
             raise CommandError(f"Graph {options['graph_pk']} not found")

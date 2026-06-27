@@ -16,6 +16,7 @@
     <a href="{% url 'project-members' project.pk %}" class="btn btn-secondary">Members</a>
     <a href="{% url 'project-time-report' project.pk %}" class="btn btn-secondary">Time CSV</a>
     <a href="{% url 'project-irr-export' project.pk %}" class="btn btn-secondary">IRR CSV</a>
+    {% if is_owner %}<a href="{% url 'project-settings' project.pk %}" class="btn btn-secondary">Settings</a>{% endif %}
   </div>
   {% endif %}
 </div>

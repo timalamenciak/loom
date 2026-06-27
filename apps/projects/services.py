@@ -9,12 +9,17 @@ from pathlib import Path
 
 import rispy
 from django.core.files.base import ContentFile
+from django.db import transaction
+
+from apps.annotation.models import Edge
+from apps.audit.models import AuditEvent
 
 from .models import Assignment, Document, Project
 
 # ---------------------------------------------------------------------------
 # RIS import
 # ---------------------------------------------------------------------------
+
 
 def _ris_title(rec: dict) -> str:
     return (rec.get("title") or rec.get("primary_title") or "").strip() or "Untitled"
@@ -59,7 +64,9 @@ def _find_duplicate(project: Project, doi: str | None, title: str) -> Document |
     return Document.objects.filter(project=project, title__iexact=title).first()
 
 
-def import_ris_file(project: Project, file_obj) -> tuple[list[Document], list[Document]]:
+def import_ris_file(
+    project: Project, file_obj
+) -> tuple[list[Document], list[Document]]:
     """Parse *file_obj* as RIS and create Documents. Returns (created, skipped)."""
     raw = file_obj.read()
     text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
@@ -105,6 +112,7 @@ def import_ris_file(project: Project, file_obj) -> tuple[list[Document], list[Do
 # ---------------------------------------------------------------------------
 # ZIP bundle import
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class BundleImportResult:
@@ -200,7 +208,9 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
             for info in archive.infolist()
             if not info.is_dir() and not info.filename.startswith("__MACOSX/")
         ]
-        ris_entries = [info for info in entries if info.filename.lower().endswith(".ris")]
+        ris_entries = [
+            info for info in entries if info.filename.lower().endswith(".ris")
+        ]
         if not ris_entries:
             raise ValueError("The ZIP archive must contain one .ris file.")
         if len(ris_entries) > 1:
@@ -240,7 +250,10 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
 # PDF attachment
 # ---------------------------------------------------------------------------
 
-def attach_pdf_to_document(doc: Document, file_obj, filename: str = "document.pdf") -> Document:
+
+def attach_pdf_to_document(
+    doc: Document, file_obj, filename: str = "document.pdf"
+) -> Document:
     """Store *file_obj* as the Document's PDF; compute SHA-256. Returns the updated doc."""
     content = file_obj.read()
     sha256 = hashlib.sha256(content).hexdigest()
@@ -254,6 +267,7 @@ def attach_pdf_to_document(doc: Document, file_obj, filename: str = "document.pd
 # ---------------------------------------------------------------------------
 # Assignment
 # ---------------------------------------------------------------------------
+
 
 def assign_document(
     project: Project,
@@ -272,3 +286,49 @@ def assign_document(
         },
     )
     return assignment
+
+
+def delete_project(project: Project, actor) -> dict:
+    """Delete a project transactionally and remove its stored PDFs after commit."""
+    with transaction.atomic():
+        project = Project.objects.select_for_update().get(pk=project.pk)
+        files = [
+            (document.pdf_file.storage, document.pdf_file.name)
+            for document in project.documents.exclude(pdf_file="")
+            if document.pdf_file
+        ]
+        summary = {
+            "name": project.name,
+            "documents": project.documents.count(),
+            "members": project.memberships.count(),
+            "assignments": project.assignments.count(),
+            "graphs": sum(
+                document.graphs.count() for document in project.documents.all()
+            ),
+            "schema_sha256": (
+                project.active_schema.sha256 if project.active_schema else None
+            ),
+            "ontology_manifest": (
+                project.ontology_snapshot.manifest_sha256
+                if project.ontology_snapshot
+                else None
+            ),
+        }
+        AuditEvent.objects.create(
+            actor=actor,
+            action="project.delete",
+            target_type="Project",
+            target_id=str(project.pk),
+            diff=summary,
+        )
+        # Edges protect endpoint nodes, so remove them before graph/node cascades.
+        Edge.objects.filter(graph__document__project=project).delete()
+        project.delete()
+
+        def remove_files():
+            for storage, name in files:
+                if name:
+                    storage.delete(name)
+
+        transaction.on_commit(remove_files)
+    return summary

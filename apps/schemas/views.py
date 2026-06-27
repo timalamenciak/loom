@@ -42,5 +42,9 @@ class SchemaDetailView(LoginRequiredMixin, View):
         return render(
             request,
             "schemas/schema_detail.html",
-            {"schema_version": sv, "edge_spec": edge_spec, "all_classes": lsv.class_names()},
+            {
+                "schema_version": sv,
+                "edge_spec": edge_spec,
+                "all_classes": lsv.class_names(),
+            },
         )

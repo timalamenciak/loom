@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Project settings — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> / Settings</div>
+<div class="page-header"><h1>Project settings</h1></div>
+
+<form method="post" enctype="multipart/form-data" class="settings-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="message message-error">{{ form.non_field_errors }}</div>{% endif %}
+
+  <section class="settings-card">
+    <h2>Project</h2>
+    {% for field in form %}{% if field.name == "name" or field.name == "description" %}
+    <div class="field">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+      {% if field.errors %}<div class="field-error">{{ field.errors }}</div>{% endif %}
+    </div>
+    {% endif %}{% endfor %}
+  </section>
+
+  <section class="settings-card">
+    <h2>LinkML schema</h2>
+    <p class="muted">New graphs use this schema. Existing graphs remain pinned to their original schema.</p>
+    <div class="field">
+      <label for="{{ form.active_schema.id_for_label }}">Loaded schema</label>
+      {{ form.active_schema }}
+      {% if form.active_schema.errors %}<div class="field-error">{{ form.active_schema.errors }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="{{ form.schema_file.id_for_label }}">{{ form.schema_file.label }}</label>
+      {{ form.schema_file }}
+      <div class="help">{{ form.schema_file.help_text }}</div>
+      {% if form.schema_file.errors %}<div class="field-error">{{ form.schema_file.errors }}</div>{% endif %}
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <h2>Ontologies</h2>
+    <div class="field checkbox-field">
+      {{ form.auto_infer_ontologies }}
+      <label for="{{ form.auto_infer_ontologies.id_for_label }}">Automatically include ontologies inferred from the schema</label>
+    </div>
+    {% if inferred.matched %}
+    <div class="inference-box">
+      <strong>Inferred from the selected schema and UI routing</strong>
+      <ul>
+      {% for item in inferred.matched %}
+        <li><code>{{ item.prefix }}</code> — {{ item.description }} <span class="muted">({{ item.reasons|join:", " }})</span></li>
+      {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if inferred.unresolved %}
+    <div class="message message-warning">
+      Unresolved ontology prefixes:
+      {% for item in inferred.unresolved %}<code>{{ item.prefix }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.
+      Add these to <code>config/ontologies.yaml</code> before selecting them.
+    </div>
+    {% endif %}
+    <div class="field ontology-checklist">
+      <label>{{ form.ontology_names.label }}</label>
+      {{ form.ontology_names }}
+      {% if form.ontology_names.errors %}<div class="field-error">{{ form.ontology_names.errors }}</div>{% endif %}
+    </div>
+    <div class="field">
+      <label for="{{ form.other_ontologies.id_for_label }}">Other configured ontologies</label>
+      {{ form.other_ontologies }}
+      <div class="help">{{ form.other_ontologies.help_text }}</div>
+      {% if form.other_ontologies.errors %}<div class="field-error">{{ form.other_ontologies.errors }}</div>{% endif %}
+    </div>
+    {% if latest_load %}
+      <p class="muted">Latest ontology load: <span class="badge badge-{{ latest_load.status }}">{{ latest_load.get_status_display }}</span>
+      {% if latest_load.error %}— {{ latest_load.error }}{% endif %}</p>
+    {% endif %}
+  </section>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save settings</button>
+    <a href="{% url 'project-detail' project.pk %}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+
+<section class="settings-card danger-zone">
+  <h2>Danger zone</h2>
+  <p>Deleting this project permanently removes its documents, assignments, annotations, spans, and work sessions.</p>
+  <a href="{% url 'project-delete' project.pk %}" class="btn btn-danger">Delete project</a>
+</section>
+{% endblock %}

@@ -19,6 +19,9 @@ class SchemaVersion(models.Model):
 
     def save(self, *args, **kwargs):
         self.sha256 = hashlib.sha256(self.linkml_yaml.encode()).hexdigest()
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "linkml_yaml" in update_fields:
+            kwargs["update_fields"] = set(update_fields) | {"sha256"}
         if self.is_active:
             # Only one active schema at a time
             SchemaVersion.objects.exclude(pk=self.pk).update(is_active=False)

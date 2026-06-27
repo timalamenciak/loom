@@ -9,7 +9,9 @@ from pathlib import Path
 
 import pytest
 
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
+)
 
 
 def _schema_yaml() -> str:
@@ -24,37 +26,78 @@ def _schema_yaml() -> str:
 class TestCleanDict:
     def test_strips_empty_string(self):
         from apps.export.serializer import _clean
+
         assert _clean({"a": "", "b": "val"}) == {"b": "val"}
 
     def test_strips_none(self):
         from apps.export.serializer import _clean
+
         assert _clean({"a": None, "b": "val"}) == {"b": "val"}
 
     def test_casts_n_observations_to_int(self):
         from apps.export.serializer import _clean
-        assert _clean({"n_observations": "45"}) == {"n_observations": 45}
+
+        assert _clean({"n_observations": "45"}, {"n_observations": "integer"}) == {
+            "n_observations": 45
+        }
 
     def test_casts_certainty_grade_to_float(self):
         from apps.export.serializer import _clean
-        assert _clean({"certainty_grade": "0.8"}) == {"certainty_grade": 0.8}
+
+        assert _clean({"certainty_grade": "0.8"}, {"certainty_grade": "float"}) == {
+            "certainty_grade": 0.8
+        }
+
+    def test_casts_new_schema_slots_without_python_changes(self):
+        from apps.export.serializer import _clean, _schema_slot_ranges
+
+        schema = """
+id: https://example.org/test
+name: test
+imports: [linkml:types]
+classes:
+  CausalGraph:
+    tree_root: true
+    slots: [future_count, future_flag]
+slots:
+  future_count: {range: integer}
+  future_flag: {range: boolean}
+"""
+        ranges = _schema_slot_ranges(schema)
+        assert _clean({"future_count": "7", "future_flag": "on"}, ranges) == {
+            "future_count": 7,
+            "future_flag": True,
+        }
+
+    def test_recursively_cleans_dicts_in_multivalued_slots(self):
+        from apps.export.serializer import _clean
+
+        assert _clean(
+            {"records": [{"future_count": "2", "empty": ""}, {}]},
+            {"future_count": "integer"},
+        ) == {"records": [{"future_count": 2}]}
 
     def test_strips_empty_nested_dict(self):
         from apps.export.serializer import _clean
+
         assert _clean({"mediation": {"has_mediator": ""}}) == {}
 
     def test_keeps_non_empty_nested(self):
         from apps.export.serializer import _clean
+
         result = _clean({"mediation": {"has_mediator": "yes", "mediator_notes": ""}})
         assert result == {"mediation": {"has_mediator": "yes"}}
 
     def test_strips_empty_list_items(self):
         from apps.export.serializer import _clean
+
         assert _clean({"part_qualifiers": ["", None, "PATO:001"]}) == {
             "part_qualifiers": ["PATO:001"]
         }
 
     def test_removes_empty_list(self):
         from apps.export.serializer import _clean
+
         assert _clean({"part_qualifiers": ["", None]}) == {}
 
 
@@ -64,14 +107,19 @@ class TestCleanDict:
 class TestRosettaRenderer:
     def test_basic_statement(self):
         from apps.export.renderers import render_rosetta
+
         data = {
             "nodes": [
                 {"node_id": "n1", "name": "Buckthorn"},
                 {"node_id": "n2", "name": "Soil N"},
             ],
             "edges": [
-                {"edge_id": "e1", "subject": "n1", "object": "n2",
-                 "predicate": "positively_regulates"},
+                {
+                    "edge_id": "e1",
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicate": "positively_regulates",
+                },
             ],
         }
         results = render_rosetta(data, _schema_yaml())
@@ -82,11 +130,17 @@ class TestRosettaRenderer:
 
     def test_hedged_when_certainty_below_half(self):
         from apps.export.renderers import render_rosetta
+
         data = {
             "nodes": [{"node_id": "n1", "name": "A"}, {"node_id": "n2", "name": "B"}],
             "edges": [
-                {"edge_id": "e1", "subject": "n1", "object": "n2",
-                 "predicate": "positively_regulates", "certainty_grade": 0.3},
+                {
+                    "edge_id": "e1",
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicate": "positively_regulates",
+                    "certainty_grade": 0.3,
+                },
             ],
         }
         results = render_rosetta(data, _schema_yaml())
@@ -94,11 +148,17 @@ class TestRosettaRenderer:
 
     def test_not_hedged_when_certainty_at_half(self):
         from apps.export.renderers import render_rosetta
+
         data = {
             "nodes": [{"node_id": "n1", "name": "A"}, {"node_id": "n2", "name": "B"}],
             "edges": [
-                {"edge_id": "e1", "subject": "n1", "object": "n2",
-                 "predicate": "positively_regulates", "certainty_grade": 0.5},
+                {
+                    "edge_id": "e1",
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicate": "positively_regulates",
+                    "certainty_grade": 0.5,
+                },
             ],
         }
         results = render_rosetta(data, _schema_yaml())
@@ -106,19 +166,36 @@ class TestRosettaRenderer:
 
     def test_unknown_predicate_excluded(self):
         from apps.export.renderers import render_rosetta
+
         data = {
             "nodes": [{"node_id": "n1", "name": "A"}, {"node_id": "n2", "name": "B"}],
-            "edges": [{"edge_id": "e1", "subject": "n1", "object": "n2",
-                       "predicate": "unknown_predicate"}],
+            "edges": [
+                {
+                    "edge_id": "e1",
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicate": "unknown_predicate",
+                }
+            ],
         }
         assert render_rosetta(data, _schema_yaml()) == []
 
     def test_facilitated_by_uses_object_first(self):
         from apps.export.renderers import render_rosetta
+
         data = {
-            "nodes": [{"node_id": "n1", "name": "Shade"}, {"node_id": "n2", "name": "Seedlings"}],
-            "edges": [{"edge_id": "e1", "subject": "n1", "object": "n2",
-                       "predicate": "is_facilitated_by"}],
+            "nodes": [
+                {"node_id": "n1", "name": "Shade"},
+                {"node_id": "n2", "name": "Seedlings"},
+            ],
+            "edges": [
+                {
+                    "edge_id": "e1",
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicate": "is_facilitated_by",
+                }
+            ],
         }
         results = render_rosetta(data, _schema_yaml())
         # template: "{object} is facilitated by {subject}"
@@ -129,28 +206,53 @@ class TestRosettaRenderer:
 class TestFCMRenderer:
     def test_positive_tendency(self):
         from apps.export.renderers import render_fcm
-        data = {"edges": [{"edge_id": "e1", "predicate": "positively_regulates",
-                            "claim_strength": "tendency"}]}
+
+        data = {
+            "edges": [
+                {
+                    "edge_id": "e1",
+                    "predicate": "positively_regulates",
+                    "claim_strength": "tendency",
+                }
+            ]
+        }
         results = render_fcm(data, _schema_yaml())
         assert results[0].weight == 0.6
         assert results[0].sign == 1
 
     def test_negative_strong_tendency(self):
         from apps.export.renderers import render_fcm
-        data = {"edges": [{"edge_id": "e1", "predicate": "negatively_regulates",
-                            "claim_strength": "strong_tendency"}]}
+
+        data = {
+            "edges": [
+                {
+                    "edge_id": "e1",
+                    "predicate": "negatively_regulates",
+                    "claim_strength": "strong_tendency",
+                }
+            ]
+        }
         results = render_fcm(data, _schema_yaml())
         assert results[0].weight == -0.8
 
     def test_unknown_strength_uses_default(self):
         from apps.export.renderers import render_fcm
-        data = {"edges": [{"edge_id": "e1", "predicate": "positively_regulates",
-                            "claim_strength": "not_addressed"}]}
+
+        data = {
+            "edges": [
+                {
+                    "edge_id": "e1",
+                    "predicate": "positively_regulates",
+                    "claim_strength": "not_addressed",
+                }
+            ]
+        }
         results = render_fcm(data, _schema_yaml())
         assert results[0].weight == 0.5
 
     def test_no_predicate_excluded(self):
         from apps.export.renderers import render_fcm
+
         data = {"edges": [{"edge_id": "e1"}]}
         assert render_fcm(data, _schema_yaml()) == []
 
@@ -174,6 +276,7 @@ def export_user(db):
 @pytest.fixture
 def schema_version(db):
     from apps.schemas.models import SchemaVersion
+
     if not SCHEMA_PATH.exists():
         pytest.skip("CAMO schema not found")
     return SchemaVersion.objects.create(
@@ -203,18 +306,28 @@ def populated_graph(export_user, schema_version):
         document=doc, annotator=user, schema_version=schema_version
     )
     node_a = Node.objects.create(
-        graph=graph, node_id="node-a", name="Buckthorn",
-        data={"entity_type": "biotic", "entity_term": "NCBITaxon:712036", "direction": "increases"},
+        graph=graph,
+        node_id="node-a",
+        name="Buckthorn",
+        data={
+            "entity_type": "biotic",
+            "entity_term": "NCBITaxon:712036",
+            "direction": "increases",
+        },
         schema_version=schema_version,
     )
     node_b = Node.objects.create(
-        graph=graph, node_id="node-b", name="Soil nitrogen",
+        graph=graph,
+        node_id="node-b",
+        name="Soil nitrogen",
         data={"entity_type": "abiotic", "direction": "increases"},
         schema_version=schema_version,
     )
     Edge.objects.create(
-        graph=graph, edge_id="edge-1",
-        subject=node_a, object=node_b,
+        graph=graph,
+        edge_id="edge-1",
+        subject=node_a,
+        object=node_b,
         predicate="positively_regulates",
         claim_strength="tendency",
         data={
@@ -236,11 +349,13 @@ def populated_graph(export_user, schema_version):
 class TestSerializeGraph:
     def test_top_level_keys(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         assert {"graph_id", "source_document", "nodes", "edges"} <= set(data)
 
     def test_node_count_and_ids(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         assert len(data["nodes"]) == 2
         ids = {n["node_id"] for n in data["nodes"]}
@@ -248,6 +363,7 @@ class TestSerializeGraph:
 
     def test_node_fields(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         node = next(n for n in data["nodes"] if n["node_id"] == "node-a")
         assert node["name"] == "Buckthorn"
@@ -255,6 +371,7 @@ class TestSerializeGraph:
 
     def test_edge_subject_object_are_node_ids(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         edge = data["edges"][0]
         assert edge["subject"] == "node-a"
@@ -262,6 +379,7 @@ class TestSerializeGraph:
 
     def test_promoted_columns_win(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         edge = data["edges"][0]
         assert edge["predicate"] == "positively_regulates"
@@ -269,6 +387,7 @@ class TestSerializeGraph:
 
     def test_numeric_casting(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         edge = data["edges"][0]
         assert edge["certainty_grade"] == 0.8
@@ -276,6 +395,7 @@ class TestSerializeGraph:
 
     def test_source_document(self, populated_graph):
         from apps.export.serializer import serialize_graph
+
         data = serialize_graph(populated_graph)
         sd = data["source_document"]
         assert sd["doc_title"] == "Buckthorn drives N cycling"
@@ -289,6 +409,7 @@ class TestBuildProvenance:
         import yaml
 
         from apps.export.serializer import build_provenance, serialize_graph
+
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
         prov = build_provenance(populated_graph, pre_yaml.encode())
@@ -299,6 +420,7 @@ class TestBuildProvenance:
         import yaml
 
         from apps.export.serializer import build_provenance, serialize_graph
+
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
         prov = build_provenance(populated_graph, pre_yaml.encode())
@@ -309,6 +431,7 @@ class TestBuildProvenance:
         import yaml
 
         from apps.export.serializer import build_provenance, serialize_graph
+
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
         p1 = build_provenance(populated_graph, pre_yaml.encode())
@@ -322,6 +445,7 @@ class TestBuildProvenance:
 class TestExportGraphView:
     def test_returns_200(self, populated_graph, export_user):
         from django.test import Client
+
         user, _ = export_user
         client = Client()
         client.login(username="exporter", password="pw")
@@ -330,6 +454,7 @@ class TestExportGraphView:
 
     def test_download_returns_yaml(self, populated_graph, export_user):
         from django.test import Client
+
         user, _ = export_user
         client = Client()
         client.login(username="exporter", password="pw")
@@ -341,6 +466,7 @@ class TestExportGraphView:
     def test_yaml_contains_nodes_and_edges(self, populated_graph, export_user):
         import yaml
         from django.test import Client
+
         user, _ = export_user
         client = Client()
         client.login(username="exporter", password="pw")
@@ -353,6 +479,17 @@ class TestExportGraphView:
 
     def test_requires_login(self, populated_graph):
         from django.test import Client
+
         resp = Client().get(f"/export/graphs/{populated_graph.pk}/")
         assert resp.status_code == 302
         assert "/accounts/login/" in resp["Location"]
+
+    def test_superuser_can_export_without_project_membership(
+        self, populated_graph, superuser
+    ):
+        from django.test import Client
+
+        client = Client()
+        client.force_login(superuser)
+        resp = client.get(f"/export/graphs/{populated_graph.pk}/")
+        assert resp.status_code == 200

@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
+import io
+import urllib.request
 from pathlib import Path
 
 import yaml
 
-from .models import OntologySnapshot, OntologyTerm
+from .models import OntologyRelease, OntologySnapshot, OntologyTerm
 
-_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "ontologies.yaml"
+_CONFIG_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "config" / "ontologies.yaml"
+)
 
 
 def _load_config() -> dict:
@@ -24,6 +29,10 @@ def ontology_config(name: str) -> dict | None:
         if entry["name"] == name:
             return entry
     return None
+
+
+def ontology_entries() -> list[dict]:
+    return list(_load_config().get("ontologies", []))
 
 
 def list_ontology_names() -> list[str]:
@@ -53,8 +62,6 @@ def load_ontology(
     If *snapshot* is None, the active snapshot is used (creating one if needed).
     Returns (snapshot, term_count).
     """
-    import pronto
-
     cfg = ontology_config(name)
     if cfg is None:
         raise ValueError(f"Ontology '{name}' not found in config/ontologies.yaml")
@@ -67,55 +74,112 @@ def load_ontology(
     if stdout:
         stdout.write(f"  Parsing {name} from {url} …")
 
-    ont = pronto.Ontology(url)
-
     if snapshot is None:
         snapshot = get_or_create_active_snapshot()
-
-    # Remove any existing terms for this prefix in the snapshot
-    OntologyTerm.objects.filter(snapshot=snapshot, prefix=prefix).delete()
-
-    batch: list[OntologyTerm] = []
-    for term in ont.terms():
-        curie = str(term.id)
-        term_prefix = curie.split(":")[0] if ":" in curie else prefix
-        if term_prefix != prefix:
-            continue  # Skip cross-imported terms
-
-        synonyms = [syn.description for syn in (term.synonyms or [])]
-        definition = str(term.definition) if term.definition else ""
-
-        batch.append(
-            OntologyTerm(
-                snapshot=snapshot,
-                prefix=prefix,
-                curie=curie,
-                label=term.name or curie,
-                synonyms=synonyms,
-                synonym_labels=" ".join(synonyms),
-                definition=definition,
-                obsolete=bool(term.obsolete),
-            )
+    elif snapshot.releases.exists() or snapshot.source_versions:
+        # A snapshot may already be pinned by projects/graphs. Build a successor
+        # instead of changing its reproducible manifest in place.
+        previous = snapshot
+        snapshot = OntologySnapshot.objects.create(
+            name=previous.name,
+            source_versions=dict(previous.source_versions),
+            is_active=previous.is_active,
         )
-
-        if len(batch) >= 2000:
-            OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
-            batch = []
-
-    if batch:
-        OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
-
-    term_count = OntologyTerm.objects.filter(snapshot=snapshot, prefix=prefix).count()
+        snapshot.releases.set(previous.releases.all())
+    release, term_count = load_ontology_release(name, source=source, stdout=stdout)
+    snapshot.releases.add(release)
 
     # Record provenance in snapshot
     meta = snapshot.source_versions
     meta[prefix] = {
         "name": name,
         "url": url,
+        "sha256": release.source_sha256,
         "term_count": term_count,
         "loaded_at": datetime.datetime.utcnow().isoformat(),
     }
     snapshot.source_versions = meta
     snapshot.save(update_fields=["source_versions"])
+    snapshot.refresh_manifest()
 
     return snapshot, term_count
+
+
+def _read_source(source: str) -> bytes:
+    if source.startswith(("http://", "https://")):
+        with urllib.request.urlopen(source, timeout=120) as response:
+            return response.read()
+    return Path(source).read_bytes()
+
+
+def load_ontology_release(
+    name: str,
+    source: str | None = None,
+    stdout=None,
+) -> tuple[OntologyRelease, int]:
+    """Load one configured ontology into an immutable, reusable release."""
+    import pronto
+
+    cfg = ontology_config(name)
+    if cfg is None:
+        raise ValueError(f"Ontology '{name}' not found in config/ontologies.yaml")
+    prefix = cfg["prefix"]
+    url = source or cfg.get("local_path") or cfg.get("url")
+    if not url:
+        raise ValueError(f"No source URL or local_path configured for '{name}'")
+    if stdout:
+        stdout.write(f"  Fetching {name} from {url} …")
+
+    content = _read_source(str(url))
+    digest = hashlib.sha256(content).hexdigest()
+    existing = OntologyRelease.objects.filter(
+        prefix=prefix,
+        source_sha256=digest,
+        status=OntologyRelease.STATUS_READY,
+    ).first()
+    if existing:
+        return existing, existing.term_count
+
+    release = OntologyRelease.objects.create(
+        name=name,
+        prefix=prefix,
+        source_url=str(url),
+        source_sha256=digest,
+        status=OntologyRelease.STATUS_LOADING,
+    )
+    try:
+        ont = pronto.Ontology(io.BytesIO(content))
+        batch = []
+        for term in ont.terms():
+            curie = str(term.id)
+            term_prefix = curie.split(":")[0] if ":" in curie else prefix
+            if term_prefix != prefix:
+                continue
+            synonyms = [syn.description for syn in (term.synonyms or [])]
+            batch.append(
+                OntologyTerm(
+                    release=release,
+                    prefix=prefix,
+                    curie=curie,
+                    label=term.name or curie,
+                    synonyms=synonyms,
+                    synonym_labels=" ".join(synonyms),
+                    definition=str(term.definition) if term.definition else "",
+                    obsolete=bool(term.obsolete),
+                )
+            )
+            if len(batch) >= 2000:
+                OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+                batch = []
+        if batch:
+            OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+        count = release.terms.count()
+        release.term_count = count
+        release.status = OntologyRelease.STATUS_READY
+        release.save(update_fields=["term_count", "status"])
+        return release, count
+    except Exception as exc:
+        release.status = OntologyRelease.STATUS_FAILED
+        release.error = str(exc)
+        release.save(update_fields=["status", "error"])
+        raise

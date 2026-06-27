@@ -21,7 +21,8 @@ class Command(BaseCommand):
             help="Validate against the active LinkML schema before writing",
         )
         parser.add_argument(
-            "-o", "--output",
+            "-o",
+            "--output",
             type=str,
             help="Output file path (default: stdout)",
         )
@@ -29,7 +30,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         try:
             graph = CausalGraph.objects.select_related(
-                "document", "schema_version"
+                "document", "schema_version", "ontology_snapshot"
             ).get(pk=options["graph_pk"])
         except CausalGraph.DoesNotExist:
             raise CommandError(f"Graph {options['graph_pk']} not found")
@@ -41,7 +42,9 @@ class Command(BaseCommand):
         final_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
         if options["validate"]:
-            is_valid, messages = validate_graph_data(data, graph.schema_version.linkml_yaml)
+            is_valid, messages = validate_graph_data(
+                data, graph.schema_version.linkml_yaml
+            )
             for msg in messages:
                 self.stdout.write(msg)
             if not is_valid:

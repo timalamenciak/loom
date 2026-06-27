@@ -224,11 +224,13 @@ class TestSearchTerms:
         results = search_terms("buckthorn")
         assert results == []
 
-    def test_short_query_returns_empty(self, snapshot):
+    def test_short_query_returns_empty(self, terms, snapshot):
         from apps.ontology.services import search_terms
 
         assert search_terms("") == []
-        assert search_terms("a", snapshot=snapshot) != []  # single char still searched (icontains)
+        assert (
+            search_terms("a", snapshot=snapshot) != []
+        )  # single char still searched (icontains)
 
     def test_term_by_curie(self, terms, snapshot):
         from apps.ontology.services import term_by_curie
@@ -244,10 +246,11 @@ class TestSearchTerms:
 
 
 class TestOntologySearchView:
-    def test_json_response(self, terms, snapshot):
+    def test_json_response(self, terms, snapshot, superuser):
         from django.test import Client
 
         client = Client()
+        client.force_login(superuser)
         resp = client.get("/ontology/search/?q=buckthorn&prefixes=NCBITaxon")
         assert resp.status_code == 200
         data = resp.json()
@@ -255,18 +258,20 @@ class TestOntologySearchView:
         curies = [r["curie"] for r in data["results"]]
         assert "NCBITaxon:712036" in curies
 
-    def test_short_query_empty(self, snapshot):
+    def test_short_query_empty(self, snapshot, superuser):
         from django.test import Client
 
         client = Client()
+        client.force_login(superuser)
         resp = client.get("/ontology/search/?q=b")
         assert resp.status_code == 200
         assert resp.json() == {"results": []}
 
-    def test_result_shape(self, terms, snapshot):
+    def test_result_shape(self, terms, snapshot, superuser):
         from django.test import Client
 
         client = Client()
+        client.force_login(superuser)
         resp = client.get("/ontology/search/?q=temperate")
         data = resp.json()
         assert len(data["results"]) >= 1
@@ -275,3 +280,15 @@ class TestOntologySearchView:
         assert "label" in first
         assert "definition" in first
         assert "synonyms" in first
+
+    @pytest.mark.parametrize("limit", ["not-a-number", "-10", "0", "500"])
+    def test_invalid_or_out_of_range_limit_is_safe(
+        self, terms, snapshot, superuser, limit
+    ):
+        from django.test import Client
+
+        client = Client()
+        client.force_login(superuser)
+        resp = client.get(f"/ontology/search/?q=canopy&limit={limit}")
+        assert resp.status_code == 200
+        assert "results" in resp.json()

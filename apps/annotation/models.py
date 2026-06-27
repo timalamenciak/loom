@@ -33,7 +33,9 @@ class WorkSession(models.Model):
     active_seconds = models.IntegerField(default=0)
     idle_seconds = models.IntegerField(default=0)
     open_seconds = models.IntegerField(default=0)
-    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_AUTO)
+    source = models.CharField(
+        max_length=10, choices=SOURCE_CHOICES, default=SOURCE_AUTO
+    )
 
     class Meta:
         ordering = ["-started_at"]
@@ -62,8 +64,17 @@ class CausalGraph(models.Model):
     schema_version = models.ForeignKey(
         "schemas.SchemaVersion", on_delete=models.PROTECT, related_name="graphs"
     )
+    ontology_snapshot = models.ForeignKey(
+        "ontology.OntologySnapshot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="graphs",
+    )
     provenance = models.JSONField(default=dict)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -82,13 +93,17 @@ class Node(models.Model):
         (ORIGIN_LLM_PROPOSED, "LLM-proposed"),
     ]
 
-    graph = models.ForeignKey(CausalGraph, on_delete=models.CASCADE, related_name="nodes")
+    graph = models.ForeignKey(
+        CausalGraph, on_delete=models.CASCADE, related_name="nodes"
+    )
     node_id = models.CharField(max_length=255, default=_new_uuid)
     name = models.CharField(max_length=500)
     # Promoted for filtering/querying; mirrors data['entity_type']
     category = models.CharField(max_length=50, blank=True)
     data = models.JSONField(default=dict)
-    origin = models.CharField(max_length=20, choices=ORIGIN_CHOICES, default=ORIGIN_HUMAN)
+    origin = models.CharField(
+        max_length=20, choices=ORIGIN_CHOICES, default=ORIGIN_HUMAN
+    )
     schema_version = models.ForeignKey(
         "schemas.SchemaVersion", on_delete=models.PROTECT, related_name="nodes"
     )
@@ -120,15 +135,25 @@ class Edge(models.Model):
         (ORIGIN_LLM_PROPOSED, "LLM-proposed"),
     ]
 
-    graph = models.ForeignKey(CausalGraph, on_delete=models.CASCADE, related_name="edges")
+    graph = models.ForeignKey(
+        CausalGraph, on_delete=models.CASCADE, related_name="edges"
+    )
     edge_id = models.CharField(max_length=255, default=_new_uuid)
-    subject = models.ForeignKey(Node, on_delete=models.PROTECT, related_name="edges_as_subject")
-    object = models.ForeignKey(Node, on_delete=models.PROTECT, related_name="edges_as_object")
+    subject = models.ForeignKey(
+        Node, on_delete=models.PROTECT, related_name="edges_as_subject"
+    )
+    object = models.ForeignKey(
+        Node, on_delete=models.PROTECT, related_name="edges_as_object"
+    )
     # Promoted columns for querying/filtering
     predicate = models.CharField(max_length=100, blank=True)
     claim_strength = models.CharField(max_length=50, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    origin = models.CharField(max_length=20, choices=ORIGIN_CHOICES, default=ORIGIN_HUMAN)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT
+    )
+    origin = models.CharField(
+        max_length=20, choices=ORIGIN_CHOICES, default=ORIGIN_HUMAN
+    )
     data = models.JSONField(default=dict)
     schema_version = models.ForeignKey(
         "schemas.SchemaVersion", on_delete=models.PROTECT, related_name="edges"
