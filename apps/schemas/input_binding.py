@@ -15,7 +15,6 @@ from typing import Any, Mapping
 
 from linkml_runtime.utils.schemaview import SchemaView
 
-
 _INTEGER_RANGES = {"integer", "int"}
 _FLOAT_RANGES = {"float", "double", "decimal"}
 _BOOLEAN_RANGES = {"boolean", "bool"}
