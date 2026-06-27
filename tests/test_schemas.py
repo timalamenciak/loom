@@ -387,9 +387,12 @@ class TestSchemaInputBinding:
                 "evidential_basis__n_observations": "45",
                 "evidential_basis__p_value": "0.03",
             },
+            excluded_slots={"edge_id"},
         )
         invalid = get_schema_view(schema_050).bind_form_data(
-            "CausalEdge", {"certainty_grade": "1.5"}
+            "CausalEdge",
+            {"certainty_grade": "1.5"},
+            excluded_slots={"edge_id"},
         )
 
         assert valid.is_valid
@@ -400,7 +403,9 @@ class TestSchemaInputBinding:
 
     def test_binds_multivalued_scalar_from_lines(self, schema_050):
         result = get_schema_view(schema_050).bind_form_data(
-            "CausalNode", {"part_qualifiers": "PATO:0001\nPATO:0002\n"}
+            "CausalNode",
+            {"part_qualifiers": "PATO:0001\nPATO:0002\n"},
+            excluded_slots={"node_id"},
         )
 
         assert result.is_valid
