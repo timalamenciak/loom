@@ -56,14 +56,20 @@ def search_terms(
     # 2. Trigram similarity (optional; requires pg_trgm extension + GIN index)
     try:
         from django.contrib.postgres.search import TrigramSimilarity
+        from django.db import transaction
 
-        results = list(
-            qs.annotate(sim=TrigramSimilarity("label", query))
-            .filter(sim__gt=0.15)
-            .order_by("-sim")[:limit]
-        )
-        if results:
-            return results
+        sid = transaction.savepoint()
+        try:
+            results = list(
+                qs.annotate(sim=TrigramSimilarity("label", query))
+                .filter(sim__gt=0.15)
+                .order_by("-sim")[:limit]
+            )
+            transaction.savepoint_commit(sid)
+            if results:
+                return results
+        except Exception:
+            transaction.savepoint_rollback(sid)
     except Exception:
         pass
 
