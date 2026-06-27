@@ -32,6 +32,10 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      - name: Dependency vulnerability scan
+        run: pip install pip-audit && pip-audit
+        continue-on-error: true
+
       - name: Lint (ruff)
         run: ruff check .
 
@@ -53,6 +57,10 @@ jobs:
           ALLOWED_HOSTS: localhost
           SECURE_HSTS_PRELOAD: "True"
         run: python manage.py check --deploy --fail-level WARNING --settings=loom.settings.prod
+
+      - name: Type check (mypy)
+        run: pip install mypy && mypy apps/ loom/ --ignore-missing-imports
+        continue-on-error: true
 
       - name: Tests
         env:

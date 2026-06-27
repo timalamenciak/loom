@@ -34,3 +34,19 @@ fallback and do not cover PostgreSQL-specific behavior.
 Use precise commit messages that explain the behavior changed. Pull requests
 should describe risk, migrations, validation performed, and rollback behavior.
 See `AGENTS.md` for the complete repository architecture and invariants.
+
+## Bias and fairness considerations
+
+Loom collects inter-annotator reliability (IRR) CSVs to monitor agreement.
+When adding annotation features or enabling the LLM proposal seam, consider:
+
+- **Annotator bias.** Complex or ambiguous CAMO slots may introduce systematic
+  differences between annotators. Track IRR per slot, not just per edge.
+- **LLM proposal bias.** LLM pre-fills may reflect publication bias (positive
+  results over null findings) or taxonomic bias (common species over rare ones).
+  Compare IRR metrics with and without LLM pre-fills before enabling in
+  production. See `docs/llm-proposals.md` for detailed guidance.
+- **Adjudication transparency.** When a reviewer overrides an annotator's edge
+  to `gold`, the original annotation and the reviewer's justification should be
+  retained in the `diff` field of the `AuditEvent` so disagreements are
+  auditable, not silently erased.

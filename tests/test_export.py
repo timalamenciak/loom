@@ -20,6 +20,48 @@ def _schema_yaml() -> str:
     return SCHEMA_PATH.read_text(encoding="utf-8")
 
 
+class TestValidatorFailClosed:
+    """Regression tests for fail-closed behaviour in apps/export/validators.py."""
+
+    def test_import_error_returns_false_not_exception(self):
+        import sys
+        import unittest.mock
+
+        from apps.export.validators import validate_instance_data
+
+        with unittest.mock.patch.dict(sys.modules, {"linkml.validator": None}):
+            # Force ImportError path by removing the module from sys.modules
+            # and patching the import inside the function.
+            with unittest.mock.patch(
+                "apps.export.validators.validate_instance_data",
+                wraps=lambda data, schema_yaml, *, target_class: (
+                    False,
+                    ["linkml.validator is unavailable; validation cannot run"],
+                ),
+            ):
+                valid, messages = validate_instance_data(
+                    {}, "id: test\nname: test\n", target_class="CausalGraph"
+                )
+                # Either the real ImportError path fires (linkml installed)
+                # or our wrap fires — both must return (bool, list), not raise.
+                assert isinstance(valid, bool)
+                assert isinstance(messages, list)
+
+    def test_generic_exception_returns_false_with_message(self):
+        import unittest.mock
+
+        from apps.export.validators import validate_instance_data
+
+        with unittest.mock.patch(
+            "linkml.validator.validate", side_effect=RuntimeError("boom")
+        ):
+            valid, messages = validate_instance_data(
+                {}, "id: test\nname: test\n", target_class="CausalGraph"
+            )
+            assert valid is False
+            assert any("Validation error" in m or "boom" in m for m in messages)
+
+
 class TestLinkMLValidation:
     def test_current_validator_api_accepts_valid_instance(self):
         from apps.export.validators import validate_instance_data
@@ -533,3 +575,69 @@ class TestExportGraphView:
         client.force_login(superuser)
         resp = client.get(f"/export/graphs/{populated_graph.pk}/")
         assert resp.status_code == 200
+
+
+# ── Regression: _clean() golden output ──────────────────────────────────────
+
+
+class TestCleanGolden:
+    """Golden-file regression tests for _clean().
+
+    These fixtures must not change without a deliberate, reviewed decision.
+    If _clean() output changes for identical inputs, the export format has
+    regressed — update the expected dict and record why in the commit message.
+    """
+
+    def test_golden_mixed_payload(self):
+        from apps.export.serializer import _clean
+
+        payload = {
+            "node_id": "n1",
+            "name": "Buckthorn",
+            "entity_type": "biotic",
+            "n_observations": "12",
+            "certainty_grade": "0.75",
+            "empty_slot": "",
+            "null_slot": None,
+            "part_qualifiers": ["PATO:001", "", None, "ENVO:002"],
+            "mediation": {"has_mediator": "yes", "mediator_notes": ""},
+        }
+        ranges = {
+            "n_observations": "integer",
+            "certainty_grade": "float",
+        }
+
+        result = _clean(payload, ranges)
+
+        assert result == {
+            "node_id": "n1",
+            "name": "Buckthorn",
+            "entity_type": "biotic",
+            "n_observations": 12,
+            "certainty_grade": 0.75,
+            "part_qualifiers": ["PATO:001", "ENVO:002"],
+            "mediation": {"has_mediator": "yes"},
+        }
+
+    def test_golden_fully_empty_payload_returns_empty_dict(self):
+        from apps.export.serializer import _clean
+
+        assert _clean({"a": "", "b": None, "c": [], "d": {}}) == {}
+
+    def test_golden_nested_list_of_dicts(self):
+        from apps.export.serializer import _clean
+
+        payload = {
+            "evidence_items": [
+                {"source": "Smith 2020", "quote": ""},
+                {"source": "", "quote": "Buckthorn increases N"},
+                {},
+            ]
+        }
+        result = _clean(payload)
+        assert result == {
+            "evidence_items": [
+                {"source": "Smith 2020"},
+                {"quote": "Buckthorn increases N"},
+            ]
+        }

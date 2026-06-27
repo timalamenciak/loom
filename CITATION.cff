@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+title: "Loom: A Schema-Driven Annotation Workbench for Causal Mosaic Graphs"
+message: "If you use Loom in your research, please cite it using the metadata in this file."
+type: software
+license: MIT
+version: "0.1.0"
+repository-code: "https://github.com/racoonlab/loom"
+abstract: >
+  Loom is a self-hosted web application for annotating scientific literature
+  with the Causal Mosaic (CAMO) schema. Annotators highlight evidence in PDFs,
+  decompose entities into ELMO nodes, and annotate causal edges across CAMO's
+  four layers (claim strength, philosophical account, causal features,
+  evidential basis). Exports are LinkML-validated CAMO instance graphs with
+  full provenance for downstream EcoWeaver pipelines.
+
+authors:
+  - family-names: Alamenciak
+    given-names: Tim
+    email: tim.alamenciak@gmail.com
+    affiliation: "RacoonLab"
+    orcid: "https://orcid.org/0000-0000-0000-0000"  # replace with real ORCID
+
+keywords:
+  - causal annotation
+  - systematic review
+  - LinkML
+  - ecological synthesis
+  - knowledge graph
+  - evidence synthesis

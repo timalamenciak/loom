@@ -226,6 +226,51 @@ Spans are private working records belonging to the annotator who created them.
 Reviewers see their effect through the graph and exported edge provenance rather
 than sharing a mutable document-wide span list.
 
+## Related software
+
+Several general-purpose annotation platforms exist, but none target the Causal
+Mosaic schema or the ELMO node decomposition that CAMO requires:
+
+- **brat** — lightweight span-and-relation annotator; no schema introspection,
+  no LinkML export, no multi-layer causal decomposition.
+- **INCEpTION** — feature-rich Java platform with ontology linking and custom
+  annotation layers, but not designed around a LinkML schema as the single
+  source of truth. A schema update requires reconfiguring INCEpTION project
+  settings manually.
+- **Doccano** — sequence-labelling focus; good for NER but lacks the
+  edge-attribute depth CAMO demands (15 causal features, evidential basis,
+  philosophical account).
+- **Prodigy** — commercial tool with strong active-learning integration; no
+  LinkML support; per-seat licensing limits Evidence Jam scale-up.
+- **CATMA** — TEI-based; well suited to literary text; not designed for
+  structured causal claims or graph export.
+
+Loom's distinguishing features are: (1) forms and validation derived directly
+from the active LinkML schema so adding a CAMO slot requires no code change;
+(2) JSONB storage that survives schema evolution without migrations; and (3)
+SHA-256 provenance and schema pinning on every export for reproducibility.
+
+---
+
+## Limitations
+
+- **Single-user span model.** Spans are private to the annotator who created
+  them. Real-time collaborative span editing on the same document is not
+  supported.
+- **OLS fallback requires network access.** The local ontology index is the
+  primary term source; the OLS fallback will silently degrade in
+  network-restricted deployments.
+- **No real-time collaborative editing.** Two annotators can work on the same
+  project simultaneously but not on the same document at the same time without
+  risking conflicting graph states.
+- **Pre-1.0 API stability.** Minor version bumps may revise annotation
+  workflows or management command interfaces before v1.0.
+- **PDF display only.** Loom uses PDF.js for document display; span offsets
+  are derived from extracted canonical text, not PDF coordinates. Heavily
+  scanned or image-only PDFs may have reduced extraction quality.
+
+---
+
 ## Versioning
 
 Loom follows semantic versioning while it is pre-1.0:
@@ -236,3 +281,15 @@ Loom follows semantic versioning while it is pre-1.0:
 
 Update `loom/__init__.py` for an application release. Do not manually change
 the exporter version or duplicate the package version elsewhere.
+
+## Citing Loom
+
+If you use Loom in published research, please cite it using the metadata in
+[`CITATION.cff`](CITATION.cff). A formatted citation is:
+
+> Alamenciak, T. (2026). *Loom: A Schema-Driven Annotation Workbench for
+> Causal Mosaic Graphs* (v0.1.0). RacoonLab.
+> https://github.com/racoonlab/loom
+
+GitHub's "Cite this repository" button (upper right of the repo page) will
+generate formatted citations from `CITATION.cff` automatically.
