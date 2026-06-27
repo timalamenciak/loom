@@ -5,8 +5,11 @@ import zipfile
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 
+from apps.projects.forms import AttachPDFForm, RISBundleImportForm, RISImportForm
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.projects.services import (
     assign_document,
@@ -14,6 +17,7 @@ from apps.projects.services import (
     import_ris_file,
     import_zipped_ris_bundle,
 )
+from apps.projects.upload_validation import UploadValidationError
 
 User = get_user_model()
 
@@ -39,6 +43,39 @@ PY  - 2022
 AB  - Removing shrubs increases native grass cover.
 ER  -
 """
+
+
+def test_pdf_form_checks_file_signature():
+    form = AttachPDFForm(
+        files={
+            "pdf_file": SimpleUploadedFile(
+                "paper.pdf", b"this is not a PDF", content_type="application/pdf"
+            )
+        }
+    )
+
+    assert not form.is_valid()
+    assert "not a valid PDF" in form.errors["pdf_file"][0]
+
+
+@override_settings(MAX_RIS_UPLOAD_BYTES=8)
+def test_ris_form_enforces_size_limit():
+    form = RISImportForm(
+        files={"ris_file": SimpleUploadedFile("large.ris", b"0123456789")}
+    )
+
+    assert not form.is_valid()
+    assert "may not exceed" in form.errors["ris_file"][0]
+
+
+@override_settings(MAX_BUNDLE_UPLOAD_BYTES=8)
+def test_bundle_form_enforces_size_limit():
+    form = RISBundleImportForm(
+        files={"bundle_file": SimpleUploadedFile("large.zip", b"0123456789")}
+    )
+
+    assert not form.is_valid()
+    assert "may not exceed" in form.errors["bundle_file"][0]
 
 
 @pytest.fixture
@@ -240,6 +277,24 @@ def test_import_zipped_ris_bundle_requires_one_ris(project):
         import_zipped_ris_bundle(project, upload)
 
 
+@pytest.mark.django_db
+@override_settings(MAX_BUNDLE_UNCOMPRESSED_BYTES=20)
+def test_import_zipped_bundle_rejects_excessive_expansion(project):
+    upload = _zip_upload({"refs.ris": b"x" * 21})
+
+    with pytest.raises(ValueError, match="expands beyond"):
+        import_zipped_ris_bundle(project, upload)
+
+
+@pytest.mark.django_db
+@override_settings(MAX_BUNDLE_FILES=1)
+def test_import_zipped_bundle_rejects_excessive_file_count(project):
+    upload = _zip_upload({"refs.ris": SAMPLE_RIS.encode(), "paper.pdf": b"%PDF-1.4"})
+
+    with pytest.raises(ValueError, match="more than 1 files"):
+        import_zipped_ris_bundle(project, upload)
+
+
 # ---------------------------------------------------------------------------
 # PDF attach
 # ---------------------------------------------------------------------------
@@ -258,6 +313,20 @@ def test_attach_pdf(project, settings, tmp_path):
     assert doc.has_pdf
     assert doc.sha256 is not None
     assert len(doc.sha256) == 64
+
+
+@pytest.mark.django_db
+def test_attach_pdf_service_rejects_non_pdf(project, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    doc = Document.objects.create(
+        project=project, source=Document.SOURCE_RIS_IMPORT, title="Paper"
+    )
+
+    with pytest.raises(UploadValidationError, match="not a valid PDF"):
+        attach_pdf_to_document(doc, io.BytesIO(b"not a PDF"), "paper.pdf")
+
+    doc.refresh_from_db()
+    assert not doc.has_pdf
 
 
 # ---------------------------------------------------------------------------

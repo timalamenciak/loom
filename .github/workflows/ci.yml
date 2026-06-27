@@ -38,6 +38,22 @@ jobs:
       - name: Format check (black)
         run: black --check .
 
+      - name: Migration drift check
+        env:
+          SECRET_KEY: ci-test-key
+          DB_HOST: localhost
+          DB_NAME: loom
+          DB_USER: loom
+          DB_PASSWORD: loom
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Production deployment checks
+        env:
+          SECRET_KEY: ci-test-key-that-is-long-enough-for-django-deploy-checks-123456
+          ALLOWED_HOSTS: localhost
+          SECURE_HSTS_PRELOAD: "True"
+        run: python manage.py check --deploy --fail-level WARNING --settings=loom.settings.prod
+
       - name: Tests
         env:
           SECRET_KEY: ci-test-key

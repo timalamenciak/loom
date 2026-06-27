@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import rispy
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
 
@@ -15,6 +16,11 @@ from apps.annotation.models import Edge
 from apps.audit.models import AuditEvent
 
 from .models import Assignment, Document, Project
+from .upload_validation import (
+    validate_bundle_upload,
+    validate_pdf_upload,
+    validate_ris_upload,
+)
 
 # ---------------------------------------------------------------------------
 # RIS import
@@ -68,6 +74,8 @@ def import_ris_file(
     project: Project, file_obj
 ) -> tuple[list[Document], list[Document]]:
     """Parse *file_obj* as RIS and create Documents. Returns (created, skipped)."""
+    validate_ris_upload(file_obj)
+    file_obj.seek(0)
     raw = file_obj.read()
     text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
 
@@ -196,6 +204,8 @@ def _match_pdf_to_document(
 def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
     """Import one RIS file and matching article PDFs from a ZIP archive."""
     result = BundleImportResult()
+    validate_bundle_upload(file_obj)
+    file_obj.seek(0)
 
     try:
         archive = zipfile.ZipFile(file_obj)
@@ -208,6 +218,41 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
             for info in archive.infolist()
             if not info.is_dir() and not info.filename.startswith("__MACOSX/")
         ]
+        if len(entries) > settings.MAX_BUNDLE_FILES:
+            raise ValueError(
+                f"The ZIP archive contains more than {settings.MAX_BUNDLE_FILES} files."
+            )
+
+        total_size = sum(info.file_size for info in entries)
+        if total_size > settings.MAX_BUNDLE_UNCOMPRESSED_BYTES:
+            limit_mb = settings.MAX_BUNDLE_UNCOMPRESSED_BYTES // (1024 * 1024)
+            raise ValueError(
+                f"The ZIP archive expands beyond the {limit_mb} MB safety limit."
+            )
+
+        for info in entries:
+            if info.flag_bits & 0x1:
+                raise ValueError("Encrypted ZIP entries are not supported.")
+            if info.file_size and (
+                info.file_size / max(1, info.compress_size)
+                > settings.MAX_ZIP_COMPRESSION_RATIO
+            ):
+                raise ValueError(
+                    f'The ZIP entry "{Path(info.filename).name}" has an unsafe '
+                    "compression ratio."
+                )
+            if (
+                info.filename.lower().endswith(".pdf")
+                and info.file_size > settings.MAX_PDF_UPLOAD_BYTES
+            ):
+                raise ValueError(
+                    f'The PDF "{Path(info.filename).name}" exceeds the upload limit.'
+                )
+            if (
+                info.filename.lower().endswith(".ris")
+                and info.file_size > settings.MAX_RIS_UPLOAD_BYTES
+            ):
+                raise ValueError("The RIS file in the ZIP exceeds the upload limit.")
         ris_entries = [
             info for info in entries if info.filename.lower().endswith(".ris")
         ]
@@ -255,7 +300,12 @@ def attach_pdf_to_document(
     doc: Document, file_obj, filename: str = "document.pdf"
 ) -> Document:
     """Store *file_obj* as the Document's PDF; compute SHA-256. Returns the updated doc."""
-    content = file_obj.read()
+    validate_pdf_upload(file_obj)
+    file_obj.seek(0)
+    content = file_obj.read(settings.MAX_PDF_UPLOAD_BYTES + 1)
+    if len(content) > settings.MAX_PDF_UPLOAD_BYTES:
+        limit_mb = settings.MAX_PDF_UPLOAD_BYTES // (1024 * 1024)
+        raise ValueError(f"PDF files may not exceed {limit_mb} MB.")
     sha256 = hashlib.sha256(content).hexdigest()
     safe_name = Path(filename).name or "document.pdf"
     doc.pdf_file.save(safe_name, ContentFile(content), save=False)

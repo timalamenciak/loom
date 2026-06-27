@@ -5,7 +5,11 @@ from django.contrib.auth.decorators import login_required
 from django.urls import include, path
 from django.views.generic import TemplateView
 
+from .health import liveness, readiness
+
 urlpatterns = [
+    path("health/live/", liveness, name="health-live"),
+    path("health/ready/", readiness, name="health-ready"),
     path("admin/", admin.site.urls),
     path("accounts/", include("django.contrib.auth.urls")),
     path("projects/", include("apps.projects.urls")),

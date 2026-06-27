@@ -15,6 +15,9 @@ versions.
 - Central annotation authorization policy for assignment-owned graph writes.
 - Reviewer workflow for returning submitted assignments.
 - Security and contribution guidance for public repository users.
+- Public liveness and database-readiness probes for deployment orchestration.
+- A production operations runbook covering backups, restore drills, and
+  upgrades.
 
 ### Changed
 
@@ -29,11 +32,15 @@ versions.
   annotator who created the span.
 - The container build uses separate build/runtime stages and a non-root runtime
   user.
+- CI checks migration drift and Django's production deployment configuration.
 
 ### Security
 
 - Docker build context now excludes environment files, uploaded media, Git
   metadata, caches, and local build artifacts.
+- PDF, RIS, and bundle uploads have configurable service-level size limits;
+  PDF signatures and ZIP expansion, entry count, encryption, and compression
+  ratios are checked before processing.
 
 ## 0.1.0 - Unreleased
 

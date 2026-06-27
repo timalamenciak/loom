@@ -1,5 +1,7 @@
 """Phase 0 smoke tests: app boots and auth works."""
 
+from unittest.mock import patch
+
 import pytest
 from django.urls import reverse
 
@@ -62,3 +64,27 @@ def test_package_exposes_semantic_version():
 
     assert re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", __version__)
     assert EXPORTER_VERSION == f"loom-{__version__}"
+
+
+def test_liveness_probe_is_public(client):
+    response = client.get(reverse("health-live"))
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert response["Cache-Control"] == "no-store"
+
+
+@pytest.mark.django_db
+def test_readiness_probe_checks_database(client):
+    response = client.get(reverse("health-ready"))
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_readiness_probe_reports_database_failure(client):
+    with patch("loom.health.connection.cursor", side_effect=RuntimeError("offline")):
+        response = client.get(reverse("health-ready"))
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable"}

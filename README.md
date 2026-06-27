@@ -79,6 +79,12 @@ All variables live in `.env` (copied from `.env.example`). Never commit `.env`.
 | `DB_HOST` | No | `db` | Postgres host (`db` = Docker service name) |
 | `DB_PORT` | No | `5432` | Postgres port |
 | `ALLOWED_HOSTS` | Prod | — | Comma-separated hostnames, e.g. `loom.example.com` |
+| `CSRF_TRUSTED_ORIGINS` | Prod proxy | — | Comma-separated HTTPS origins |
+| `DB_CONN_MAX_AGE` | No | `60` | Persistent database connection lifetime in seconds |
+| `LOOM_MAX_PDF_UPLOAD_MB` | No | `100` | Per-PDF upload limit |
+| `LOOM_MAX_RIS_UPLOAD_MB` | No | `10` | RIS upload limit |
+| `LOOM_MAX_BUNDLE_UPLOAD_MB` | No | `500` | Compressed RIS/PDF bundle limit |
+| `LOOM_MAX_BUNDLE_UNCOMPRESSED_MB` | No | `1000` | Expanded bundle safety limit |
 
 ## Running without Docker
 
@@ -151,8 +157,8 @@ DJANGO_SETTINGS_MODULE=loom.settings.test_sqlite pytest
 $env:DJANGO_SETTINGS_MODULE="loom.settings.test_sqlite"; pytest
 ```
 
-The repository currently contains 206 automated tests. CI also runs Ruff and
-Black checks before the PostgreSQL-backed suite.
+CI runs Ruff, Black, migration-drift and production-deployment checks before
+the PostgreSQL-backed automated test suite.
 
 ## Production deployment
 
@@ -163,7 +169,10 @@ Black checks before the PostgreSQL-backed suite.
 5. Run with gunicorn: `gunicorn loom.wsgi:application --bind 0.0.0.0:8000`
 6. Put Nginx or Caddy in front for TLS termination.
 
-`prod.py` enforces `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, and a one-year HSTS header — ensure your proxy passes the `X-Forwarded-Proto` header.
+`prod.py` enforces `SECURE_SSL_REDIRECT`, secure cookies, and HSTS. Ensure your
+proxy passes the `X-Forwarded-Proto` header accurately. See the
+[operations runbook](docs/operations.md) for health probes, backups, restore
+drills, and upgrade guidance.
 
 ## Project structure
 

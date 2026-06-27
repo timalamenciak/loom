@@ -38,11 +38,14 @@ COPY static ./static
 COPY templates ./templates
 
 RUN mkdir -p /app/media /app/staticfiles \
-    && SECRET_KEY=collectstatic-only DJANGO_SETTINGS_MODULE=loom.settings.prod \
+    && SECRET_KEY=collectstatic-only ALLOWED_HOSTS=localhost \
+       DJANGO_SETTINGS_MODULE=loom.settings.prod \
        python manage.py collectstatic --noinput \
     && chown -R loom:loom /app/media /app/staticfiles
 
 USER loom
 
 EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready/', timeout=3)" || exit 1
 CMD ["gunicorn", "loom.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-"]

@@ -7,6 +7,22 @@ from apps.schemas.ontology_inference import infer_ontologies
 from apps.schemas.services import validate_schema_yaml
 
 from .models import Project, ProjectMembership
+from .upload_validation import (
+    UploadValidationError,
+    validate_bundle_upload,
+    validate_pdf_upload,
+    validate_ris_upload,
+)
+
+
+def _validated_upload(upload, validator):
+    if not upload:
+        return upload
+    try:
+        validator(upload)
+    except UploadValidationError as exc:
+        raise forms.ValidationError(str(exc)) from exc
+    return upload
 
 
 class ProjectForm(forms.ModelForm):
@@ -137,6 +153,9 @@ class RISImportForm(forms.Form):
         help_text="Export from Zotero, Mendeley, PubMed, Web of Science, etc.",
     )
 
+    def clean_ris_file(self):
+        return _validated_upload(self.cleaned_data.get("ris_file"), validate_ris_upload)
+
 
 class RISBundleImportForm(forms.Form):
     bundle_file = forms.FileField(
@@ -147,6 +166,11 @@ class RISBundleImportForm(forms.Form):
         ),
         widget=forms.ClearableFileInput(attrs={"accept": ".zip,application/zip"}),
     )
+
+    def clean_bundle_file(self):
+        return _validated_upload(
+            self.cleaned_data.get("bundle_file"), validate_bundle_upload
+        )
 
 
 class PDFUploadForm(forms.Form):
@@ -160,12 +184,18 @@ class PDFUploadForm(forms.Form):
         widget=forms.ClearableFileInput(attrs={"accept": ".pdf"}),
     )
 
+    def clean_pdf_file(self):
+        return _validated_upload(self.cleaned_data.get("pdf_file"), validate_pdf_upload)
+
 
 class AttachPDFForm(forms.Form):
     pdf_file = forms.FileField(
         label="PDF file",
         widget=forms.ClearableFileInput(attrs={"accept": ".pdf"}),
     )
+
+    def clean_pdf_file(self):
+        return _validated_upload(self.cleaned_data.get("pdf_file"), validate_pdf_upload)
 
 
 class AssignmentForm(forms.Form):
