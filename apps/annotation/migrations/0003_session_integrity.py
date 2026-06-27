@@ -4,9 +4,7 @@ from django.db import migrations, models
 def repair_sessions(apps, schema_editor):
     WorkSession = apps.get_model("annotation", "WorkSession")
     for field_name in ("active_seconds", "idle_seconds", "open_seconds"):
-        WorkSession.objects.filter(**{f"{field_name}__lt": 0}).update(
-            **{field_name: 0}
-        )
+        WorkSession.objects.filter(**{f"{field_name}__lt": 0}).update(**{field_name: 0})
 
     groups = (
         WorkSession.objects.filter(ended_at__isnull=True)

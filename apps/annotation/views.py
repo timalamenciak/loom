@@ -639,9 +639,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
                     "can_edit": True,
                 },
             )
-        edge = create_edge(
-            graph, subject, object_node, bound.data, actor=request.user
-        )
+        edge = create_edge(graph, subject, object_node, bound.data, actor=request.user)
 
         if span_pk:
             try:

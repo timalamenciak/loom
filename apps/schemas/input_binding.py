@@ -78,9 +78,7 @@ def _normalise_form_data(form_data: Mapping[str, Any]) -> dict[str, list[Any]]:
 
 
 def _slot_map(schema_view: SchemaView, class_name: str):
-    return {
-        slot.name: slot for slot in schema_view.class_induced_slots(class_name)
-    }
+    return {slot.name: slot for slot in schema_view.class_induced_slots(class_name)}
 
 
 def _validate_path(
@@ -291,7 +289,9 @@ def _coerce_value(schema_view, slot, field_name, value, result):
 
     if slot.minimum_value is not None and isinstance(value, (int, float)):
         if value < slot.minimum_value:
-            result.add_error(field_name, f"Value must be at least {slot.minimum_value}.")
+            result.add_error(
+                field_name, f"Value must be at least {slot.minimum_value}."
+            )
     if slot.maximum_value is not None and isinstance(value, (int, float)):
         if value > slot.maximum_value:
             result.add_error(field_name, f"Value must be at most {slot.maximum_value}.")

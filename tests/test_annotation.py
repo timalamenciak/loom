@@ -215,9 +215,7 @@ class TestWorkSessionModel:
         s2 = open_session(assignment, user)
         assert s1.pk == s2.pk
 
-    def test_open_session_rejects_wrong_annotator(
-        self, assignment, project_and_user
-    ):
+    def test_open_session_rejects_wrong_annotator(self, assignment, project_and_user):
         from django.contrib.auth import get_user_model
 
         from apps.annotation.services import open_session

@@ -39,9 +39,7 @@ class Command(BaseCommand):
         data["provenance"] = prov
         final_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
-        is_valid, messages = validate_graph_data(
-            data, graph.schema_version.linkml_yaml
-        )
+        is_valid, messages = validate_graph_data(data, graph.schema_version.linkml_yaml)
         if not is_valid:
             for msg in messages:
                 self.stderr.write(msg)
