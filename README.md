@@ -3,7 +3,7 @@
 Self-hosted annotation workbench for the **Causal Mosaic (CAMO)** schema. Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
 
 Current package version: **0.1.0** (semantic versioning). The single source of
-truth is `loom.__version__`; build metadata and export provenance derive from it.
+truth is `loom.__version__`; build metadata and export provenance derive.
 
 ## What is implemented
 
