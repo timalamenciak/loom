@@ -4,7 +4,7 @@
     &nbsp;&middot;&nbsp;
     <strong>{{ edges|length }}</strong> edge{{ edges|length|pluralize }}
   </span>
-  <div class="gp-actions">
+  {% if can_edit %}<div class="gp-actions">
     <a class="btn btn-secondary btn-sm"
        href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}?form=node"
        onclick="if(window.LoomAnnotationActions){LoomAnnotationActions.load('{% url 'node-form' pk=project.pk doc_pk=document.pk %}','#form-panel');return false;}"
@@ -13,7 +13,7 @@
        href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}?form=edge"
        onclick="if(window.LoomAnnotationActions){LoomAnnotationActions.load('{% url 'edge-form' pk=project.pk doc_pk=document.pk %}','#form-panel');return false;}"
        title="Add a causal edge between two existing nodes.">+ Add edge</a>
-  </div>
+  </div>{% endif %}
 </div>
 
 <section class="gp-section">
@@ -26,11 +26,11 @@
         <span class="gp-item-label" title="{{ node.node_id }}">{{ node.name }}</span>
         {% if node.category %}<span class="badge badge-assigned">{{ node.category }}</span>{% endif %}
       </div>
-      <div class="gp-item-actions">
+      {% if can_edit %}<div class="gp-item-actions">
         <button class="action-link"
                 onclick="if(window.LoomAnnotationActions)LoomAnnotationActions.load('{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}','#form-panel')"
                 title="Edit this node's name, entity type, and other fields">Edit</button>
-      </div>
+      </div>{% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -52,7 +52,7 @@
         {% if edge.predicate %}<span class="badge badge-assigned">{{ edge.predicate }}</span>{% endif %}
         <span class="badge badge-{{ edge.status }}">{{ edge.get_status_display }}</span>
       </div>
-      <div class="gp-item-actions">
+      {% if can_edit %}<div class="gp-item-actions">
         <button class="action-link"
                 onclick="if(window.LoomAnnotationActions)LoomAnnotationActions.load('{% url 'edge-edit' pk=project.pk doc_pk=document.pk edge_pk=edge.pk %}','#form-panel')"
                 title="Edit this edge's predicate, claim strength, and annotation layers">Edit</button>
@@ -68,7 +68,7 @@
                   title="Mark this edge as complete">&#10003; Mark done</button>
         </form>
         {% endif %}
-      </div>
+      </div>{% endif %}
     </li>
     {% endfor %}
   </ul>

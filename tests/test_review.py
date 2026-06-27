@@ -286,6 +286,46 @@ class TestAdjudicateEdgeDB:
         assert resp.status_code == 200
         assert b"Buckthorn" in resp.content
 
+    def test_reviewer_can_return_submitted_assignment(self, submitted_graph):
+        from django.test import Client
+
+        from apps.audit.models import AuditEvent
+        from apps.projects.models import Assignment
+
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
+        client = Client()
+        client.force_login(reviewer)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{doc.pk}/review/"
+            f"assignments/{assignment.pk}/return/"
+        )
+
+        assignment.refresh_from_db()
+        assert response.status_code == 302
+        assert assignment.status == Assignment.STATUS_RETURNED
+        assert AuditEvent.objects.filter(
+            action="assignment.return", target_id=str(assignment.pk)
+        ).exists()
+
+    def test_annotator_cannot_return_assignment(self, submitted_graph):
+        from django.test import Client
+
+        project, admin, annotator, reviewer, doc, assignment, graph, edge = (
+            submitted_graph
+        )
+        client = Client()
+        client.force_login(annotator)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{doc.pk}/review/"
+            f"assignments/{assignment.pk}/return/"
+        )
+
+        assert response.status_code == 403
+
 
 # ── DB: time-on-task CSV ──────────────────────────────────────────────────────
 

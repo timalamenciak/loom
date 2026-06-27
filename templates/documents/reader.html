@@ -36,7 +36,9 @@
   <div class="reader-text-pane">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
       <strong style="font-size:.78rem;color:var(--muted);letter-spacing:.05em">CANONICAL TEXT</strong>
-      <span style="font-size:.72rem;color:var(--muted)">Select text → Create span</span>
+      <span style="font-size:.72rem;color:var(--muted)">
+        {% if can_edit_spans %}Select text → Create span{% else %}Read-only{% endif %}
+      </span>
     </div>
     <div id="canonical-text" class="canonical-text">{{ highlighted_text }}</div>
   </div>
@@ -92,6 +94,7 @@
 </script>
 {% endif %}
 
+{% if can_edit_spans %}
 <script src="{% static 'js/span-select.js' %}"></script>
 <script>
   SpanSelector.init(
@@ -100,6 +103,7 @@
     '{{ csrf_token }}'
   );
 </script>
+{% endif %}
 
 {% endif %}{# has_text #}
 

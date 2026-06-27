@@ -19,6 +19,11 @@ from apps.schemas.models import SchemaVersion
 from apps.schemas.schema_engine import get_schema_view
 
 from .models import CausalGraph, Edge, Node, WorkSession
+from .policies import (
+    assignment_is_editable,
+    require_annotation_assignment,
+    require_editable_assignment,
+)
 from .services import (
     _unflatten_post,
     adjudicate_edge,
@@ -62,15 +67,6 @@ def _get_active_schema():
     return sv, get_schema_view(sv)
 
 
-def _require_member(request, project):
-    if request.user.is_superuser:
-        return
-    if not ProjectMembership.objects.filter(
-        project=project, user=request.user
-    ).exists():
-        raise PermissionDenied
-
-
 def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
 
@@ -83,7 +79,7 @@ def _graph_nodes_edges(graph):
     return nodes, edges
 
 
-def _graph_panel_ctx(project, document, graph):
+def _graph_panel_ctx(project, document, graph, assignment):
     nodes, edges = _graph_nodes_edges(graph)
     return {
         "project": project,
@@ -91,6 +87,8 @@ def _graph_panel_ctx(project, document, graph):
         "graph": graph,
         "nodes": nodes,
         "edges": edges,
+        "assignment": assignment,
+        "can_edit": assignment_is_editable(assignment),
     }
 
 
@@ -129,7 +127,11 @@ def _get_or_create_user_graph(
     )
 
 
-def _get_user_graph_or_404(document, user):
+def _get_user_graph_or_404(document, user, assignment=None):
+    if assignment and assignment.graph_id:
+        graph = assignment.graph
+        if graph.document_id == document.pk and graph.annotator_id == user.pk:
+            return graph
     graph = _user_graph_queryset(document, user).first()
     if graph is None:
         raise Http404("No annotation graph found.")
@@ -145,6 +147,8 @@ class AnnotationView(LoginRequiredMixin, View):
     def get(self, request, pk, doc_pk):
         try:
             return self._get(request, pk, doc_pk)
+        except (PermissionDenied, Http404):
+            raise
         except Exception:
             logger.exception(
                 "Annotation workspace failed for project=%s document=%s user=%s",
@@ -156,14 +160,10 @@ class AnnotationView(LoginRequiredMixin, View):
 
     def _get(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_annotation_assignment(document, request.user)
+        can_edit = assignment_is_editable(assignment)
         ensure_canonical_text(document)
-
-        # Session tracking via assignment
-        assignment = Assignment.objects.filter(
-            document=document, annotator=request.user
-        ).first()
 
         existing_graph = _user_graph_queryset(document, request.user).first()
         new_graph_schema = project.active_schema or SchemaVersion.get_active()
@@ -174,34 +174,51 @@ class AnnotationView(LoginRequiredMixin, View):
             )
             return redirect("project-detail", pk=pk)
 
-        graph, _created = _get_or_create_user_graph(
-            document,
-            request.user,
-            new_graph_schema,
-            ontology_snapshot=(
-                project.ontology_snapshot or OntologySnapshot.get_active()
-            ),
-            assignment=assignment,
-        )
+        if can_edit:
+            graph, _created = _get_or_create_user_graph(
+                document,
+                request.user,
+                new_graph_schema,
+                ontology_snapshot=(
+                    project.ontology_snapshot or OntologySnapshot.get_active()
+                ),
+                assignment=assignment,
+            )
+        else:
+            graph = assignment.graph or existing_graph
+            if graph is None:
+                raise Http404("No submitted annotation graph found.")
         schema_version = graph.schema_version
         lsv = get_schema_view(schema_version)
         session = None
-        if assignment:
+        if can_edit:
             # Link this assignment to the graph the workspace will use.
             if assignment.graph_id != graph.pk:
                 assignment.graph = graph
                 assignment.save(update_fields=["graph"])
             # Advance assignment to in_progress on first open
-            if assignment.status == Assignment.STATUS_ASSIGNED:
+            if assignment.status in {
+                Assignment.STATUS_ASSIGNED,
+                Assignment.STATUS_RETURNED,
+            }:
+                old_status = assignment.status
                 assignment.status = Assignment.STATUS_IN_PROGRESS
                 assignment.save(update_fields=["status"])
                 emit_audit(
-                    request.user, "assignment.in_progress", "Assignment", assignment.pk
+                    request.user,
+                    "assignment.in_progress",
+                    "Assignment",
+                    assignment.pk,
+                    {"from": old_status, "to": assignment.status},
                 )
             session = open_session(assignment, request.user)
 
         # Canonical text with span highlights
-        spans = list(TextSpan.objects.filter(document=document).order_by("start_char"))
+        spans = list(
+            TextSpan.objects.filter(
+                document=document, created_by=request.user
+            ).order_by("start_char")
+        )
         highlighted_text = ""
         if document.canonical_text:
             highlighted_text = mark_safe(
@@ -235,6 +252,7 @@ class AnnotationView(LoginRequiredMixin, View):
                 "document": document,
                 "graph": graph,
                 "assignment": assignment,
+                "can_edit": can_edit,
                 "session": session,
                 "nodes": nodes,
                 "edges": edges,
@@ -255,10 +273,10 @@ class AnnotationView(LoginRequiredMixin, View):
 class GraphPanelView(LoginRequiredMixin, View):
     def get(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
-        ctx = _graph_panel_ctx(project, document, graph)
+        assignment = require_annotation_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+        ctx = _graph_panel_ctx(project, document, graph, assignment)
         return render(request, "annotation/partials/graph_panel.html", ctx)
 
 
@@ -270,9 +288,9 @@ class NodeFormView(LoginRequiredMixin, View):
 
     def get(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
 
         lsv = get_schema_view(graph.schema_version)
         if not lsv:
@@ -294,7 +312,9 @@ class NodeFormView(LoginRequiredMixin, View):
         span_pk = request.GET.get("span_pk")
         if span_pk:
             try:
-                span = TextSpan.objects.get(pk=int(span_pk), document=document)
+                span = TextSpan.objects.get(
+                    pk=int(span_pk), document=document, created_by=request.user
+                )
                 prefill["original_sentence"] = span.text
                 prefill["_source_span_pk"] = str(span.pk)
             except (TextSpan.DoesNotExist, ValueError):
@@ -312,6 +332,8 @@ class NodeFormView(LoginRequiredMixin, View):
                 "current_data": prefill,
                 "node": None,
                 "graph_nodes": nodes,
+                "assignment": assignment,
+                "can_edit": True,
             },
         )
 
@@ -319,9 +341,9 @@ class NodeFormView(LoginRequiredMixin, View):
 class NodeCreateView(LoginRequiredMixin, View):
     def post(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
         span_pk = raw.pop("_source_span_pk", None)
@@ -331,7 +353,9 @@ class NodeCreateView(LoginRequiredMixin, View):
 
         if span_pk:
             try:
-                span = TextSpan.objects.get(pk=int(span_pk), document=document)
+                span = TextSpan.objects.get(
+                    pk=int(span_pk), document=document, created_by=request.user
+                )
                 span.node = node
                 span.save(update_fields=["node"])
                 emit_audit(
@@ -345,7 +369,7 @@ class NodeCreateView(LoginRequiredMixin, View):
                 pass
 
         if _is_htmx(request):
-            ctx = _graph_panel_ctx(project, document, graph)
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
@@ -356,9 +380,9 @@ class NodeCreateView(LoginRequiredMixin, View):
 class NodeEditView(LoginRequiredMixin, View):
     def get(self, request, pk, doc_pk, node_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         lsv = get_schema_view(graph.schema_version)
@@ -386,14 +410,16 @@ class NodeEditView(LoginRequiredMixin, View):
                 "current_data": node.data,
                 "node": node,
                 "graph_nodes": nodes,
+                "assignment": assignment,
+                "can_edit": True,
             },
         )
 
     def post(self, request, pk, doc_pk, node_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
@@ -401,7 +427,7 @@ class NodeEditView(LoginRequiredMixin, View):
         update_node(node, data, actor=request.user)
 
         if _is_htmx(request):
-            ctx = _graph_panel_ctx(project, document, graph)
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
@@ -412,16 +438,16 @@ class NodeEditView(LoginRequiredMixin, View):
 class NodeDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk, doc_pk, node_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
         name = node.name
         delete_node(node, request.user)
 
         if _is_htmx(request):
-            ctx = _graph_panel_ctx(project, document, graph)
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
@@ -446,9 +472,9 @@ class EdgeFormView(LoginRequiredMixin, View):
 
     def get(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
 
         lsv = get_schema_view(graph.schema_version)
         if not lsv:
@@ -467,7 +493,9 @@ class EdgeFormView(LoginRequiredMixin, View):
         span_pk = request.GET.get("span_pk")
         if span_pk:
             try:
-                span = TextSpan.objects.get(pk=int(span_pk), document=document)
+                span = TextSpan.objects.get(
+                    pk=int(span_pk), document=document, created_by=request.user
+                )
                 prefill["original_sentence"] = span.text
                 prefill["_source_span_pk"] = str(span.pk)
             except (TextSpan.DoesNotExist, ValueError):
@@ -484,6 +512,8 @@ class EdgeFormView(LoginRequiredMixin, View):
                 "current_data": prefill,
                 "edge": None,
                 "graph_nodes": nodes,
+                "assignment": assignment,
+                "can_edit": True,
             },
         )
 
@@ -491,9 +521,9 @@ class EdgeFormView(LoginRequiredMixin, View):
 class EdgeCreateView(LoginRequiredMixin, View):
     def post(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
         span_pk = raw.pop("_source_span_pk", None)
@@ -516,7 +546,9 @@ class EdgeCreateView(LoginRequiredMixin, View):
 
         if span_pk:
             try:
-                span = TextSpan.objects.get(pk=int(span_pk), document=document)
+                span = TextSpan.objects.get(
+                    pk=int(span_pk), document=document, created_by=request.user
+                )
                 span.edge = edge
                 span.save(update_fields=["edge"])
                 emit_audit(
@@ -530,7 +562,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
                 pass
 
         if _is_htmx(request):
-            ctx = _graph_panel_ctx(project, document, graph)
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
@@ -541,9 +573,9 @@ class EdgeCreateView(LoginRequiredMixin, View):
 class EdgeEditView(LoginRequiredMixin, View):
     def get(self, request, pk, doc_pk, edge_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         lsv = get_schema_view(graph.schema_version)
@@ -575,14 +607,16 @@ class EdgeEditView(LoginRequiredMixin, View):
                 "current_data": current_data,
                 "edge": edge,
                 "graph_nodes": nodes,
+                "assignment": assignment,
+                "can_edit": True,
             },
         )
 
     def post(self, request, pk, doc_pk, edge_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
@@ -610,7 +644,7 @@ class EdgeEditView(LoginRequiredMixin, View):
         )
 
         if _is_htmx(request):
-            ctx = _graph_panel_ctx(project, document, graph)
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
@@ -621,15 +655,15 @@ class EdgeEditView(LoginRequiredMixin, View):
 class EdgeAdvanceView(LoginRequiredMixin, View):
     def post(self, request, pk, doc_pk, edge_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        graph = _get_user_graph_or_404(document, request.user)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
         advance_edge_status(edge, request.user)
 
         if _is_htmx(request):
-            ctx = _graph_panel_ctx(project, document, graph)
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         return redirect("annotate", pk=pk, doc_pk=doc_pk)
@@ -640,7 +674,11 @@ class EdgeAdvanceView(LoginRequiredMixin, View):
 
 class HeartbeatView(LoginRequiredMixin, View):
     def post(self, request, session_pk):
-        session = get_object_or_404(WorkSession, pk=session_pk, annotator=request.user)
+        session = get_object_or_404(
+            WorkSession.objects.select_related("assignment"),
+            pk=session_pk,
+            annotator=request.user,
+        )
 
         try:
             data = json.loads(request.body)
@@ -651,6 +689,8 @@ class HeartbeatView(LoginRequiredMixin, View):
             return JsonResponse({"error": "JSON body must be an object"}, status=400)
         if session.ended_at is not None:
             return JsonResponse({"error": "Session has already ended"}, status=409)
+        if not assignment_is_editable(session.assignment):
+            return JsonResponse({"error": "Assignment is read-only"}, status=409)
 
         try:
             active_delta = _nonnegative_int(data.get("active_delta", 0))
@@ -685,11 +725,8 @@ def _nonnegative_int(value) -> int:
 class SubmitAnnotationView(LoginRequiredMixin, View):
     def post(self, request, pk, doc_pk):
         project = get_object_or_404(Project, pk=pk)
-        _require_member(request, project)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
-        assignment = get_object_or_404(
-            Assignment, document=document, annotator=request.user
-        )
+        assignment = require_annotation_assignment(document, request.user)
 
         # Close all open sessions
         for s in WorkSession.objects.filter(
@@ -697,11 +734,22 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         ):
             close_session(s)
 
-        submittable = {Assignment.STATUS_ASSIGNED, Assignment.STATUS_IN_PROGRESS}
+        submittable = {
+            Assignment.STATUS_ASSIGNED,
+            Assignment.STATUS_IN_PROGRESS,
+            Assignment.STATUS_RETURNED,
+        }
         if assignment.status in submittable:
+            old_status = assignment.status
             assignment.status = Assignment.STATUS_SUBMITTED
             assignment.save(update_fields=["status"])
-            emit_audit(request.user, "assignment.submit", "Assignment", assignment.pk)
+            emit_audit(
+                request.user,
+                "assignment.submit",
+                "Assignment",
+                assignment.pk,
+                {"from": old_status, "to": assignment.status},
+            )
             messages.success(request, "Work submitted for review.")
         else:
             messages.info(
@@ -782,6 +830,46 @@ class ReviewDocumentView(LoginRequiredMixin, View):
                 "is_admin": is_admin,
             },
         )
+
+
+class ReturnAssignmentView(LoginRequiredMixin, View):
+    """Return submitted work to its annotator for further editing."""
+
+    def post(self, request, pk, doc_pk, assignment_pk):
+        project = get_object_or_404(Project, pk=pk)
+        _require_reviewer_or_admin(request, project)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = get_object_or_404(
+            Assignment,
+            pk=assignment_pk,
+            project=project,
+            document=document,
+        )
+
+        if assignment.status == Assignment.STATUS_SUBMITTED:
+            assignment.status = Assignment.STATUS_RETURNED
+            assignment.save(update_fields=["status"])
+            emit_audit(
+                request.user,
+                "assignment.return",
+                "Assignment",
+                assignment.pk,
+                {
+                    "from": Assignment.STATUS_SUBMITTED,
+                    "to": Assignment.STATUS_RETURNED,
+                },
+            )
+            messages.success(
+                request,
+                f"Returned the assignment to {assignment.annotator.username}.",
+            )
+        else:
+            messages.info(
+                request,
+                "Only submitted assignments can be returned for editing.",
+            )
+
+        return redirect("review-document", pk=project.pk, doc_pk=document.pk)
 
 
 class AdjudicateEdgeView(LoginRequiredMixin, View):

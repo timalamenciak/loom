@@ -193,6 +193,23 @@ loom/
 
 Roles are per-project. A user can be an admin in one project and an annotator in another.
 
+## Annotation access and lifecycle
+
+Project membership permits document viewing, but graph and span changes require a
+document assignment for the current user. Assignments in `assigned`,
+`in_progress`, or `returned` state are editable. Opening assigned or returned
+work moves it to `in_progress`; submitting it moves it to `submitted` and makes
+the annotation read-only. A reviewer or project admin can return submitted work
+from the review screen, after which the annotator can resume it.
+
+Reviewers and administrators use the document review screen to inspect all
+assigned graphs and adjudicate completed edges. Their project role does not, by
+itself, allow them to modify an annotator's graph through the annotation UI.
+
+Spans are private working records belonging to the annotator who created them.
+Reviewers see their effect through the graph and exported edge provenance rather
+than sharing a mutable document-wide span list.
+
 ## Versioning
 
 Loom follows semantic versioning while it is pre-1.0:

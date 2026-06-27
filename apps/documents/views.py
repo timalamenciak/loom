@@ -10,6 +10,10 @@ from django.utils.safestring import mark_safe
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
+from apps.annotation.policies import (
+    assignment_is_editable,
+    require_editable_assignment,
+)
 from apps.projects.models import Document, ProjectMembership
 
 from .models import TextSpan
@@ -41,7 +45,11 @@ class DocumentReaderView(LoginRequiredMixin, View):
         _require_member(request, document)
         ensure_canonical_text(document)
 
-        spans = TextSpan.objects.filter(document=document).order_by("start_char")
+        assignment = document.assignments.filter(annotator=request.user).first()
+        can_edit_spans = bool(assignment and assignment_is_editable(assignment))
+        spans = TextSpan.objects.filter(
+            document=document, created_by=request.user
+        ).order_by("start_char")
         highlighted = render_highlighted_text(document.canonical_text or "", spans)
 
         return render(
@@ -54,6 +62,7 @@ class DocumentReaderView(LoginRequiredMixin, View):
                 "page_map": document.page_map or [],
                 "has_pdf": bool(document.pdf_file),
                 "has_text": bool(document.canonical_text),
+                "can_edit_spans": can_edit_spans,
             },
         )
 
@@ -84,7 +93,7 @@ class SpanCreateView(LoginRequiredMixin, View):
 
     def post(self, request, doc_pk):
         document = get_object_or_404(Document, pk=doc_pk)
-        _require_member(request, document)
+        require_editable_assignment(document, request.user)
 
         try:
             start = int(request.POST["start_char"])
@@ -99,7 +108,9 @@ class SpanCreateView(LoginRequiredMixin, View):
             return redirect("document-read", doc_pk=doc_pk)
 
         span = create_span(document, start, end, created_by=request.user)
-        spans = TextSpan.objects.filter(document=document).order_by("start_char")
+        spans = TextSpan.objects.filter(
+            document=document, created_by=request.user
+        ).order_by("start_char")
 
         if request.headers.get("HX-Request"):
             # span-select.js (annotation surface) wants JSON so it can open the form panel
@@ -110,7 +121,11 @@ class SpanCreateView(LoginRequiredMixin, View):
             return render(
                 request,
                 "documents/partials/span_list.html",
-                {"spans": spans, "document": document},
+                {
+                    "spans": spans,
+                    "document": document,
+                    "can_edit_spans": True,
+                },
             )
 
         return redirect("document-read", doc_pk=doc_pk)
@@ -119,16 +134,27 @@ class SpanCreateView(LoginRequiredMixin, View):
 class SpanDeleteView(LoginRequiredMixin, View):
     def post(self, request, doc_pk, span_pk):
         document = get_object_or_404(Document, pk=doc_pk)
-        _require_member(request, document)
-        span = get_object_or_404(TextSpan, pk=span_pk, document=document)
+        require_editable_assignment(document, request.user)
+        span = get_object_or_404(
+            TextSpan,
+            pk=span_pk,
+            document=document,
+            created_by=request.user,
+        )
         delete_span(span, request.user)
-        spans = TextSpan.objects.filter(document=document).order_by("start_char")
+        spans = TextSpan.objects.filter(
+            document=document, created_by=request.user
+        ).order_by("start_char")
 
         if request.headers.get("HX-Request"):
             return render(
                 request,
                 "documents/partials/span_list.html",
-                {"spans": spans, "document": document},
+                {
+                    "spans": spans,
+                    "document": document,
+                    "can_edit_spans": True,
+                },
             )
 
         return redirect("document-read", doc_pk=doc_pk)

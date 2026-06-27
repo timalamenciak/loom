@@ -269,6 +269,24 @@ class TestAnnotationView:
         resp = client.get(url)
         assert resp.status_code == 403
 
+    def test_unassigned_member_cannot_open_workspace(
+        self, project_and_user, document, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+
+        resp = client.get(f"/annotation/{project.pk}/documents/{document.pk}/annotate/")
+
+        assert resp.status_code == 403
+        assert not CausalGraph.objects.filter(
+            document=document, annotator=user
+        ).exists()
+
     def test_get_creates_graph_and_advances_assignment(
         self, project_and_user, document, assignment, schema_version
     ):
@@ -304,6 +322,27 @@ class TestAnnotationView:
         url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
         client.get(url)
         assert WorkSession.objects.filter(assignment=assignment).exists()
+
+    def test_returned_assignment_resumes_in_progress(
+        self, project_and_user, document, assignment, schema_version
+    ):
+        from django.test import Client
+
+        from apps.projects.models import Assignment
+
+        project, user = project_and_user
+        assignment.status = Assignment.STATUS_RETURNED
+        assignment.save(update_fields=["status"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
+        )
+
+        assignment.refresh_from_db()
+        assert response.status_code == 200
+        assert assignment.status == Assignment.STATUS_IN_PROGRESS
 
     def test_get_handles_duplicate_existing_graphs(
         self, project_and_user, document, assignment, schema_version
@@ -369,7 +408,7 @@ class TestNodeCreate:
         assert node.data.get("entity_type") == "biotic"
 
     def test_delete_node_also_deletes_connected_edges(
-        self, project_and_user, document, graph, schema_version
+        self, project_and_user, document, assignment, graph, schema_version
     ):
         from django.test import Client
 
@@ -450,7 +489,7 @@ class TestEdgeCreate:
         assert edge.predicate == "positive"
 
     def test_edge_missing_nodes_returns_400(
-        self, project_and_user, document, graph, schema_version
+        self, project_and_user, document, assignment, graph, schema_version
     ):
         from django.test import Client
 
@@ -640,3 +679,32 @@ class TestSubmitAnnotation:
 
         session.refresh_from_db()
         assert session.active_seconds == 120  # preserved after close
+
+    def test_submitted_assignment_is_read_only(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Node
+        from apps.projects.models import Assignment
+
+        project, user = project_and_user
+        assignment.graph = graph
+        assignment.status = Assignment.STATUS_SUBMITTED
+        assignment.save(update_fields=["graph", "status"])
+        client = Client()
+        client.force_login(user)
+
+        workspace = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
+        )
+        mutation = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
+            {"entity_type": "biotic"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert workspace.status_code == 200
+        assert b"read-only" in workspace.content
+        assert mutation.status_code == 403
+        assert not Node.objects.filter(graph=graph).exists()

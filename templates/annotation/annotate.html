@@ -112,7 +112,7 @@
        title="Download your annotations as a YAML data file (for admin use)">Export YAML</a>
     {% endif %}
 
-    {% if assignment %}
+    {% if can_edit %}
     <form method="post" action="{% url 'submit-annotation' pk=project.pk doc_pk=document.pk %}"
           onsubmit="return confirm('Submit your annotations for review?\n\nMake sure all edges are marked complete before submitting.\n\nYou can still view your annotations afterwards.')">
       {% csrf_token %}
@@ -170,7 +170,11 @@
 
       <div class="form-panel-wrap">
         <div id="form-panel">
-          {% if initial_form == "node" %}
+          {% if not can_edit %}
+          <p class="message message-info" style="margin:.5rem 0">
+            This annotation is read-only because it has been submitted or reviewed.
+          </p>
+          {% elif initial_form == "node" %}
             {% include "annotation/partials/node_form.html" with current_data=empty_form_data node=None graph_nodes=nodes %}
           {% elif initial_form == "edge" %}
             {% include "annotation/partials/edge_form.html" with current_data=empty_form_data edge=None graph_nodes=nodes %}
@@ -193,7 +197,7 @@
 <script src="{% static 'js/annotation-actions.js' %}"></script>
 
 {# ── Span selector ── #}
-{% if document.canonical_text and not document.pdf_file %}
+{% if can_edit and document.canonical_text and not document.pdf_file %}
 <script src="{% static 'js/span-select.js' %}"></script>
 <script>
   SpanSelector.init(
@@ -201,12 +205,10 @@
     '{% url "span-create" doc_pk=document.pk %}',
     '{{ csrf_token }}'
   );
-  {% if assignment %}
   SpanSelector.setAnnotationUrls(
     '{% url "node-form" pk=project.pk doc_pk=document.pk %}',
     '{% url "edge-form" pk=project.pk doc_pk=document.pk %}'
   );
-  {% endif %}
 </script>
 {% endif %}
 

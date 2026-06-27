@@ -35,6 +35,18 @@
       <a href="{% url 'export-graph' graph_pk=graph.pk %}"
          class="muted" style="font-size:.8rem;margin-left:auto">Export YAML</a>
       {% endif %}
+      {% if a.status == "submitted" %}
+      <form method="post"
+            action="{% url 'return-assignment' pk=project.pk doc_pk=document.pk assignment_pk=a.pk %}"
+            {% if graph %}style="margin-left:0"{% else %}style="margin-left:auto"{% endif %}>
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary"
+                style="font-size:.75rem;padding:.2rem .5rem"
+                title="Return this assignment to the annotator for further editing">
+          Return for changes
+        </button>
+      </form>
+      {% endif %}
     </div>
 
     {% if not graph %}

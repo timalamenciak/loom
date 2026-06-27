@@ -8,6 +8,7 @@
     <li id="span-{{ span.pk }}" style="border:1px solid var(--border);border-radius:4px;padding:.4rem .6rem;font-size:.8rem">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:.5rem">
         <span style="color:var(--muted);white-space:nowrap">[{{ span.start_char }}–{{ span.end_char }}]</span>
+        {% if can_edit_spans and span.created_by_id == user.pk %}
         <form method="post" action="{% url 'span-delete' doc_pk=document.pk span_pk=span.pk %}"
               style="margin:0;flex-shrink:0"
               hx-post="{% url 'span-delete' doc_pk=document.pk span_pk=span.pk %}"
@@ -18,6 +19,7 @@
                   style="background:none;border:none;color:var(--error);cursor:pointer;padding:0;font-size:.75rem"
                   title="Delete span">✕</button>
         </form>
+        {% endif %}
       </div>
       <div style="margin-top:.25rem;font-style:italic">"{{ span.text|truncatechars:120 }}"</div>
       {% if span.node or span.edge %}

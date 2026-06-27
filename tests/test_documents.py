@@ -266,12 +266,18 @@ class TestDocumentReaderView:
         from django.test import Client
 
         from apps.documents.models import TextSpan
-        from apps.projects.models import ProjectMembership
+        from apps.projects.models import Assignment, ProjectMembership
 
         ProjectMembership.objects.create(
             project=document.project,
             user=user,
             role=ProjectMembership.ROLE_ANNOTATOR,
+        )
+        Assignment.objects.create(
+            project=document.project,
+            document=document,
+            annotator=user,
+            assigned_by=user,
         )
         document.canonical_text = "The quick brown fox."
         document.save(update_fields=["canonical_text"])
@@ -288,3 +294,27 @@ class TestDocumentReaderView:
         assert span.text == "quick"
         assert span.start_char == 4
         assert span.end_char == 9
+
+    def test_unassigned_member_cannot_create_span(self, db, user, document):
+        from django.test import Client
+
+        from apps.documents.models import TextSpan
+        from apps.projects.models import ProjectMembership
+
+        ProjectMembership.objects.create(
+            project=document.project,
+            user=user,
+            role=ProjectMembership.ROLE_ANNOTATOR,
+        )
+        document.canonical_text = "The quick brown fox."
+        document.save(update_fields=["canonical_text"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/reader/{document.pk}/spans/",
+            {"start_char": 4, "end_char": 9},
+        )
+
+        assert response.status_code == 403
+        assert not TextSpan.objects.filter(document=document).exists()

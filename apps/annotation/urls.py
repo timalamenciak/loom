@@ -14,6 +14,7 @@ from .views import (
     NodeDeleteView,
     NodeEditView,
     NodeFormView,
+    ReturnAssignmentView,
     ReviewDocumentView,
     SchemaDemoView,
     SubmitAnnotationView,
@@ -99,6 +100,11 @@ urlpatterns = [
         "<int:pk>/documents/<int:doc_pk>/review/",
         ReviewDocumentView.as_view(),
         name="review-document",
+    ),
+    path(
+        "<int:pk>/documents/<int:doc_pk>/review/assignments/<int:assignment_pk>/return/",
+        ReturnAssignmentView.as_view(),
+        name="return-assignment",
     ),
     path(
         "<int:pk>/documents/<int:doc_pk>/review/graphs/<int:graph_pk>/edges/<int:edge_pk>/adjudicate/",
