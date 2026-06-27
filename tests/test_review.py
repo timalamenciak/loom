@@ -5,8 +5,9 @@ Pure-Python tests cover adjudicate_edge service and the schema-diff helpers.
 DB tests cover the full reviewer flow and CSV exports.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
 
@@ -18,6 +19,7 @@ class TestAdjudicateEdge:
     def _make_edge(self, status):
         """Return a minimal mock edge with the given status."""
         from unittest.mock import MagicMock
+
         from apps.annotation.models import Edge
 
         edge = MagicMock(spec=Edge)
@@ -29,8 +31,8 @@ class TestAdjudicateEdge:
         return edge
 
     def test_complete_advances_to_reviewed(self):
-        from apps.annotation.services import adjudicate_edge
         from apps.annotation.models import Edge
+        from apps.annotation.services import adjudicate_edge
 
         edge = self._make_edge(Edge.STATUS_COMPLETE)
         adjudicate_edge(edge, actor=None)
@@ -38,16 +40,16 @@ class TestAdjudicateEdge:
         assert edge.status == Edge.STATUS_REVIEWED
 
     def test_reviewed_advances_to_gold(self):
-        from apps.annotation.services import adjudicate_edge
         from apps.annotation.models import Edge
+        from apps.annotation.services import adjudicate_edge
 
         edge = self._make_edge(Edge.STATUS_REVIEWED)
         adjudicate_edge(edge, actor=None)
         assert edge.status == Edge.STATUS_GOLD
 
     def test_draft_not_adjudicatable(self):
-        from apps.annotation.services import adjudicate_edge
         from apps.annotation.models import Edge
+        from apps.annotation.services import adjudicate_edge
 
         edge = self._make_edge(Edge.STATUS_DRAFT)
         adjudicate_edge(edge, actor=None)
@@ -55,8 +57,8 @@ class TestAdjudicateEdge:
         assert edge.status == Edge.STATUS_DRAFT
 
     def test_gold_is_terminal(self):
-        from apps.annotation.services import adjudicate_edge
         from apps.annotation.models import Edge
+        from apps.annotation.services import adjudicate_edge
 
         edge = self._make_edge(Edge.STATUS_GOLD)
         adjudicate_edge(edge, actor=None)
@@ -118,6 +120,7 @@ class TestSchemaDiff:
 @pytest.fixture
 def project_with_roles(db):
     from django.contrib.auth import get_user_model
+
     from apps.projects.models import Project, ProjectMembership
 
     User = get_user_model()
@@ -146,8 +149,8 @@ def schema_version(db):
 
 @pytest.fixture
 def submitted_graph(project_with_roles, schema_version):
-    from apps.projects.models import Document, Assignment
-    from apps.annotation.models import CausalGraph, Node, Edge
+    from apps.annotation.models import CausalGraph, Edge, Node
+    from apps.projects.models import Assignment, Document
 
     project, admin, annotator, reviewer = project_with_roles
     doc = Document.objects.create(
@@ -191,6 +194,7 @@ def submitted_graph(project_with_roles, schema_version):
 class TestAdjudicateEdgeDB:
     def test_reviewer_can_mark_reviewed(self, submitted_graph):
         from django.test import Client
+
         from apps.annotation.models import Edge
 
         project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph
@@ -204,6 +208,7 @@ class TestAdjudicateEdgeDB:
 
     def test_admin_can_mark_gold_from_reviewed(self, submitted_graph):
         from django.test import Client
+
         from apps.annotation.models import Edge
         from apps.annotation.services import adjudicate_edge
 
@@ -246,6 +251,7 @@ class TestAdjudicateEdgeDB:
 class TestTimeReport:
     def test_csv_format(self, submitted_graph):
         from django.test import Client
+
         from apps.annotation.models import WorkSession
 
         project, admin, annotator, reviewer, doc, assignment, graph, edge = submitted_graph

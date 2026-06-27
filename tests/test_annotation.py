@@ -222,8 +222,7 @@ class TestAnnotationView:
         from django.contrib.auth import get_user_model
         from django.test import Client
 
-        User = get_user_model()
-        outsider = User.objects.create_user("outsider", password="pw")
+        get_user_model().objects.create_user("outsider", password="pw")
         client = Client()
         client.login(username="outsider", password="pw")
         project, _ = project_and_user
@@ -392,7 +391,6 @@ class TestHeartbeat:
     ):
         from django.test import Client
 
-        from apps.annotation.models import WorkSession
         from apps.annotation.services import open_session
 
         project, user = project_and_user
@@ -426,7 +424,6 @@ class TestHeartbeat:
     ):
         from django.test import Client
 
-        from apps.annotation.models import WorkSession
         from apps.annotation.services import open_session
 
         project, user = project_and_user
@@ -456,7 +453,6 @@ class TestSubmitAnnotation:
     ):
         from django.test import Client
 
-        from apps.annotation.models import WorkSession
         from apps.annotation.services import open_session
         from apps.projects.models import Assignment
 
@@ -485,7 +481,6 @@ class TestSubmitAnnotation:
     ):
         from django.test import Client
 
-        from apps.annotation.models import WorkSession
         from apps.annotation.services import heartbeat, open_session
 
         project, user = project_and_user

@@ -79,7 +79,7 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(f"\n{'='*60}")
-        self.stdout.write(f"Migration Report")
+        self.stdout.write("Migration Report")
         self.stdout.write(f"{'='*60}")
         self.stdout.write(f"Graph    : {graph.pk} — {graph.document.title[:60]}")
         self.stdout.write(f"From     : {old_sv.version}")

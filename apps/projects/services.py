@@ -1,17 +1,16 @@
 """Business logic for projects: RIS import, PDF attachment, assignment."""
 
-from dataclasses import dataclass, field
 import hashlib
 import io
-from pathlib import Path
 import re
 import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
 
 import rispy
 from django.core.files.base import ContentFile
 
 from .models import Assignment, Document, Project
-
 
 # ---------------------------------------------------------------------------
 # RIS import

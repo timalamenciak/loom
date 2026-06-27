@@ -1,7 +1,8 @@
-import apps.annotation.models
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
+
+import apps.annotation.models
 
 
 class Migration(migrations.Migration):

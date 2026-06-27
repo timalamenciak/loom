@@ -5,8 +5,9 @@ Pure-Python tests (no DB) cover _clean(), type casting, and renderers.
 DB tests cover the full serialize_graph() → provenance → YAML pipeline.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
 
@@ -160,6 +161,7 @@ class TestFCMRenderer:
 @pytest.fixture
 def export_user(db):
     from django.contrib.auth import get_user_model
+
     from apps.projects.models import Project, ProjectMembership
 
     User = get_user_model()
@@ -183,8 +185,8 @@ def schema_version(db):
 
 @pytest.fixture
 def populated_graph(export_user, schema_version):
+    from apps.annotation.models import CausalGraph, Edge, Node
     from apps.projects.models import Document
-    from apps.annotation.models import CausalGraph, Node, Edge
 
     user, project = export_user
     doc = Document.objects.create(
@@ -285,6 +287,7 @@ class TestSerializeGraph:
 class TestBuildProvenance:
     def test_sha256_is_64_hex_chars(self, populated_graph):
         import yaml
+
         from apps.export.serializer import build_provenance, serialize_graph
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
@@ -294,6 +297,7 @@ class TestBuildProvenance:
 
     def test_schema_version_matches(self, populated_graph):
         import yaml
+
         from apps.export.serializer import build_provenance, serialize_graph
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
@@ -303,6 +307,7 @@ class TestBuildProvenance:
 
     def test_sha256_is_deterministic(self, populated_graph):
         import yaml
+
         from apps.export.serializer import build_provenance, serialize_graph
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)

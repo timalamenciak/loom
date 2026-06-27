@@ -29,7 +29,6 @@ A form spec is a list of layer dicts, each containing a list of slot specs:
 
 import threading
 
-import yaml
 from linkml_runtime.utils.schemaview import SchemaView
 
 _cache: dict[int, "LoomSchemaView"] = {}
@@ -134,15 +133,15 @@ class LoomSchemaView:
     # ── private ─────────────────────────────────────────────────────────────
 
     def _all_slot_names(self, class_name: str) -> list[str]:
-        """Walk is_a chain to collect slot names in declaration order."""
-        cls = self._sv.get_class(class_name)
-        if not cls:
+        """Return all induced fields in schema declaration order.
+
+        LinkML permits fields to be declared through either a class ``slots``
+        list or inline class ``attributes``.  ``class_induced_slots`` resolves
+        both forms, including inherited fields and slot usage refinements.
+        """
+        if not self._sv.get_class(class_name):
             return []
-        parent_names: list[str] = []
-        if cls.is_a:
-            parent_names = self._all_slot_names(cls.is_a)
-        own = list(cls.slots or [])
-        return parent_names + [s for s in own if s not in parent_names]
+        return [slot.name for slot in self._sv.class_induced_slots(class_name)]
 
     def _slot_spec(self, slot_name: str, class_name: str, ontology_routing: dict) -> dict:
         slot = self._sv.induced_slot(slot_name, class_name)

@@ -128,11 +128,18 @@
 
             const getEl = event.target.closest('[hx-get]');
             if (getEl && !getEl.disabled) {
-                stopHtmx(event);
-                requestHtml('GET', getEl.getAttribute('hx-get'), {
-                    targetElement: targetFor(getEl),
-                });
-                return;
+                // Skip containers triggered by 'load' (e.g. #graph-panel); those
+                // are not click targets and intercepting them swallows onclick handlers
+                // on child elements.
+                const hxTrigger = getEl.getAttribute('hx-trigger') || '';
+                const isLoadTriggered = hxTrigger.split(/[\s,]+/).includes('load');
+                if (!isLoadTriggered) {
+                    stopHtmx(event);
+                    requestHtml('GET', getEl.getAttribute('hx-get'), {
+                        targetElement: targetFor(getEl),
+                    });
+                    return;
+                }
             }
 
             const postEl = event.target.closest('button[hx-post], a[hx-post]');

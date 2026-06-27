@@ -11,6 +11,7 @@ from apps.schemas.models import SchemaVersion
 from apps.schemas.schema_engine import LoomSchemaView, get_schema_view, invalidate_cache
 
 CAMO_040 = "config/schema/camo-0.4.0.yaml"
+CAMO_041 = "config/schema/camo-0.4.1.yaml"
 CAMO_050 = "config/schema/camo-0.5.0.yaml"
 
 
@@ -101,6 +102,58 @@ class TestEngineNoDB:
         all_slots = [s for layer in spec for s in layer["slots"]]
         names = [s["name"] for s in all_slots]
         assert "biotic_interaction_type" not in names
+
+    def test_inline_attributes_render_as_node_and_edge_inputs(self):
+        from types import SimpleNamespace
+
+        import yaml
+        from django.template.loader import render_to_string
+
+        with open("config/loom_ui.yaml") as f:
+            ui = yaml.safe_load(f)
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_041, "0.4.1"))
+        common = {
+            "project": SimpleNamespace(pk=1),
+            "document": SimpleNamespace(pk=2),
+            "graph": SimpleNamespace(pk=3),
+            "current_data": {},
+        }
+
+        node_html = render_to_string(
+            "annotation/partials/node_form.html",
+            {
+                **common,
+                "node": None,
+                "node_spec": lsv.form_spec(
+                    "CausalNode",
+                    ontology_routing=ui.get("ontology_routing", {}),
+                ),
+                "graph_nodes": [],
+            },
+        )
+        assert 'name="name"' in node_html
+        assert 'name="entity_type"' in node_html
+
+        graph_nodes = [
+            SimpleNamespace(node_id="n1", name="Cause", category=""),
+            SimpleNamespace(node_id="n2", name="Effect", category=""),
+        ]
+        edge_html = render_to_string(
+            "annotation/partials/edge_form.html",
+            {
+                **common,
+                "edge": None,
+                "edge_spec": lsv.form_spec(
+                    "CausalEdge",
+                    ui_layers=ui.get("layers"),
+                    ontology_routing=ui.get("ontology_routing", {}),
+                ),
+                "graph_nodes": graph_nodes,
+            },
+        )
+        assert 'name="subject"' in edge_html
+        assert 'name="object"' in edge_html
+        assert 'name="claim_strength"' in edge_html
 
 
 def _load_yaml(path: str) -> str:
@@ -231,6 +284,27 @@ class TestSchemaEngine:
         assert "entity_type" in names
         assert "name" in names
 
+    def test_inline_class_attributes_generate_form_fields(self):
+        """CAMO 0.4.1 declares fields as attributes rather than slot lists."""
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_041, "0.4.1"))
+
+        node_slots = [
+            slot for layer in lsv.form_spec("CausalNode") for slot in layer["slots"]
+        ]
+        edge_slots = [
+            slot for layer in lsv.form_spec("CausalEdge") for slot in layer["slots"]
+        ]
+
+        assert {slot["name"] for slot in node_slots} >= {"name", "entity_type"}
+        assert {slot["name"] for slot in edge_slots} >= {
+            "subject",
+            "object",
+            "claim_strength",
+        }
+        assert next(slot for slot in edge_slots if slot["name"] == "subject")[
+            "widget"
+        ] == "node_picker"
+
 
 # ── Schema switching (Phase 2 acceptance criterion) ───────────────────────────
 
@@ -321,7 +395,12 @@ class TestAnnotationModels:
         assert edge.data["claim_strength"] == "tendency"
 
     def test_advance_edge_status(self, schema_040, annotator, project_with_doc):
-        from apps.annotation.services import advance_edge_status, create_edge, create_graph, create_node
+        from apps.annotation.services import (
+            advance_edge_status,
+            create_edge,
+            create_graph,
+            create_node,
+        )
 
         proj, doc = project_with_doc
         graph = create_graph(doc, annotator, schema_040)
@@ -334,7 +413,6 @@ class TestAnnotationModels:
         assert edge.status == "complete"
 
     def test_node_data_stored_as_jsonb(self, schema_040, annotator, project_with_doc):
-        from apps.annotation.models import Node
         from apps.annotation.services import create_graph, create_node
 
         proj, doc = project_with_doc

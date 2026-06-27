@@ -14,7 +14,6 @@ from apps.documents.services import (
     set_abstract_as_canonical,
 )
 
-
 # ---------------------------------------------------------------------------
 # Pure-Python rendering tests — no DB, no pdfplumber
 # ---------------------------------------------------------------------------
@@ -191,6 +190,7 @@ class TestCreateSpan:
 class TestDocumentReaderView:
     def test_reader_returns_200_for_abstract_doc(self, db, user, document):
         from django.test import Client
+
         from apps.projects.models import ProjectMembership
 
         ProjectMembership.objects.create(
@@ -220,6 +220,7 @@ class TestDocumentReaderView:
 
     def test_span_create_persists(self, db, user, document):
         from django.test import Client
+
         from apps.documents.models import TextSpan
         from apps.projects.models import ProjectMembership
 

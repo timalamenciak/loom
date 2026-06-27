@@ -1,7 +1,6 @@
 """Service layer for annotation writes. All ORM mutations go through here."""
 
-from .models import CausalGraph, Edge, Node
-
+from .models import CausalGraph, Edge, Node, WorkSession
 
 # ── Graph ─────────────────────────────────────────────────────────────────────
 
@@ -107,8 +106,6 @@ def adjudicate_edge(edge: Edge, actor) -> Edge:
 
 def open_session(assignment, annotator) -> "WorkSession":
     """Return the current open WorkSession, creating one if needed."""
-    from .models import WorkSession
-
     session = WorkSession.objects.filter(
         assignment=assignment,
         annotator=annotator,
@@ -124,8 +121,6 @@ def heartbeat(session, active_delta: int, idle_delta: int) -> None:
     """Accumulate time deltas sent by the client heartbeat."""
     from django.db.models import F
 
-    from .models import WorkSession
-
     WorkSession.objects.filter(pk=session.pk).update(
         active_seconds=F("active_seconds") + max(0, active_delta),
         idle_seconds=F("idle_seconds") + max(0, idle_delta),
@@ -136,8 +131,6 @@ def heartbeat(session, active_delta: int, idle_delta: int) -> None:
 def close_session(session) -> None:
     """Mark a session ended and record wall-clock open_seconds."""
     from django.utils import timezone
-
-    from .models import WorkSession
 
     now = timezone.now()
     open_sec = int((now - session.started_at).total_seconds())
