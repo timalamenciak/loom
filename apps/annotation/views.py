@@ -37,6 +37,8 @@ from .services import (
     emit_audit,
     heartbeat,
     open_session,
+    set_edge_source_spans,
+    set_node_source_spans,
     update_edge,
     update_node,
 )
@@ -85,6 +87,13 @@ def _graph_nodes_edges(graph):
 
 def _graph_panel_ctx(project, document, graph, assignment):
     nodes, edges = _graph_nodes_edges(graph)
+    spans = list(
+        TextSpan.objects.filter(
+            document=document, created_by=assignment.annotator
+        )
+        .select_related("node", "edge")
+        .order_by("start_char")
+    )
     return {
         "project": project,
         "document": document,
@@ -93,6 +102,8 @@ def _graph_panel_ctx(project, document, graph, assignment):
         "edges": edges,
         "assignment": assignment,
         "can_edit": assignment_is_editable(assignment),
+        "spans": spans,
+        "can_edit_spans": assignment_is_editable(assignment),
     }
 
 
@@ -107,6 +118,90 @@ def _post_payload(request, *managed_names):
         if name in payload:
             payload.pop(name)
     return payload, managed
+
+
+def _parse_span_ids(values) -> list[int]:
+    parsed: list[int] = []
+    for value in values:
+        for part in str(value or "").split(","):
+            try:
+                span_id = int(part.strip())
+            except ValueError:
+                continue
+            if span_id > 0 and span_id not in parsed:
+                parsed.append(span_id)
+    return parsed
+
+
+def _requested_span_ids(request) -> list[int]:
+    values = request.POST.getlist("_source_span_pks")
+    legacy = request.POST.get("_source_span_pk")
+    if legacy:
+        values.append(legacy)
+    return _parse_span_ids(values)
+
+
+def _query_span_ids(request) -> list[int]:
+    values = request.GET.getlist("span_pks")
+    legacy = request.GET.get("span_pk")
+    if legacy:
+        values.append(legacy)
+    return _parse_span_ids(values)
+
+
+def _grounding_options(
+    document,
+    user,
+    *,
+    target_kind: str,
+    target=None,
+    selected_ids=None,
+):
+    has_explicit_selection = selected_ids is not None
+    selected = set(selected_ids or [])
+    target_id = getattr(target, "pk", None)
+    options = []
+    spans = (
+        TextSpan.objects.filter(document=document, created_by=user)
+        .select_related("node", "edge")
+        .order_by("start_char")
+    )
+    for span in spans:
+        linked_id = span.node_id if target_kind == "node" else span.edge_id
+        unavailable = linked_id is not None and linked_id != target_id
+        options.append(
+            {
+                "span": span,
+                "selected": not unavailable
+                and (
+                    span.pk in selected
+                    if has_explicit_selection
+                    else linked_id == target_id
+                ),
+                "unavailable": unavailable,
+            }
+        )
+    return options
+
+
+def _selected_spans(document, user, span_ids, *, target_kind, target=None):
+    target_id = getattr(target, "pk", None)
+    spans = list(
+        TextSpan.objects.filter(
+            pk__in=span_ids,
+            document=document,
+            created_by=user,
+        ).order_by("start_char")
+    )
+    if target_kind == "node":
+        return [span for span in spans if span.node_id in {None, target_id}]
+    return [span for span in spans if span.edge_id in {None, target_id}]
+
+
+def _excerpt_text(spans) -> str:
+    return "\n\n[...]\n\n".join(
+        span.text.strip() for span in spans if span.text.strip()
+    )
 
 
 def _form_error_response(request, template_name, context):
@@ -249,7 +344,9 @@ class AnnotationView(LoginRequiredMixin, View):
         spans = list(
             TextSpan.objects.filter(
                 document=document, created_by=request.user
-            ).order_by("start_char")
+            )
+            .select_related("node", "edge")
+            .order_by("start_char")
         )
         highlighted_text = ""
         if document.canonical_text:
@@ -271,6 +368,14 @@ class AnnotationView(LoginRequiredMixin, View):
         initial_form = request.GET.get("form", "")
         if initial_form not in {"node", "edge"}:
             initial_form = ""
+        excerpt_options = []
+        if initial_form:
+            excerpt_options = _grounding_options(
+                document,
+                request.user,
+                target_kind=initial_form,
+                selected_ids=_query_span_ids(request),
+            )
 
         return render(
             request,
@@ -291,6 +396,8 @@ class AnnotationView(LoginRequiredMixin, View):
                 "graph_nodes": nodes,
                 "initial_form": initial_form,
                 "empty_form_data": {},
+                "excerpt_options": excerpt_options,
+                "can_edit_spans": can_edit,
             },
         )
 
@@ -337,16 +444,7 @@ class NodeFormView(LoginRequiredMixin, View):
         )
 
         prefill: dict = {}
-        span_pk = request.GET.get("span_pk")
-        if span_pk:
-            try:
-                span = TextSpan.objects.get(
-                    pk=int(span_pk), document=document, created_by=request.user
-                )
-                prefill["original_sentence"] = span.text
-                prefill["_source_span_pk"] = str(span.pk)
-            except (TextSpan.DoesNotExist, ValueError):
-                pass
+        selected_ids = _query_span_ids(request)
 
         nodes, _ = _graph_nodes_edges(graph)
         return render(
@@ -362,6 +460,12 @@ class NodeFormView(LoginRequiredMixin, View):
                 "graph_nodes": nodes,
                 "assignment": assignment,
                 "can_edit": True,
+                "excerpt_options": _grounding_options(
+                    document,
+                    request.user,
+                    target_kind="node",
+                    selected_ids=selected_ids,
+                ),
             },
         )
 
@@ -373,16 +477,16 @@ class NodeCreateView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        payload, managed = _post_payload(request, "_source_span_pk")
-        span_pk = managed["_source_span_pk"]
+        span_ids = _requested_span_ids(request)
+        payload, _managed = _post_payload(
+            request, "_source_span_pk", "_source_span_pks"
+        )
         lsv = get_schema_view(graph.schema_version)
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
         if not bound.is_valid:
             current_data = dict(bound.data)
-            if span_pk:
-                current_data["_source_span_pk"] = span_pk
             nodes, _ = _graph_nodes_edges(graph)
             return _form_error_response(
                 request,
@@ -398,31 +502,29 @@ class NodeCreateView(LoginRequiredMixin, View):
                     "graph_nodes": nodes,
                     "assignment": assignment,
                     "can_edit": True,
+                    "excerpt_options": _grounding_options(
+                        document,
+                        request.user,
+                        target_kind="node",
+                        selected_ids=span_ids,
+                    ),
                 },
             )
 
         node = create_node(graph, bound.data, actor=request.user)
-
-        if span_pk:
-            try:
-                span = TextSpan.objects.get(
-                    pk=int(span_pk), document=document, created_by=request.user
-                )
-                span.node = node
-                span.save(update_fields=["node"])
-                emit_audit(
-                    request.user,
-                    "span.link",
-                    "TextSpan",
-                    span.pk,
-                    {"node_id": node.pk},
-                )
-            except (TextSpan.DoesNotExist, ValueError):
-                pass
+        selected_spans = _selected_spans(
+            document,
+            request.user,
+            span_ids,
+            target_kind="node",
+            target=node,
+        )
+        set_node_source_spans(node, selected_spans, request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
+            ctx["oob_refresh_excerpts"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, f'Node "{node.name}" created.')
@@ -461,6 +563,12 @@ class NodeEditView(LoginRequiredMixin, View):
                 "graph_nodes": nodes,
                 "assignment": assignment,
                 "can_edit": True,
+                "excerpt_options": _grounding_options(
+                    document,
+                    request.user,
+                    target_kind="node",
+                    target=node,
+                ),
             },
         )
 
@@ -471,7 +579,10 @@ class NodeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
-        payload, _managed = _post_payload(request)
+        span_ids = _requested_span_ids(request)
+        payload, _managed = _post_payload(
+            request, "_source_span_pk", "_source_span_pks"
+        )
         lsv = get_schema_view(graph.schema_version)
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
@@ -492,13 +603,29 @@ class NodeEditView(LoginRequiredMixin, View):
                     "graph_nodes": nodes,
                     "assignment": assignment,
                     "can_edit": True,
+                    "excerpt_options": _grounding_options(
+                        document,
+                        request.user,
+                        target_kind="node",
+                        target=node,
+                        selected_ids=span_ids,
+                    ),
                 },
             )
         update_node(node, bound.data, actor=request.user)
+        selected_spans = _selected_spans(
+            document,
+            request.user,
+            span_ids,
+            target_kind="node",
+            target=node,
+        )
+        set_node_source_spans(node, selected_spans, request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
+            ctx["oob_refresh_excerpts"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, f'Node "{node.name}" updated.')
@@ -519,6 +646,7 @@ class NodeDeleteView(LoginRequiredMixin, View):
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
+            ctx["oob_refresh_excerpts"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, f'Node "{name}" deleted.')
@@ -559,17 +687,16 @@ class EdgeFormView(LoginRequiredMixin, View):
         edge_spec = _edge_form_spec(lsv, ui)
         nodes, _ = _graph_nodes_edges(graph)
 
+        selected_ids = _query_span_ids(request)
+        selected_spans = _selected_spans(
+            document,
+            request.user,
+            selected_ids,
+            target_kind="edge",
+        )
         prefill: dict = {}
-        span_pk = request.GET.get("span_pk")
-        if span_pk:
-            try:
-                span = TextSpan.objects.get(
-                    pk=int(span_pk), document=document, created_by=request.user
-                )
-                prefill["original_sentence"] = span.text
-                prefill["_source_span_pk"] = str(span.pk)
-            except (TextSpan.DoesNotExist, ValueError):
-                pass
+        if selected_spans:
+            prefill["original_sentence"] = _excerpt_text(selected_spans)
 
         return render(
             request,
@@ -584,6 +711,12 @@ class EdgeFormView(LoginRequiredMixin, View):
                 "graph_nodes": nodes,
                 "assignment": assignment,
                 "can_edit": True,
+                "excerpt_options": _grounding_options(
+                    document,
+                    request.user,
+                    target_kind="edge",
+                    selected_ids=selected_ids,
+                ),
             },
         )
 
@@ -595,10 +728,14 @@ class EdgeCreateView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
+        span_ids = _requested_span_ids(request)
         payload, managed = _post_payload(
-            request, "_source_span_pk", "subject", "object"
+            request,
+            "_source_span_pk",
+            "_source_span_pks",
+            "subject",
+            "object",
         )
-        span_pk = managed["_source_span_pk"]
         subject_id = managed["subject"]
         object_id = managed["object"]
 
@@ -620,8 +757,6 @@ class EdgeCreateView(LoginRequiredMixin, View):
         if not bound.is_valid:
             current_data = dict(bound.data)
             current_data.update({"subject": subject_id, "object": object_id})
-            if span_pk:
-                current_data["_source_span_pk"] = span_pk
             nodes, _ = _graph_nodes_edges(graph)
             return _form_error_response(
                 request,
@@ -637,30 +772,28 @@ class EdgeCreateView(LoginRequiredMixin, View):
                     "graph_nodes": nodes,
                     "assignment": assignment,
                     "can_edit": True,
+                    "excerpt_options": _grounding_options(
+                        document,
+                        request.user,
+                        target_kind="edge",
+                        selected_ids=span_ids,
+                    ),
                 },
             )
         edge = create_edge(graph, subject, object_node, bound.data, actor=request.user)
-
-        if span_pk:
-            try:
-                span = TextSpan.objects.get(
-                    pk=int(span_pk), document=document, created_by=request.user
-                )
-                span.edge = edge
-                span.save(update_fields=["edge"])
-                emit_audit(
-                    request.user,
-                    "span.link",
-                    "TextSpan",
-                    span.pk,
-                    {"edge_id": edge.pk},
-                )
-            except (TextSpan.DoesNotExist, ValueError):
-                pass
+        selected_spans = _selected_spans(
+            document,
+            request.user,
+            span_ids,
+            target_kind="edge",
+            target=edge,
+        )
+        set_edge_source_spans(edge, selected_spans, request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
+            ctx["oob_refresh_excerpts"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, "Edge created.")
@@ -706,6 +839,12 @@ class EdgeEditView(LoginRequiredMixin, View):
                 "graph_nodes": nodes,
                 "assignment": assignment,
                 "can_edit": True,
+                "excerpt_options": _grounding_options(
+                    document,
+                    request.user,
+                    target_kind="edge",
+                    target=edge,
+                ),
             },
         )
 
@@ -716,7 +855,14 @@ class EdgeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        payload, managed = _post_payload(request, "subject", "object")
+        span_ids = _requested_span_ids(request)
+        payload, managed = _post_payload(
+            request,
+            "_source_span_pk",
+            "_source_span_pks",
+            "subject",
+            "object",
+        )
         subject_id = managed["subject"]
         object_id = managed["object"]
 
@@ -758,6 +904,13 @@ class EdgeEditView(LoginRequiredMixin, View):
                     "graph_nodes": nodes,
                     "assignment": assignment,
                     "can_edit": True,
+                    "excerpt_options": _grounding_options(
+                        document,
+                        request.user,
+                        target_kind="edge",
+                        target=edge,
+                        selected_ids=span_ids,
+                    ),
                 },
             )
         update_edge(
@@ -767,10 +920,19 @@ class EdgeEditView(LoginRequiredMixin, View):
             object_node=object_node,
             actor=request.user,
         )
+        selected_spans = _selected_spans(
+            document,
+            request.user,
+            span_ids,
+            target_kind="edge",
+            target=edge,
+        )
+        set_edge_source_spans(edge, selected_spans, request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)
             ctx["oob_clear_form"] = True
+            ctx["oob_refresh_excerpts"] = True
             return render(request, "annotation/partials/graph_panel.html", ctx)
 
         messages.success(request, "Edge updated.")

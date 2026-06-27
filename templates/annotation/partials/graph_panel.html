@@ -82,3 +82,7 @@
   <p class="empty muted" style="padding:1rem;text-align:center">Select an action above to annotate.</p>
 </div>
 {% endif %}
+
+{% if oob_refresh_excerpts %}
+  {% include "annotation/partials/excerpt_bin.html" %}
+{% endif %}

@@ -332,6 +332,27 @@ class TestAnnotationView:
         client.get(url)
         assert WorkSession.objects.filter(assignment=assignment).exists()
 
+    def test_pdf_backed_workspace_keeps_selectable_canonical_text(
+        self, project_and_user, document, assignment, schema_version
+    ):
+        from django.test import Client
+
+        project, user = project_and_user
+        document.pdf_file.name = "pdfs/example.pdf"
+        document.save(update_fields=["pdf_file"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
+        )
+
+        assert response.status_code == 200
+        assert b"Text from PDF" in response.content
+        assert b'id="canonical-text"' in response.content
+        assert b"span-select.js" in response.content
+        assert b'id="excerpt-bin"' in response.content
+
     def test_returned_assignment_resumes_in_progress(
         self, project_and_user, document, assignment, schema_version
     ):
@@ -461,6 +482,63 @@ class TestNodeCreate:
             "PATO:2",
         ]
 
+    def test_multiple_excerpts_can_ground_a_node(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Node
+        from apps.documents.services import create_span
+
+        project, user = project_and_user
+        first = create_span(document, 0, 18, created_by=user)
+        second = create_span(document, 19, 28, created_by=user)
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
+            {
+                "entity_type": "biotic",
+                "_source_span_pks": [str(first.pk), str(second.pk)],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        node = Node.objects.get(graph=graph)
+        assert response.status_code == 200
+        assert set(node.spans.values_list("pk", flat=True)) == {first.pk, second.pk}
+        assert b'hx-swap-oob="true"' in response.content
+
+    def test_excerpt_is_not_stolen_from_another_node(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Node
+        from apps.documents.services import create_span
+
+        project, user = project_and_user
+        existing = Node.objects.create(
+            graph=graph, name="Existing", data={}, schema_version=schema_version
+        )
+        span = create_span(document, 0, 18, created_by=user)
+        span.node = existing
+        span.save(update_fields=["node"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
+            {"entity_type": "biotic", "_source_span_pks": [str(span.pk)]},
+            HTTP_HX_REQUEST="true",
+        )
+
+        span.refresh_from_db()
+        assert response.status_code == 200
+        assert span.node == existing
+        assert Node.objects.exclude(pk=existing.pk).get(graph=graph).spans.count() == 0
+
     def test_delete_node_also_deletes_connected_edges(
         self, project_and_user, document, assignment, graph, schema_version
     ):
@@ -557,6 +635,66 @@ class TestEdgeCreate:
             url, {"predicate": "positively_regulates"}, HTTP_HX_REQUEST="true"
         )
         assert resp.status_code == 400
+
+    def test_multiple_excerpts_can_ground_an_edge(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Edge, Node
+        from apps.documents.services import create_span
+
+        project, user = project_and_user
+        first = create_span(document, 0, 18, created_by=user)
+        second = create_span(document, 19, 28, created_by=user)
+        subject = Node.objects.create(
+            graph=graph, name="Buckthorn", data={}, schema_version=schema_version
+        )
+        object_node = Node.objects.create(
+            graph=graph, name="Nitrogen", data={}, schema_version=schema_version
+        )
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/edges/",
+            {
+                "subject": subject.node_id,
+                "object": object_node.node_id,
+                "predicate": "positively_regulates",
+                "_source_span_pks": [str(first.pk), str(second.pk)],
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        edge = Edge.objects.get(graph=graph)
+        assert response.status_code == 200
+        assert set(edge.spans.values_list("pk", flat=True)) == {first.pk, second.pk}
+
+    def test_selected_excerpts_prefill_and_pin_edge_form(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.documents.services import create_span
+
+        project, user = project_and_user
+        first = create_span(document, 0, 18, created_by=user)
+        second = create_span(document, 19, 28, created_by=user)
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/edges/new/"
+            f"?span_pks={first.pk},{second.pk}",
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 200
+        assert response.content.count(b'name="_source_span_pks"') == 2
+        assert response.content.count(b"checked") >= 2
+        assert b"Grounding excerpts" in response.content
+        assert b"[...]" in response.content
 
     def test_service_rejects_nodes_from_another_graph(
         self, project_and_user, document, graph, schema_version

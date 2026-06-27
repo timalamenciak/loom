@@ -58,6 +58,39 @@ def update_node(node: Node, data: dict, actor=None) -> Node:
     return node
 
 
+@transaction.atomic
+def set_node_source_spans(node: Node, spans, actor) -> None:
+    """Replace the excerpts grounding *node* without stealing another node's spans."""
+    requested = {span.pk: span for span in spans}
+    current = list(node.spans.all())
+
+    for span in current:
+        if span.pk not in requested:
+            span.node = None
+            span.save(update_fields=["node"])
+            emit_audit(
+                actor,
+                "span.unlink",
+                "TextSpan",
+                span.pk,
+                {"node_id": node.pk},
+            )
+
+    for span in requested.values():
+        if span.node_id not in {None, node.pk}:
+            continue
+        if span.node_id != node.pk:
+            span.node = node
+            span.save(update_fields=["node"])
+            emit_audit(
+                actor,
+                "span.link",
+                "TextSpan",
+                span.pk,
+                {"node_id": node.pk},
+            )
+
+
 # ── Edges ─────────────────────────────────────────────────────────────────────
 
 
@@ -108,6 +141,39 @@ def update_edge(
     edge.save()
     emit_audit(actor or edge.graph.annotator, "edge.update", "Edge", edge.pk, data)
     return edge
+
+
+@transaction.atomic
+def set_edge_source_spans(edge: Edge, spans, actor) -> None:
+    """Replace the excerpts grounding *edge* without stealing another edge's spans."""
+    requested = {span.pk: span for span in spans}
+    current = list(edge.spans.all())
+
+    for span in current:
+        if span.pk not in requested:
+            span.edge = None
+            span.save(update_fields=["edge"])
+            emit_audit(
+                actor,
+                "span.unlink",
+                "TextSpan",
+                span.pk,
+                {"edge_id": edge.pk},
+            )
+
+    for span in requested.values():
+        if span.edge_id not in {None, edge.pk}:
+            continue
+        if span.edge_id != edge.pk:
+            span.edge = edge
+            span.save(update_fields=["edge"])
+            emit_audit(
+                actor,
+                "span.link",
+                "TextSpan",
+                span.pk,
+                {"edge_id": edge.pk},
+            )
 
 
 @transaction.atomic

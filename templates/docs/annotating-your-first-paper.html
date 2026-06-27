@@ -431,12 +431,13 @@
     <p>The bar at the top shows the paper title, your active annotation time, and the <span class="ui-ref">Submit</span> button. The timer counts only the seconds when the tab is in the foreground and you have been recently active &mdash; it automatically pauses when you switch away. You can also pause it manually with <span class="ui-ref">Pause</span>.</p>
 
     <h3>Left pane &mdash; paper text</h3>
-    <p>The canonical text of the paper is displayed here. This is the text you read and highlight to create evidence spans. You can select any passage with your mouse; when you release the selection a small popup will offer <span class="ui-ref">Create Node</span> and <span class="ui-ref">Create Edge</span> actions that pre-fill the form with that highlighted span.</p>
+    <p>For PDF-backed papers, the workspace opens on selectable text extracted from the PDF. Use the <span class="ui-ref">Text from PDF</span> and <span class="ui-ref">PDF</span> buttons to switch views. Select a passage and click <span class="ui-ref">Add to excerpt bin</span>. You can collect several passages when a claim is spread across sentences.</p>
 
     <h3>Right pane &mdash; graph panel and form panel</h3>
     <p>The right side has two sections stacked vertically:</p>
     <ul>
-      <li><strong>Graph panel</strong> (top half) &mdash; lists every node and edge you have created for this paper. Use the <span class="ui-ref">+ Node</span> and <span class="ui-ref">+ Edge</span> buttons here to create new items without a highlight.</li>
+      <li><strong>Excerpt bin</strong> (top) &mdash; keeps selected passages pinned while you work. Check one or more excerpts and choose <span class="ui-ref">Use for node</span> or <span class="ui-ref">Use for edge</span>.</li>
+      <li><strong>Graph panel</strong> (middle) &mdash; lists every node and edge you have created for this paper. Use the <span class="ui-ref">+ Node</span> and <span class="ui-ref">+ Edge</span> buttons to create items without grounding excerpts.</li>
       <li><strong>Form panel</strong> (bottom half) &mdash; the active node or edge form appears here. Submitting a form refreshes the graph panel list automatically.</li>
     </ul>
   </section>
@@ -479,8 +480,8 @@
 
     <h3>How to create a node</h3>
     <ol class="steps">
-      <li>Highlight the passage in the paper text that mentions the entity (optional but recommended &mdash; it records the evidence span automatically).</li>
-      <li>In the popup that appears, click <span class="ui-ref">Create Node</span>, or click <span class="ui-ref">+ Node</span> in the graph panel header.</li>
+      <li>Highlight one or more passages that mention the entity. Add each passage to the excerpt bin.</li>
+      <li>Check the excerpts that ground this node and click <span class="ui-ref">Use for node</span>, or click <span class="ui-ref">+ Node</span> to create an ungrounded node.</li>
       <li>Fill in the node form that appears in the form panel:</li>
     </ol>
 
@@ -539,7 +540,7 @@
     <p>An <strong>edge</strong> is the causal link between two nodes. Once you have at least two nodes, you can create an edge.</p>
 
     <ol class="steps">
-      <li>Highlight the causal sentence in the paper text and click <span class="ui-ref">Create Edge</span> in the popup &mdash; or click <span class="ui-ref">+ Edge</span> in the graph panel header.</li>
+      <li>Add every passage supporting the causal claim to the excerpt bin. Check the relevant excerpts and click <span class="ui-ref">Use for edge</span> &mdash; or click <span class="ui-ref">+ Edge</span> to create an ungrounded edge.</li>
       <li>The edge form appears in the form panel. It is divided into four collapsible layers (described below). Fill them in from top to bottom.</li>
     </ol>
 

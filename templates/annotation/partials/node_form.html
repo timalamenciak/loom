@@ -17,11 +17,7 @@
         hx-target="#graph-panel"
         hx-swap="innerHTML">
     {% csrf_token %}
-    {% with source_span_pk=current_data|dict_get:"_source_span_pk" %}
-      {% if source_span_pk %}
-      <input type="hidden" name="_source_span_pk" value="{{ source_span_pk }}">
-      {% endif %}
-    {% endwith %}
+    {% include "annotation/partials/excerpt_grounding.html" %}
 
     {% for layer in node_spec %}
       {% for slot in layer.slots %}

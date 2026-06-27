@@ -1,0 +1,54 @@
+<section id="excerpt-bin" class="excerpt-bin" aria-labelledby="excerpt-bin-title"{% if oob_refresh_excerpts %} hx-swap-oob="true"{% endif %}>
+  <div class="excerpt-bin-header">
+    <div>
+      <h3 id="excerpt-bin-title">Excerpt bin <span class="excerpt-count">{{ spans|length }}</span></h3>
+      <p>Collect passages here, then choose which ones ground a node or edge.</p>
+    </div>
+  </div>
+
+  {% if spans %}
+  <ul class="excerpt-list">
+    {% for span in spans %}
+    <li class="excerpt-item" data-excerpt-id="{{ span.pk }}">
+      <label class="excerpt-choice" for="excerpt-choice-{{ span.pk }}">
+        {% if can_edit_spans %}
+        <input id="excerpt-choice-{{ span.pk }}" type="checkbox"
+               value="{{ span.pk }}" data-excerpt-choice>
+        {% else %}
+        <span aria-hidden="true">&bull;</span>
+        {% endif %}
+        <span class="excerpt-text">{{ span.text|truncatechars:180 }}</span>
+      </label>
+      <div class="excerpt-meta">
+        <button type="button" class="action-link"
+                onclick="ExcerptBin.reveal({{ span.pk }})">Show in text</button>
+        {% if span.node %}<span class="badge badge-draft">node: {{ span.node.name|truncatechars:24 }}</span>{% endif %}
+        {% if span.edge %}<span class="badge badge-complete">edge grounded</span>{% endif %}
+        {% if can_edit_spans %}
+        <form method="post"
+              action="{% url 'span-delete' doc_pk=document.pk span_pk=span.pk %}?surface=excerpt-bin"
+              class="excerpt-delete-form">
+          {% csrf_token %}
+          <button type="submit" class="action-link excerpt-delete"
+                  aria-label="Delete excerpt">Delete</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if can_edit_spans %}<div class="excerpt-actions">
+    <span class="excerpt-selection-count" aria-live="polite">0 selected</span>
+    <button type="button" class="btn btn-secondary btn-sm"
+            data-excerpt-action="node" onclick="ExcerptBin.useSelected('node')">
+      Use for node
+    </button>
+    <button type="button" class="btn btn-secondary btn-sm"
+            data-excerpt-action="edge" onclick="ExcerptBin.useSelected('edge')">
+      Use for edge
+    </button>
+  </div>{% endif %}
+  {% else %}
+  <p class="excerpt-empty">Select one or more passages in <strong>Text from PDF</strong>. Each selection will stay pinned here.</p>
+  {% endif %}
+</section>

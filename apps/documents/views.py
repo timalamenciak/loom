@@ -5,6 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.views import View
@@ -47,9 +48,11 @@ class DocumentReaderView(LoginRequiredMixin, View):
 
         assignment = document.assignments.filter(annotator=request.user).first()
         can_edit_spans = bool(assignment and assignment_is_editable(assignment))
-        spans = TextSpan.objects.filter(
-            document=document, created_by=request.user
-        ).order_by("start_char")
+        spans = (
+            TextSpan.objects.filter(document=document, created_by=request.user)
+            .select_related("node", "edge")
+            .order_by("start_char")
+        )
         highlighted = render_highlighted_text(document.canonical_text or "", spans)
 
         return render(
@@ -108,15 +111,30 @@ class SpanCreateView(LoginRequiredMixin, View):
             return redirect("document-read", doc_pk=doc_pk)
 
         span = create_span(document, start, end, created_by=request.user)
-        spans = TextSpan.objects.filter(
-            document=document, created_by=request.user
-        ).order_by("start_char")
+        spans = (
+            TextSpan.objects.filter(document=document, created_by=request.user)
+            .select_related("node", "edge")
+            .order_by("start_char")
+        )
 
         if request.headers.get("HX-Request"):
-            # span-select.js (annotation surface) wants JSON so it can open the form panel
+            # The annotation surface wants JSON so it can refresh its excerpt bin.
             if request.headers.get("X-Span-Select") == "true":
                 return JsonResponse(
-                    {"span_pk": span.pk, "start_char": start, "end_char": end}
+                    {
+                        "span_pk": span.pk,
+                        "start_char": start,
+                        "end_char": end,
+                        "excerpt_bin_html": render_to_string(
+                            "annotation/partials/excerpt_bin.html",
+                            {
+                                "spans": spans,
+                                "document": document,
+                                "can_edit_spans": True,
+                            },
+                            request=request,
+                        ),
+                    }
                 )
             return render(
                 request,
@@ -142,11 +160,23 @@ class SpanDeleteView(LoginRequiredMixin, View):
             created_by=request.user,
         )
         delete_span(span, request.user)
-        spans = TextSpan.objects.filter(
-            document=document, created_by=request.user
-        ).order_by("start_char")
+        spans = (
+            TextSpan.objects.filter(document=document, created_by=request.user)
+            .select_related("node", "edge")
+            .order_by("start_char")
+        )
 
         if request.headers.get("HX-Request"):
+            if request.GET.get("surface") == "excerpt-bin":
+                return render(
+                    request,
+                    "annotation/partials/excerpt_bin.html",
+                    {
+                        "spans": spans,
+                        "document": document,
+                        "can_edit_spans": True,
+                    },
+                )
             return render(
                 request,
                 "documents/partials/span_list.html",

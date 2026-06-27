@@ -17,12 +17,12 @@ const SpanSelector = {
     _tooltip: null,
     _current: null,
 
-    init(containerId, createUrl, csrfToken) {
+    init(containerId, createUrl, csrfToken, options = {}) {
         this._container = document.getElementById(containerId);
         if (!this._container) return;
         this._createUrl = createUrl;
         this._csrfToken = csrfToken;
-        this._buildTooltip();
+        this._buildTooltip(options);
         document.addEventListener('mouseup', () => this._onSelectionChange());
         document.addEventListener('keyup', (e) => {
             const nav = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
@@ -36,7 +36,7 @@ const SpanSelector = {
         });
     },
 
-    _buildTooltip() {
+    _buildTooltip(options) {
         const el = document.createElement('div');
         el.id = 'span-tooltip';
         Object.assign(el.style, {
@@ -53,7 +53,7 @@ const SpanSelector = {
             userSelect: 'none',
             whiteSpace: 'nowrap',
         });
-        el.textContent = 'Highlight this text';
+        el.textContent = options.label || 'Highlight this text';
         el.addEventListener('mousedown', (e) => {
             e.preventDefault();  // Keep selection alive
             this._onCreate();
@@ -139,7 +139,7 @@ const SpanSelector = {
 
     async _onCreate() {
         if (!this._current) return;
-        const { startChar, endChar, text } = this._current;
+        const { startChar, endChar, range } = this._current;
 
         this._tooltip.style.display = 'none';
         window.getSelection()?.removeAllRanges();
@@ -168,8 +168,9 @@ const SpanSelector = {
 
         // Parse span pk from JSON response {span_pk: N, html: ...}
         let spanPk = null;
+        let data = null;
         try {
-            const data = await resp.json();
+            data = await resp.json();
             spanPk = data.span_pk || null;
         } catch {
             // Response was HTML (Phase 3 fallback) — reload
@@ -177,11 +178,26 @@ const SpanSelector = {
             return;
         }
 
-        // If we have annotation URLs and a span pk, show action popup
-        if (spanPk && (this._nodeFormUrl || this._edgeFormUrl)) {
-            this._showSpanActions(spanPk, text, startChar, endChar);
+        if (spanPk && window.ExcerptBin) {
+            window.ExcerptBin.refreshFromHtml(data.excerpt_bin_html, spanPk);
+            this._markRange(range, spanPk);
+            window.ExcerptBin.flash('Excerpt added. Select another passage or use the checked excerpts.');
+            this._current = null;
         } else {
             window.location.reload();
+        }
+    },
+
+    _markRange(range, spanPk) {
+        if (!range) return;
+        const mark = document.createElement('mark');
+        mark.className = 'span-highlight excerpt-active';
+        mark.dataset.spanPk = String(spanPk);
+        mark.dataset.spanPks = String(spanPk);
+        try {
+            range.surroundContents(mark);
+        } catch {
+            // Cross-element selections are still safely pinned in the excerpt bin.
         }
     },
 

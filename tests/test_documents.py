@@ -293,6 +293,38 @@ class TestDocumentReaderView:
         assert span.start_char == 4
         assert span.end_char == 9
 
+    def test_span_create_returns_refreshed_excerpt_bin(self, db, user, document):
+        from django.test import Client
+
+        from apps.projects.models import Assignment, ProjectMembership
+
+        ProjectMembership.objects.get_or_create(
+            project=document.project, user=user, defaults={"role": "annotator"}
+        )
+        Assignment.objects.create(
+            project=document.project,
+            document=document,
+            annotator=user,
+            assigned_by=user,
+        )
+        document.canonical_text = "The quick brown fox jumps."
+        document.save(update_fields=["canonical_text"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/reader/{document.pk}/spans/",
+            {"start_char": 4, "end_char": 9},
+            HTTP_HX_REQUEST="true",
+            HTTP_X_SPAN_SELECT="true",
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["span_pk"]
+        assert 'id="excerpt-bin"' in payload["excerpt_bin_html"]
+        assert "quick" in payload["excerpt_bin_html"]
+
     def test_unassigned_member_cannot_create_span(self, db, user, document):
         from django.test import Client
 

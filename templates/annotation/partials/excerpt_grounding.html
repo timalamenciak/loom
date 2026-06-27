@@ -1,0 +1,23 @@
+<fieldset class="excerpt-grounding">
+  <legend>Grounding excerpts</legend>
+  <p class="help">Choose every excerpt that directly supports this {% if edge %}edge{% else %}node{% endif %}. The selection stays visible in the excerpt bin while you work.</p>
+  {% if excerpt_options %}
+  <div class="excerpt-grounding-options">
+    {% for option in excerpt_options %}
+    <label class="excerpt-grounding-option{% if option.unavailable %} unavailable{% endif %}">
+      <input type="checkbox" name="_source_span_pks" value="{{ option.span.pk }}"
+             {% if option.selected %}checked{% endif %}
+             {% if option.unavailable %}disabled{% endif %}>
+      <span>
+        <span class="excerpt-grounding-text">{{ option.span.text|truncatechars:220 }}</span>
+        {% if option.unavailable %}
+          <small>Already grounds another {% if edge %}edge{% else %}node{% endif %}.</small>
+        {% endif %}
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="help excerpt-grounding-empty">No excerpts yet. Select text in the document pane to add one.</p>
+  {% endif %}
+</fieldset>
