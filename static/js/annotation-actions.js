@@ -57,7 +57,7 @@
     }
 
     async function requestHtml(method, url, options) {
-        const target = options?.target ? document.querySelector(options.target) : options?.targetElement;
+        let target = options?.target ? document.querySelector(options.target) : options?.targetElement;
         const body = options?.body || null;
         const headers = {
             'HX-Request': 'true',
@@ -77,8 +77,14 @@
 
         const contentType = response.headers.get('content-type') || '';
         const text = await response.text();
+        const retarget = response.headers.get('HX-Retarget');
+        if (retarget) target = document.querySelector(retarget) || target;
 
         if (!response.ok) {
+            if (target && contentType.includes('text/html') && text) {
+                swapHtml(target, text);
+                return response;
+            }
             let message = 'Could not save this annotation.';
             if (contentType.includes('application/json')) {
                 try {

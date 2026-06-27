@@ -13,6 +13,8 @@ from django.views import View
 
 from apps.documents.models import TextSpan
 from apps.documents.services import ensure_canonical_text, render_highlighted_text
+from apps.export.serializer import serialize_graph
+from apps.export.validators import validate_graph_data
 from apps.ontology.models import OntologySnapshot
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
@@ -25,7 +27,6 @@ from .policies import (
     require_editable_assignment,
 )
 from .services import (
-    _unflatten_post,
     adjudicate_edge,
     advance_edge_status,
     close_session,
@@ -41,6 +42,9 @@ from .services import (
 )
 
 logger = logging.getLogger(__name__)
+
+_NODE_MANAGED_SLOTS = frozenset({"node_id", "source_spans"})
+_EDGE_MANAGED_SLOTS = frozenset({"edge_id", "subject", "object", "source_spans"})
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -90,6 +94,34 @@ def _graph_panel_ctx(project, document, graph, assignment):
         "assignment": assignment,
         "can_edit": assignment_is_editable(assignment),
     }
+
+
+def _post_payload(request, *managed_names):
+    """Return a mutable QueryDict and selected Loom-managed values."""
+    payload = request.POST.copy()
+    if "csrfmiddlewaretoken" in payload:
+        payload.pop("csrfmiddlewaretoken")
+    managed = {}
+    for name in managed_names:
+        managed[name] = payload.get(name)
+        if name in payload:
+            payload.pop(name)
+    return payload, managed
+
+
+def _form_error_response(request, template_name, context):
+    response = render(request, template_name, context, status=422)
+    response["HX-Retarget"] = "#form-panel"
+    return response
+
+
+def _node_form_spec(schema_view):
+    ui = _load_ui_config()
+    return schema_view.form_spec(
+        "CausalNode",
+        ontology_routing=ui.get("ontology_routing", {}),
+        widget_overrides=ui.get("widget_overrides", {}),
+    )
 
 
 def _user_graph_queryset(document, user):
@@ -227,11 +259,7 @@ class AnnotationView(LoginRequiredMixin, View):
 
         # Form specs from the graph-pinned schema
         ui = _load_ui_config()
-        node_spec = lsv.form_spec(
-            "CausalNode",
-            ontology_routing=ui.get("ontology_routing", {}),
-            widget_overrides=ui.get("widget_overrides", {}),
-        )
+        node_spec = _node_form_spec(lsv)
         edge_spec = lsv.form_spec(
             "CausalEdge",
             ui_layers=ui.get("layers"),
@@ -345,11 +373,35 @@ class NodeCreateView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
-        span_pk = raw.pop("_source_span_pk", None)
-        data = _unflatten_post(raw)
+        payload, managed = _post_payload(request, "_source_span_pk")
+        span_pk = managed["_source_span_pk"]
+        lsv = get_schema_view(graph.schema_version)
+        bound = lsv.bind_form_data(
+            "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
+        )
+        if not bound.is_valid:
+            current_data = dict(bound.data)
+            if span_pk:
+                current_data["_source_span_pk"] = span_pk
+            nodes, _ = _graph_nodes_edges(graph)
+            return _form_error_response(
+                request,
+                "annotation/partials/node_form.html",
+                {
+                    "project": project,
+                    "document": document,
+                    "graph": graph,
+                    "node_spec": _node_form_spec(lsv),
+                    "current_data": current_data,
+                    "form_errors": bound.errors,
+                    "node": None,
+                    "graph_nodes": nodes,
+                    "assignment": assignment,
+                    "can_edit": True,
+                },
+            )
 
-        node = create_node(graph, data, actor=request.user)
+        node = create_node(graph, bound.data, actor=request.user)
 
         if span_pk:
             try:
@@ -394,10 +446,7 @@ class NodeEditView(LoginRequiredMixin, View):
                 "No active schema — ask an administrator to load one.</p>",
                 content_type="text/html; charset=utf-8",
             )
-        ui = _load_ui_config()
-        node_spec = lsv.form_spec(
-            "CausalNode", ontology_routing=ui.get("ontology_routing", {})
-        )
+        node_spec = _node_form_spec(lsv)
         nodes, _ = _graph_nodes_edges(graph)
         return render(
             request,
@@ -422,9 +471,30 @@ class NodeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
-        raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
-        data = _unflatten_post(raw)
-        update_node(node, data, actor=request.user)
+        payload, _managed = _post_payload(request)
+        lsv = get_schema_view(graph.schema_version)
+        bound = lsv.bind_form_data(
+            "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
+        )
+        if not bound.is_valid:
+            nodes, _ = _graph_nodes_edges(graph)
+            return _form_error_response(
+                request,
+                "annotation/partials/node_form.html",
+                {
+                    "project": project,
+                    "document": document,
+                    "graph": graph,
+                    "node_spec": _node_form_spec(lsv),
+                    "current_data": bound.data,
+                    "form_errors": bound.errors,
+                    "node": node,
+                    "graph_nodes": nodes,
+                    "assignment": assignment,
+                    "can_edit": True,
+                },
+            )
+        update_node(node, bound.data, actor=request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)
@@ -525,10 +595,12 @@ class EdgeCreateView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
-        span_pk = raw.pop("_source_span_pk", None)
-        subject_id = raw.pop("subject", None)
-        object_id = raw.pop("object", None)
+        payload, managed = _post_payload(
+            request, "_source_span_pk", "subject", "object"
+        )
+        span_pk = managed["_source_span_pk"]
+        subject_id = managed["subject"]
+        object_id = managed["object"]
 
         if not subject_id or not object_id:
             if _is_htmx(request):
@@ -541,8 +613,35 @@ class EdgeCreateView(LoginRequiredMixin, View):
         subject = get_object_or_404(Node, graph=graph, node_id=subject_id)
         object_node = get_object_or_404(Node, graph=graph, node_id=object_id)
 
-        data = _unflatten_post(raw)
-        edge = create_edge(graph, subject, object_node, data, actor=request.user)
+        lsv = get_schema_view(graph.schema_version)
+        bound = lsv.bind_form_data(
+            "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
+        )
+        if not bound.is_valid:
+            current_data = dict(bound.data)
+            current_data.update({"subject": subject_id, "object": object_id})
+            if span_pk:
+                current_data["_source_span_pk"] = span_pk
+            nodes, _ = _graph_nodes_edges(graph)
+            return _form_error_response(
+                request,
+                "annotation/partials/edge_form.html",
+                {
+                    "project": project,
+                    "document": document,
+                    "graph": graph,
+                    "edge_spec": _edge_form_spec(lsv, _load_ui_config()),
+                    "current_data": current_data,
+                    "form_errors": bound.errors,
+                    "edge": None,
+                    "graph_nodes": nodes,
+                    "assignment": assignment,
+                    "can_edit": True,
+                },
+            )
+        edge = create_edge(
+            graph, subject, object_node, bound.data, actor=request.user
+        )
 
         if span_pk:
             try:
@@ -619,9 +718,9 @@ class EdgeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        raw = {k: v for k, v in request.POST.items() if k != "csrfmiddlewaretoken"}
-        subject_id = raw.pop("subject", None)
-        object_id = raw.pop("object", None)
+        payload, managed = _post_payload(request, "subject", "object")
+        subject_id = managed["subject"]
+        object_id = managed["object"]
 
         subject = (
             get_object_or_404(Node, graph=graph, node_id=subject_id)
@@ -634,10 +733,38 @@ class EdgeEditView(LoginRequiredMixin, View):
             else None
         )
 
-        data = _unflatten_post(raw)
+        lsv = get_schema_view(graph.schema_version)
+        bound = lsv.bind_form_data(
+            "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
+        )
+        if not bound.is_valid:
+            current_data = dict(bound.data)
+            current_data.update(
+                {
+                    "subject": subject_id or edge.subject.node_id,
+                    "object": object_id or edge.object.node_id,
+                }
+            )
+            nodes, _ = _graph_nodes_edges(graph)
+            return _form_error_response(
+                request,
+                "annotation/partials/edge_form.html",
+                {
+                    "project": project,
+                    "document": document,
+                    "graph": graph,
+                    "edge_spec": _edge_form_spec(lsv, _load_ui_config()),
+                    "current_data": current_data,
+                    "form_errors": bound.errors,
+                    "edge": edge,
+                    "graph_nodes": nodes,
+                    "assignment": assignment,
+                    "can_edit": True,
+                },
+            )
         update_edge(
             edge,
-            data,
+            bound.data,
             subject=subject,
             object_node=object_node,
             actor=request.user,
@@ -727,6 +854,24 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         project = get_object_or_404(Project, pk=pk)
         document = get_object_or_404(Document, pk=doc_pk, project=project)
         assignment = require_annotation_assignment(document, request.user)
+
+        if assignment.status in {
+            Assignment.STATUS_ASSIGNED,
+            Assignment.STATUS_IN_PROGRESS,
+            Assignment.STATUS_RETURNED,
+        }:
+            graph = _get_user_graph_or_404(document, request.user, assignment)
+            valid, validation_messages = validate_graph_data(
+                serialize_graph(graph), graph.schema_version.linkml_yaml
+            )
+            if not valid:
+                messages.error(
+                    request,
+                    "The graph does not validate against its pinned schema and was not submitted.",
+                )
+                for message in validation_messages[:5]:
+                    messages.error(request, message)
+                return redirect("annotate", pk=project.pk, doc_pk=document.pk)
 
         # Close all open sessions
         for s in WorkSession.objects.filter(

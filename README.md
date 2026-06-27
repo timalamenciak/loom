@@ -5,6 +5,8 @@ Self-hosted annotation workbench for the **Causal Mosaic (CAMO)** schema. Annota
 Current package version: **0.1.0** (semantic versioning). The single source of
 truth is `loom.__version__`; build metadata and export provenance derive.
 
+Loom is released under the [MIT License](LICENSE).
+
 ## What is implemented
 
 - Project membership, per-document assignment, review, and adjudication
@@ -18,6 +20,11 @@ truth is `loom.__version__`; build metadata and export provenance derive.
 Loom stores schema payloads in JSON rather than CAMO-specific relational
 columns. Adding or changing a CAMO slot belongs in the LinkML schema and, when
 presentation needs help, `config/loom_ui.yaml`—not in a Django form or model.
+
+Generated forms are also bound on the server: unknown fields are rejected,
+values are coerced from their induced LinkML ranges, and enum, cardinality,
+numeric-bound, pattern, nested-class, and required-field constraints follow the
+graph-pinned schema. Full graph validation runs before submission and export.
 
 ## Requirements
 
@@ -113,8 +120,8 @@ python manage.py load_ontology --all
 python manage.py process_ontology_loads       # process queued project loads once
 python manage.py process_ontology_loads --watch
 
-# Export and validation
-python manage.py export_graph <graph_id> --validate -o out.yaml
+# Export and validation (export always validates before writing)
+python manage.py export_graph <graph_id> -o out.yaml
 python manage.py validate_graph <graph_id>
 
 # Schema migration assistant (read-only report)

@@ -7,20 +7,24 @@ register = template.Library()
 def dict_get(d, key):
     """Get a value from a dict by dynamic key (variable name).
 
-    Supports __ for one level of nested access:
+    Supports ``__`` traversal through nested dictionaries and indexed lists:
       data|dict_get:'mediation__has_mediator'
       → data['mediation']['has_mediator']
     """
-    if not isinstance(d, dict):
-        return ""
     key = str(key)
-    if "__" in key:
-        parent, child = key.split("__", 1)
-        val = d.get(parent)
-        if isinstance(val, dict):
-            return val.get(child, "")
-        return ""
-    val = d.get(key)
+    if isinstance(d, dict) and key in d:
+        value = d[key]
+        return "" if value is None else value
+    value = d
+    for part in key.split("__"):
+        if isinstance(value, dict):
+            value = value.get(part, "")
+        elif isinstance(value, (list, tuple)) and part.isdigit():
+            index = int(part)
+            value = value[index] if index < len(value) else ""
+        else:
+            return ""
+    val = value
     return "" if val is None else val
 
 
@@ -30,3 +34,11 @@ def is_checked(value):
     if value is True:
         return True
     return str(value).strip().lower() in {"true", "1", "yes", "on"}
+
+
+@register.filter
+def join_lines(value):
+    """Render a multivalued scalar as one editable value per line."""
+    if isinstance(value, (list, tuple)):
+        return "\n".join(str(item) for item in value)
+    return "" if value is None else str(value)

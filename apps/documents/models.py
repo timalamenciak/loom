@@ -35,6 +35,16 @@ class TextSpan(models.Model):
 
     class Meta:
         ordering = ["start_char"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(start_char__gte=0),
+                name="documents_span_start_nonnegative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(end_char__gt=models.F("start_char")),
+                name="documents_span_end_after_start",
+            ),
+        ]
         indexes = [
             models.Index(
                 fields=["document", "start_char", "end_char"],

@@ -20,6 +20,31 @@ def _schema_yaml() -> str:
     return SCHEMA_PATH.read_text(encoding="utf-8")
 
 
+class TestLinkMLValidation:
+    def test_current_validator_api_accepts_valid_instance(self):
+        from apps.export.validators import validate_instance_data
+
+        valid, messages = validate_instance_data(
+            {"node_id": "n1", "entity_type": "biotic"},
+            _schema_yaml(),
+            target_class="CausalNode",
+        )
+
+        assert valid, messages
+
+    def test_invalid_enum_fails_closed(self):
+        from apps.export.validators import validate_instance_data
+
+        valid, messages = validate_instance_data(
+            {"node_id": "n1", "entity_type": "invented"},
+            _schema_yaml(),
+            target_class="CausalNode",
+        )
+
+        assert not valid
+        assert any("invented" in message for message in messages)
+
+
 # ── Pure-Python: _clean() ────────────────────────────────────────────────────
 
 
@@ -476,6 +501,21 @@ class TestExportGraphView:
         assert len(data["edges"]) == 1
         assert "provenance" in data
         assert "export_sha256" in data["provenance"]
+
+    def test_invalid_graph_is_not_exported(self, populated_graph, export_user):
+        from django.test import Client
+
+        node = populated_graph.nodes.first()
+        node.data["entity_type"] = "invented"
+        node.save(update_fields=["data"])
+
+        user, _ = export_user
+        client = Client()
+        client.login(username="exporter", password="pw")
+        resp = client.get(f"/export/graphs/{populated_graph.pk}/?download=1")
+
+        assert resp.status_code == 422
+        assert b"Validation errors found" in resp.content
 
     def test_requires_login(self, populated_graph):
         from django.test import Client

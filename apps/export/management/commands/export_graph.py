@@ -1,6 +1,4 @@
-"""
-python manage.py export_graph <graph_pk> [--validate] [-o out.yaml]
-"""
+"""Export a graph after mandatory LinkML validation."""
 
 import yaml
 from django.core.management.base import BaseCommand, CommandError
@@ -18,7 +16,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--validate",
             action="store_true",
-            help="Validate against the active LinkML schema before writing",
+            help="Deprecated compatibility flag; validation is always performed",
         )
         parser.add_argument(
             "-o",
@@ -41,14 +39,15 @@ class Command(BaseCommand):
         data["provenance"] = prov
         final_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
-        if options["validate"]:
-            is_valid, messages = validate_graph_data(
-                data, graph.schema_version.linkml_yaml
-            )
+        is_valid, messages = validate_graph_data(
+            data, graph.schema_version.linkml_yaml
+        )
+        if not is_valid:
             for msg in messages:
-                self.stdout.write(msg)
-            if not is_valid:
-                raise CommandError("Validation failed — export aborted")
+                self.stderr.write(msg)
+            raise CommandError("Validation failed — export aborted")
+        for msg in messages:
+            self.stderr.write(self.style.WARNING(msg))
 
         if options.get("output"):
             with open(options["output"], "w", encoding="utf-8") as f:

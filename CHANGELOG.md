@@ -8,12 +8,21 @@ versions.
 
 ### Added
 
+- MIT licensing for source and distribution artifacts.
+- Schema-derived server binding for typed, nested, and multivalued form data.
+- Database constraints for active schema/ontology selection, valid span
+  offsets, nonnegative session counters, and one open work session.
 - Central annotation authorization policy for assignment-owned graph writes.
 - Reviewer workflow for returning submitted assignments.
 - Security and contribution guidance for public repository users.
 
 ### Changed
 
+- Unknown, invalid, or Loom-managed annotation fields now fail closed with
+  field-level errors; full LinkML validation runs before submission and every
+  export.
+- LinkML validation supports both legacy and current validator APIs and fails
+  closed when validation is unavailable.
 - Submitted and reviewed assignments are server-side read-only.
 - Returned assignments resume as in-progress when reopened.
 - Span creation, display, linking, and deletion are scoped to the assigned

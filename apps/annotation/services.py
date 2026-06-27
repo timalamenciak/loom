@@ -174,6 +174,9 @@ def adjudicate_edge(edge: Edge, actor) -> Edge:
 @transaction.atomic
 def open_session(assignment, annotator) -> "WorkSession":
     """Return the current open WorkSession, creating one if needed."""
+    if assignment.annotator_id != annotator.pk:
+        raise ValueError("WorkSession annotator must own the assignment.")
+    assignment = type(assignment).objects.select_for_update().get(pk=assignment.pk)
     session = WorkSession.objects.filter(
         assignment=assignment,
         annotator=annotator,

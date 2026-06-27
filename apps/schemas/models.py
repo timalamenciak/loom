@@ -12,6 +12,13 @@ class SchemaVersion(models.Model):
 
     class Meta:
         ordering = ["-loaded_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=models.Q(is_active=True),
+                name="schemas_one_active_version",
+            )
+        ]
 
     def __str__(self):
         active = " [active]" if self.is_active else ""

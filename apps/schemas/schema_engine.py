@@ -149,6 +149,23 @@ class LoomSchemaView:
 
         return result
 
+    def bind_form_data(
+        self,
+        class_name: str,
+        form_data,
+        *,
+        excluded_slots: set[str] | frozenset[str] | None = None,
+    ):
+        """Bind request data using this graph-pinned schema's induced slots."""
+        from .input_binding import bind_form_data
+
+        return bind_form_data(
+            self._sv,
+            class_name,
+            form_data,
+            excluded_slots=excluded_slots,
+        )
+
     # ── private ─────────────────────────────────────────────────────────────
 
     def _all_slot_names(self, class_name: str) -> list[str]:
@@ -195,6 +212,13 @@ class LoomSchemaView:
             "description": slot.description or "",
             "ifabsent": slot.ifabsent,
             "ontology_prefixes": ontology_routing.get(slot_name, []),
+            "minimum_value": slot.minimum_value,
+            "maximum_value": slot.maximum_value,
+            "has_minimum_value": slot.minimum_value is not None,
+            "has_maximum_value": slot.maximum_value is not None,
+            "minimum_cardinality": getattr(slot, "minimum_cardinality", None),
+            "maximum_cardinality": getattr(slot, "maximum_cardinality", None),
+            "pattern": slot.pattern or "",
         }
 
         if widget == "select":

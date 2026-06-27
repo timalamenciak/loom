@@ -1,5 +1,8 @@
 {% load annotation_extras %}
 <div class="form-panel-inner">
+  {% with errors=form_errors|dict_get:"_form" %}
+    {% if errors %}<div class="message message-error">{% for error in errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+  {% endwith %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
     <h3 style="margin:0;font-size:1rem">{% if edge %}Edit Edge{% else %}Add Edge{% endif %}</h3>
     <button type="button"

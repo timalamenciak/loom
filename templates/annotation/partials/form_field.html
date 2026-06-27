@@ -1,7 +1,35 @@
 {% load annotation_extras %}
 
 {% with field_name=prefix|default:""|add:slot.name %}
-{% if slot.widget == "select" %}
+{% if slot.multivalued and slot.widget == "select" %}
+<div class="field">
+  <label for="id_{{ field_name }}">{{ slot.label }}</label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  {% with selected_values=current_data|dict_get:field_name %}
+  <select name="{{ field_name }}" id="id_{{ field_name }}" multiple
+          {% if slot.required %}required{% endif %}>
+    {% for c in slot.choices %}
+    <option value="{{ c.value }}"
+            {% if c.value in selected_values %}selected{% endif %}
+            title="{{ c.description }}">{{ c.label }}</option>
+    {% endfor %}
+  </select>
+  {% endwith %}
+  <div class="help">Hold Ctrl or Command to select more than one value.</div>
+</div>
+
+{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" %}
+<div class="field">
+  <label for="id_{{ field_name }}">
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <textarea name="{{ field_name }}" id="id_{{ field_name }}" rows="3"
+            {% if slot.required %}required{% endif %}>{{ current_data|dict_get:field_name|join_lines }}</textarea>
+  <div class="help">Enter one value per line.</div>
+</div>
+
+{% elif slot.widget == "select" %}
 <div class="field">
   <label for="id_{{ field_name }}">
     {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
@@ -62,7 +90,8 @@
 
 {% elif slot.widget == "checkbox" %}
 <div class="field" style="display:flex;align-items:center;gap:.5rem">
-  <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}"
+  <input type="hidden" name="{{ field_name }}" value="false">
+  <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}" value="true"
          {% if current_data|dict_get:field_name|is_checked %}checked{% endif %}>
   <label for="id_{{ field_name }}" style="margin:0">{{ slot.label }}</label>
 </div>
@@ -73,7 +102,11 @@
   {% if slot.nested_spec %}
     {% for nested_layer in slot.nested_spec %}
       {% for nested_slot in nested_layer.slots %}
-        {% include "annotation/partials/form_field.html" with slot=nested_slot prefix=slot.name|add:"__" current_data=current_data %}
+        {% if slot.multivalued %}
+          {% include "annotation/partials/form_field.html" with slot=nested_slot prefix=field_name|add:"__0__" current_data=current_data %}
+        {% else %}
+          {% include "annotation/partials/form_field.html" with slot=nested_slot prefix=field_name|add:"__" current_data=current_data %}
+        {% endif %}
       {% endfor %}
     {% endfor %}
   {% endif %}
@@ -94,7 +127,17 @@
   {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
   <input type="{{ slot.widget }}" name="{{ field_name }}" id="id_{{ field_name }}"
          value="{{ current_data|dict_get:field_name }}"
+         {% if slot.has_minimum_value %}min="{{ slot.minimum_value }}"{% endif %}
+         {% if slot.has_maximum_value %}max="{{ slot.maximum_value }}"{% endif %}
+         {% if slot.pattern %}pattern="{{ slot.pattern }}"{% endif %}
          {% if slot.required %}required{% endif %}>
 </div>
 {% endif %}
+{% with errors=form_errors|dict_get:field_name %}
+  {% if errors %}
+  <ul class="field-error">
+    {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+{% endwith %}
 {% endwith %}

@@ -8,7 +8,7 @@ from django.urls import reverse
 from apps.annotation.services import create_edge, create_graph, create_node
 from apps.audit.models import AuditEvent
 from apps.ontology.models import OntologySnapshot, OntologyTerm
-from apps.projects.models import Document, Project, ProjectMembership
+from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 from apps.schemas.ontology_inference import infer_ontologies
 
@@ -98,6 +98,13 @@ def test_existing_graph_keeps_pinned_schema(client, owner, configured_project, s
         canonical_text="Evidence text.",
     )
     graph = create_graph(document, owner, schema)
+    Assignment.objects.create(
+        project=configured_project,
+        document=document,
+        annotator=owner,
+        assigned_by=owner,
+        graph=graph,
+    )
     newer = SchemaVersion.objects.create(
         version="0.5.0",
         linkml_yaml=Path("config/schema/camo-0.5.0.yaml").read_text(encoding="utf-8"),

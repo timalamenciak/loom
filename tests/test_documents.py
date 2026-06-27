@@ -222,10 +222,8 @@ class TestCreateSpan:
     def test_span_with_empty_canonical_text(self, document):
         document.canonical_text = ""
         document.save(update_fields=["canonical_text"])
-        # create_span should not raise even if range is degenerate
-        # (validation is the view's job)
-        span = create_span(document, 0, 0)
-        assert span.text == ""
+        with pytest.raises(ValueError, match="offsets"):
+            create_span(document, 0, 0)
 
 
 class TestDocumentReaderView:

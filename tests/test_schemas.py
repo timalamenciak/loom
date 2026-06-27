@@ -361,6 +361,108 @@ class TestSchemaSwitching:
         invalidate_cache()
 
 
+class TestSchemaInputBinding:
+    def test_rejects_unknown_slot(self, schema_050):
+        result = get_schema_view(schema_050).bind_form_data(
+            "CausalNode", {"invented_slot": "value"}
+        )
+
+        assert not result.is_valid
+        assert "invented_slot" in result.errors
+
+    def test_rejects_invalid_enum_and_preserves_value(self, schema_050):
+        result = get_schema_view(schema_050).bind_form_data(
+            "CausalNode", {"entity_type": "not-a-real-type"}
+        )
+
+        assert not result.is_valid
+        assert result.data["entity_type"] == "not-a-real-type"
+        assert "entity_type" in result.errors
+
+    def test_coerces_nested_numbers_and_checks_bounds(self, schema_050):
+        valid = get_schema_view(schema_050).bind_form_data(
+            "CausalEdge",
+            {
+                "certainty_grade": "0.8",
+                "evidential_basis__n_observations": "45",
+                "evidential_basis__p_value": "0.03",
+            },
+        )
+        invalid = get_schema_view(schema_050).bind_form_data(
+            "CausalEdge", {"certainty_grade": "1.5"}
+        )
+
+        assert valid.is_valid
+        assert valid.data["certainty_grade"] == 0.8
+        assert valid.data["evidential_basis"]["n_observations"] == 45
+        assert valid.data["evidential_basis"]["p_value"] == 0.03
+        assert "certainty_grade" in invalid.errors
+
+    def test_binds_multivalued_scalar_from_lines(self, schema_050):
+        result = get_schema_view(schema_050).bind_form_data(
+            "CausalNode", {"part_qualifiers": "PATO:0001\nPATO:0002\n"}
+        )
+
+        assert result.is_valid
+        assert result.data["part_qualifiers"] == ["PATO:0001", "PATO:0002"]
+
+    def test_binds_indexed_multivalued_nested_class(self, schema_050):
+        result = get_schema_view(schema_050).bind_form_data(
+            "CausalGraph",
+            {
+                "graph_id": "g1",
+                "nodes__0__node_id": "n1",
+                "nodes__0__name": "First",
+                "nodes__1__node_id": "n2",
+                "nodes__1__name": "Second",
+            },
+        )
+
+        assert result.is_valid
+        assert [node["node_id"] for node in result.data["nodes"]] == ["n1", "n2"]
+
+    def test_rejects_loom_managed_slot(self, schema_050):
+        result = get_schema_view(schema_050).bind_form_data(
+            "CausalNode",
+            {"node_id": "attacker-controlled"},
+            excluded_slots={"node_id"},
+        )
+
+        assert not result.is_valid
+        assert "node_id" in result.errors
+
+    def test_enforces_schema_cardinality(self):
+        schema = """
+id: https://example.org/cardinality
+name: cardinality
+imports: [linkml:types]
+classes:
+  Example:
+    slots: [tags]
+slots:
+  tags:
+    range: string
+    multivalued: true
+    minimum_cardinality: 1
+    maximum_cardinality: 2
+"""
+        stub = type(
+            "StubSchemaVersion",
+            (),
+            {"linkml_yaml": schema, "version": "test"},
+        )()
+        view = LoomSchemaView(stub)
+
+        missing = view.bind_form_data("Example", {})
+        valid = view.bind_form_data("Example", {"tags": "one\ntwo"})
+        excessive = view.bind_form_data("Example", {"tags": "one\ntwo\nthree"})
+
+        assert "tags" in missing.errors
+        assert valid.is_valid
+        assert valid.data["tags"] == ["one", "two"]
+        assert "tags" in excessive.errors
+
+
 # ── Annotation models + service layer ────────────────────────────────────────
 
 

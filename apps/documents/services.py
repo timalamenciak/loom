@@ -98,6 +98,8 @@ def create_span(
 ) -> TextSpan:
     """Create a TextSpan; snaps the text snippet from canonical_text."""
     canonical = document.canonical_text or ""
+    if not (0 <= start_char < end_char <= len(canonical)):
+        raise ValueError("Span offsets must identify text within canonical_text.")
     text = canonical[start_char:end_char]
     span = TextSpan.objects.create(
         document=document,

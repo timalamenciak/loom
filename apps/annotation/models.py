@@ -30,15 +30,22 @@ class WorkSession(models.Model):
     )
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
-    active_seconds = models.IntegerField(default=0)
-    idle_seconds = models.IntegerField(default=0)
-    open_seconds = models.IntegerField(default=0)
+    active_seconds = models.PositiveIntegerField(default=0)
+    idle_seconds = models.PositiveIntegerField(default=0)
+    open_seconds = models.PositiveIntegerField(default=0)
     source = models.CharField(
         max_length=10, choices=SOURCE_CHOICES, default=SOURCE_AUTO
     )
 
     class Meta:
         ordering = ["-started_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "annotator"],
+                condition=models.Q(ended_at__isnull=True),
+                name="annotation_one_open_session",
+            )
+        ]
 
     def __str__(self):
         mins = self.active_seconds // 60

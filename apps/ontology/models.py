@@ -48,6 +48,13 @@ class OntologySnapshot(models.Model):
 
     class Meta:
         ordering = ["-built_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=models.Q(is_active=True),
+                name="ontology_one_active_snapshot",
+            )
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.built_at:%Y-%m-%d})"

@@ -215,6 +215,17 @@ class TestWorkSessionModel:
         s2 = open_session(assignment, user)
         assert s1.pk == s2.pk
 
+    def test_open_session_rejects_wrong_annotator(
+        self, assignment, project_and_user
+    ):
+        from django.contrib.auth import get_user_model
+
+        from apps.annotation.services import open_session
+
+        other = get_user_model().objects.create_user("other-annotator")
+        with pytest.raises(ValueError, match="own the assignment"):
+            open_session(assignment, other)
+
     def test_heartbeat_accumulates(self, assignment, project_and_user):
         from apps.annotation.services import heartbeat, open_session
 
@@ -407,6 +418,51 @@ class TestNodeCreate:
         node = Node.objects.filter(graph=graph).first()
         assert node.data.get("entity_type") == "biotic"
 
+    def test_unknown_schema_slot_is_rejected(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Node
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
+            {"entity_type": "biotic", "invented_slot": "not allowed"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 422
+        assert response["HX-Retarget"] == "#form-panel"
+        assert b"not defined by the active schema" in response.content
+        assert not Node.objects.filter(graph=graph).exists()
+
+    def test_multivalued_schema_slot_is_stored_as_list(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Node
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
+            {"entity_type": "biotic", "part_qualifiers": "PATO:1\nPATO:2"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 200
+        assert Node.objects.get(graph=graph).data["part_qualifiers"] == [
+            "PATO:1",
+            "PATO:2",
+        ]
+
     def test_delete_node_also_deletes_connected_edges(
         self, project_and_user, document, assignment, graph, schema_version
     ):
@@ -477,8 +533,9 @@ class TestEdgeCreate:
             {
                 "subject": node_a.node_id,
                 "object": node_b.node_id,
-                "predicate": "positive",
-                "claim_strength": "causal",
+                "predicate": "positively_regulates",
+                "claim_strength": "tendency",
+                "certainty_grade": "0.8",
             },
             HTTP_HX_REQUEST="true",
         )
@@ -486,7 +543,8 @@ class TestEdgeCreate:
         assert Edge.objects.filter(graph=graph).exists()
         edge = Edge.objects.filter(graph=graph).first()
         assert edge.subject == node_a
-        assert edge.predicate == "positive"
+        assert edge.predicate == "positively_regulates"
+        assert edge.data["certainty_grade"] == 0.8
 
     def test_edge_missing_nodes_returns_400(
         self, project_and_user, document, assignment, graph, schema_version
@@ -497,7 +555,9 @@ class TestEdgeCreate:
         client = Client()
         client.login(username=user.username, password="pw")
         url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/edges/"
-        resp = client.post(url, {"predicate": "positive"}, HTTP_HX_REQUEST="true")
+        resp = client.post(
+            url, {"predicate": "positively_regulates"}, HTTP_HX_REQUEST="true"
+        )
         assert resp.status_code == 400
 
     def test_service_rejects_nodes_from_another_graph(
