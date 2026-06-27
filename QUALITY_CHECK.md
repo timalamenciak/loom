@@ -111,10 +111,9 @@
 ---
 
 ### JOSS-15 — Dependency management is reproducible
-**Status: WARNING**
-**Evidence:** `pyproject.toml` uses `>=` lower bounds for most dependencies (`django>=5.1`, `linkml>=1.7`, `pronto>=2.5`). Only `black==26.5.1` is pinned exactly. No `requirements.lock` or `pip-tools` lockfile present.
-**Comments:** Lower-bounded deps allow new minor and patch releases to land silently, which can break reproducibility. For a research tool where results must be reproducible across lab members, pinned or locked dependencies are best practice.
-**Recommendation:** Add a `requirements.lock` (via `pip-compile` from `pip-tools`) or switch to `uv` lockfiles. At minimum add upper bounds for `linkml`, `django`, and `pronto` since they carry breaking changes across minor versions.
+**Status: PASS**
+**Evidence:** `requirements.lock` generated via `pip-compile` and committed. Pins all transitive dependencies to exact versions. `pyproject.toml` retains `>=` lower bounds for flexibility in development; the lockfile ensures reproducibility in deployment and CI.
+**Resolution:** Added 2026-06-27.
 
 ---
 
@@ -316,9 +315,9 @@
 ---
 
 ### NASA-CM-03 — Dependency versions pinned
-**Status: WARNING**
-**Evidence:** See JOSS-15. Most dependencies use `>=` lower bounds; no lockfile.
-**Recommendation:** Generate a lockfile using `pip-compile` or `uv lock`.
+**Status: PASS**
+**Evidence:** `requirements.lock` generated via `pip-compile pyproject.toml` and committed. README updated to reference it in the non-Docker install path. `pyproject.toml` retains `>=` lower bounds for flexibility; `requirements.lock` pins exact versions for reproducibility.
+**Resolution:** Added 2026-06-27.
 
 ---
 
@@ -580,9 +579,10 @@
 # 4. RESEARCH REPRODUCIBILITY
 
 ### REP-01 — Computational environment reproducible
-**Status: WARNING**
-**Evidence:** Docker environment is reproducible at the OS/PostgreSQL level. Python package versions are not pinned (see NASA-CM-03). `docker-compose.yml` pins `postgres:16` but not the Python base image digest.
-**Recommendation:** Pin the Docker base image by digest (`python:3.11-slim@sha256:...`) and generate a `requirements.lock` file.
+**Status: PASS**
+**Evidence:** `requirements.lock` committed (see NASA-CM-03). Docker environment pins `postgres:16` and Python `3.11-slim`. Full transitive dependency graph is now locked.
+**Comments:** Docker base image is not pinned by digest — minor risk if `python:3.11-slim` is updated between builds. Acceptable for research software; add digest pin for fully air-gapped reproducibility.
+**Resolution:** Lockfile added 2026-06-27.
 
 ---
 
@@ -630,8 +630,8 @@
 
 | Result | Items |
 |--------|-------|
-| **PASS** | JOSS-01, 02, 03, **04** ✓, 05, 06, 07, 08, 09, 10, 11, **12** ✓, **13** ✓, 14, 15 (partial), 16, 17, **18** ✓, 19, 20, 21, **22** ✓, **23** ✓, **24** ✓ |
-| **WARNING** | JOSS-15 (no lockfile — open) |
+| **PASS** | JOSS-01, 02, 03, **04** ✓, 05, 06, 07, 08, 09, 10, 11, **12** ✓, **13** ✓, 14, **15** ✓, 16, 17, **18** ✓, 19, 20, 21, **22** ✓, **23** ✓, **24** ✓ |
+| **WARNING** | — |
 | **FAIL** | — |
 
 ---
@@ -640,8 +640,8 @@
 
 | Result | Items |
 |--------|-------|
-| **PASS** | REQ-03, VV-01, VV-02, **VV-03** ✓, VV-06, **VV-07** ✓, **CODE-01–05** (CODE-03 ✓), CM-01, **CM-02** ✓, CM-04, CM-05, CR-02, CI-01–03, **CI-04** ✓, SEC-01, **SEC-02** ✓, SEC-03, SEC-04, REL-01–04 |
-| **WARNING** | REQ-01, REQ-02, VV-04 (browser E2E — open), VV-05, CM-03 (no lockfile — open) |
+| **PASS** | REQ-03, VV-01, VV-02, **VV-03** ✓, VV-06, **VV-07** ✓, **CODE-01–05** (CODE-03 ✓), CM-01, **CM-02** ✓, **CM-03** ✓, CM-04, CM-05, CR-02, CI-01–03, **CI-04** ✓, SEC-01, **SEC-02** ✓, SEC-03, SEC-04, REL-01–04 |
+| **WARNING** | REQ-01, REQ-02, VV-04 (browser E2E — open), VV-05 |
 | **FAIL** | — |
 | **N/A** | CR-01, CR-03 |
 
@@ -662,18 +662,17 @@
 
 | Result | Items |
 |--------|-------|
-| **PASS** | REP-03, REP-04, REP-05, REP-06, REP-07 |
-| **WARNING** | REP-01 (package versions unpinned — open) |
+| **PASS** | **REP-01** ✓, REP-03, REP-04, REP-05, REP-06, REP-07 |
+| **WARNING** | — |
 | **N/A** | REP-02 (no stochastic processes) |
 
 ---
 
 ## Major Risks
 
-1. **No dependency lockfile** *(open)* — `linkml` and `pronto` carry breaking changes across minor versions. A silent package update in a student's environment could corrupt exports. Mitigation: generate `requirements.lock` via `pip-compile`.
-2. **No browser-level end-to-end tests** *(open)* — The annotation UI (PDF viewer, span selection, ontology autocomplete) is untested. A regression in any JS component could silently block annotation. Mitigation: Playwright smoke tests covering the golden annotation path.
-3. **ORCID placeholder in CITATION.cff** *(open)* — Replace `0000-0000-0000-0000` with real ORCID before JOSS submission.
-4. **git tag not yet pushed to remote** *(open)* — `git push origin v0.1.0` required before the tag is citable or triggers the release workflow.
+1. **No browser-level end-to-end tests** *(open)* — The annotation UI (PDF viewer, span selection, ontology autocomplete) is untested. A regression in any JS component could silently block annotation. Mitigation: Playwright smoke tests covering the golden annotation path.
+2. **ORCID placeholder in CITATION.cff** *(open, needs user input)* — Replace `0000-0000-0000-0000` with real ORCID before JOSS submission.
+3. **git tag not yet pushed to remote** *(open, needs user confirmation)* — `git push origin v0.1.0` required before the tag is citable or triggers the release workflow.
 
 ---
 
@@ -695,19 +694,19 @@
 
 ### Remaining Open Items
 
-1. **Push v0.1.0 tag to remote** — `git push origin v0.1.0`. Required before the release workflow fires and the tag is citable. *(~1 minute)*
+1. **Push v0.1.0 tag to remote** *(needs user confirmation)* — `git push origin v0.1.0`. Required before the release workflow fires and the tag is citable.
 
-2. **Replace ORCID placeholder in CITATION.cff** — Change `0000-0000-0000-0000` to the real ORCID before JOSS submission. *(~5 minutes)*
+2. **Replace ORCID placeholder in CITATION.cff** *(needs user input)* — Change `0000-0000-0000-0000` to the real ORCID before JOSS submission.
 
-3. **Generate a requirements lockfile** — `pip-compile pyproject.toml -o requirements.lock` (or `uv lock`). Addresses REP-01 and NASA-CM-03. *(~30 minutes)*
+3. **Add browser end-to-end smoke tests** — Playwright (Python) covering: login → open document → create node → submit. Addresses NASA-VV-04. *(~1 day sprint)*
 
-4. **Add browser end-to-end smoke tests** — Playwright (Python) covering: login → open document → create node → submit. Addresses NASA-VV-04. *(~1 day sprint)*
+4. **Tighten CI gates** — Set `continue-on-error: false` on `pip-audit` and `mypy` steps once existing CVEs are triaged and mypy is clean. *(ongoing)*
 
-5. **Tighten CI gates** — Set `continue-on-error: false` on `pip-audit` and `mypy` steps once existing CVEs are triaged and mypy is clean. *(ongoing)*
+5. **Enforce `llm_model_version` in Proposer** — When implementing a concrete LLM Proposer, require `llm_model_version` and `llm_prompt_version` in the JSONB payload. Addresses RAISE-A-01/A-02. *(when LLM seam is activated)*
 
-6. **Enforce `llm_model_version` in Proposer** — When implementing a concrete LLM Proposer, require `llm_model_version` and `llm_prompt_version` in the JSONB payload. Addresses RAISE-A-01/A-02. *(when LLM seam is activated)*
+- **Lockfile** — `requirements.lock` generated via `pip-compile` and committed (2026-06-27)
 
-### Completed in this build pass (2026-06-27)
+### Completed in build pass 1 (2026-06-27)
 
 - JOSS-04: Related software section added to README
 - JOSS-12: Limitations section added to README

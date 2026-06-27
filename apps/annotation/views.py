@@ -88,9 +88,7 @@ def _graph_nodes_edges(graph):
 def _graph_panel_ctx(project, document, graph, assignment):
     nodes, edges = _graph_nodes_edges(graph)
     spans = list(
-        TextSpan.objects.filter(
-            document=document, created_by=assignment.annotator
-        )
+        TextSpan.objects.filter(document=document, created_by=assignment.annotator)
         .select_related("node", "edge")
         .order_by("start_char")
     )
@@ -342,9 +340,7 @@ class AnnotationView(LoginRequiredMixin, View):
 
         # Canonical text with span highlights
         spans = list(
-            TextSpan.objects.filter(
-                document=document, created_by=request.user
-            )
+            TextSpan.objects.filter(document=document, created_by=request.user)
             .select_related("node", "edge")
             .order_by("start_char")
         )

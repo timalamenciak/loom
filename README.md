@@ -89,7 +89,8 @@ All variables live in `.env` (copied from `.env.example`). Never commit `.env`.
 ## Running without Docker
 
 ```bash
-# Install dependencies
+# Install dependencies (pinned versions for reproducibility)
+pip install -r requirements.lock
 pip install -e ".[dev]"
 
 # Start Postgres separately (must match .env credentials)
