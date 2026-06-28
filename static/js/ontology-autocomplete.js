@@ -112,7 +112,13 @@ const OntologyAutocomplete = {
     async _fetch(input, dropdown, q) {
         const prefixes = input.dataset.ontologyPrefixes || '';
         const separator = this._searchUrl.includes('?') ? '&' : '?';
-        const url = `${this._searchUrl}${separator}q=${encodeURIComponent(q)}&prefixes=${encodeURIComponent(prefixes)}`;
+        let url = `${this._searchUrl}${separator}q=${encodeURIComponent(q)}&prefixes=${encodeURIComponent(prefixes)}`;
+        if (input.dataset.wikidataLive === 'true') {
+            url += '&wikidata_live=1';
+            if (input.dataset.wikidataRootQid) {
+                url += `&root_qid=${encodeURIComponent(input.dataset.wikidataRootQid)}`;
+            }
+        }
 
         let data;
         try {
@@ -135,64 +141,74 @@ const OntologyAutocomplete = {
             return;
         }
 
+        _ensureOaStyles();
         data.results.forEach((term, idx) => {
-            const item = document.createElement('div');
-            item.className = 'oa-item' + (idx === 0 ? ' active' : '');
-            item.dataset.curie = term.curie;
-            item.dataset.label = term.label;
-            item.innerHTML = `
-                <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
-                  <span class="oa-label">${_esc(term.label)}</span>
-                  <code class="oa-curie">${_esc(term.curie)}</code>
-                </div>
-                ${term.definition ? `<div class="oa-def">${_esc(term.definition.slice(0, 120))}${term.definition.length > 120 ? '…' : ''}</div>` : ''}
-            `;
-            Object.assign(item.style, {
-                padding: '6px 12px',
-                cursor: 'pointer',
-                borderBottom: '1px solid var(--border, #eee)',
-                fontSize: '13px',
-            });
-            item.addEventListener('mouseenter', () => {
-                dropdown.querySelectorAll('.oa-item').forEach((i) => i.classList.remove('active'));
-                item.classList.add('active');
-            });
-            item.addEventListener('click', () => {
-                this._selectTerm(input, term);
-                dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(item);
+            dropdown.appendChild(this._buildItem(input, term, idx === 0));
         });
 
         dropdown.style.display = 'block';
+    },
 
-        // Style active items
-        const style = document.getElementById('oa-style');
-        if (!style) {
-            const s = document.createElement('style');
-            s.id = 'oa-style';
-            s.textContent = `
-                .oa-item.active { background: var(--surface, #f5f5f5); }
-                .oa-label { font-weight: 500; }
-                .oa-curie { font-size: 11px; color: var(--muted, #888); flex-shrink: 0; }
-                .oa-def { font-size: 11px; color: var(--muted, #888); margin-top: 2px; }
-            `;
-            document.head.appendChild(s);
-        }
+    _buildItem(input, term, isFirst) {
+        const item = document.createElement('div');
+        item.className = 'oa-item' + (isFirst ? ' active' : '');
+        item.dataset.curie = term.curie;
+        item.dataset.label = term.label;
+
+        const isWikidata = term.source === 'wikidata';
+        const badge = isWikidata
+            ? '<span class="oa-source-badge">Wikidata</span>'
+            : '';
+        const defHtml = term.definition
+            ? `<div class="oa-def">${_esc(term.definition.slice(0, 120))}${term.definition.length > 120 ? '…' : ''}</div>`
+            : '';
+
+        item.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <span class="oa-label">${_esc(term.label)}</span>
+              <span style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                ${badge}
+                <code class="oa-curie">${_esc(term.curie)}</code>
+              </span>
+            </div>
+            ${defHtml}
+        `;
+        Object.assign(item.style, {
+            padding: '6px 12px',
+            cursor: 'pointer',
+            borderBottom: '1px solid var(--border, #eee)',
+            fontSize: '13px',
+        });
+        item.addEventListener('mouseenter', () => {
+            item.closest('.oa-dropdown').querySelectorAll('.oa-item')
+                .forEach((i) => i.classList.remove('active'));
+            item.classList.add('active');
+        });
+        item.addEventListener('click', () => {
+            this._selectTerm(input, term);
+            item.closest('.oa-dropdown').style.display = 'none';
+        });
+        return item;
     },
 
     _selectTerm(input, term) {
         // Write label to the visible input
         input.value = term.label;
 
-        // Write CURIE to sibling hidden input (if found)
         const curieTarget = input.dataset.curieTarget;
         if (curieTarget) {
+            // Write CURIE to sibling hidden input
             const hidden = document.getElementById(curieTarget)
                 || document.querySelector(`[name="${curieTarget}"]`);
-            if (hidden) {
-                hidden.value = term.curie;
-            }
+            if (hidden) hidden.value = term.curie;
+
+            // Populate Wikidata hint inputs so the server can validate the pick.
+            // For non-WD terms these are cleared so stale WD metadata isn't submitted.
+            const isWd = term.source === 'wikidata';
+            const wdLabel = document.getElementById(curieTarget + '_wd_label');
+            if (wdLabel) wdLabel.value = isWd ? term.label : '';
+            const wdDef = document.getElementById(curieTarget + '_wd_def');
+            if (wdDef) wdDef.value = (isWd && term.definition) ? term.definition : '';
         } else {
             // No hidden input: store curie in the visible field itself
             input.value = term.curie;
@@ -205,6 +221,31 @@ const OntologyAutocomplete = {
 };
 
 window.OntologyAutocomplete = OntologyAutocomplete;
+
+function _ensureOaStyles() {
+    if (document.getElementById('oa-style')) return;
+    const s = document.createElement('style');
+    s.id = 'oa-style';
+    s.textContent = `
+        .oa-item.active { background: var(--surface, #f5f5f5); }
+        .oa-label { font-weight: 500; }
+        .oa-curie { font-size: 11px; color: var(--muted, #888); flex-shrink: 0; }
+        .oa-def { font-size: 11px; color: var(--muted, #888); margin-top: 2px; }
+        .oa-source-badge {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: var(--wd-badge-bg, #e8f0fe);
+            color: var(--wd-badge-fg, #1558d6);
+            border: 1px solid var(--wd-badge-border, #c5d7fb);
+            font-weight: 500;
+            letter-spacing: .01em;
+            white-space: nowrap;
+        }
+    `;
+    document.head.appendChild(s);
+}
 
 function _esc(str) {
     return String(str)

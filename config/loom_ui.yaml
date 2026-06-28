@@ -46,9 +46,21 @@ layers:
     slots:
       - evidential_basis
 
-# slot_name: [preferred_ontology_prefix, ...]
+# slot_name routing can be one of two shapes:
+#   - list of bare prefix strings: uses only local OntologyTerm rows
+#   - dict with optional "prefixes" list and/or "wikidata_live" object:
+#       prefixes: [NCBITaxon, ENVO]   # local prefixes (omit if local-only isn't wanted)
+#       wikidata_live:
+#         root_qid: "Q16521"          # optional — restrict to descendants of this taxon
+#                                     # omit root_qid to allow any Wikidata taxon
+#     "wikidata_live" is distinct from adding "WD" as a regular prefix.  A "WD"
+#     prefix would imply a pre-loaded local OntologyTerm set; wikidata_live triggers
+#     a live two-step API call (wbsearchentities → SPARQL filter).
 ontology_routing:
-  entity_term: [NCBITaxon, ENVO]
+  entity_term:
+    prefixes: [NCBITaxon, ENVO]
+    wikidata_live:
+      root_qid: "Q16521"   # taxon — any organism or taxonomic group
   variable_attribute: [PATO]
   conditioned_by: [ENVO, PATO]
   site_term: [ENVO]

@@ -15,6 +15,7 @@ from apps.documents.models import TextSpan
 from apps.documents.services import ensure_canonical_text, render_highlighted_text
 from apps.export.serializer import serialize_graph
 from apps.export.validators import validate_graph_data
+from apps.ontology.adhoc import resolve_wd_curies_in_data
 from apps.ontology.models import OntologySnapshot
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
@@ -507,6 +508,7 @@ class NodeCreateView(LoginRequiredMixin, View):
                 },
             )
 
+        resolve_wd_curies_in_data(project, bound.data, request.POST)
         node = create_node(graph, bound.data, actor=request.user)
         selected_spans = _selected_spans(
             document,
@@ -608,6 +610,7 @@ class NodeEditView(LoginRequiredMixin, View):
                     ),
                 },
             )
+        resolve_wd_curies_in_data(project, bound.data, request.POST)
         update_node(node, bound.data, actor=request.user)
         selected_spans = _selected_spans(
             document,

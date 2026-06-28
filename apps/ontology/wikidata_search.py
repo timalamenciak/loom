@@ -1,0 +1,180 @@
+"""Wikidata live term search for the ontology autocomplete.
+
+Two-step protocol:
+  1. wbsearchentities → candidate QIDs ordered by relevance.
+  2. Batched SPARQL VALUES query → keep only taxa (wdt:P105) and,
+     when root_qid is supplied, only descendants via wdt:P171*.
+
+Results are cached in-process for 60 s per (query, root_qid) pair to absorb
+repeated keystrokes without hammering both APIs.
+"""
+
+from __future__ import annotations
+
+import json
+import threading
+import time
+import urllib.parse
+import urllib.request
+from urllib.error import URLError
+
+from loom import __version__
+
+_WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+_SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
+# Wikidata rate-limits non-compliant User-Agent strings regardless of volume.
+_USER_AGENT = (
+    f"Loom/{__version__} "
+    "(EcoWeaver causal-mosaic annotation workbench; "
+    "mailto:tim.alamenciak@gmail.com)"
+)
+_TIMEOUT = 8  # seconds per network call
+_CACHE_TTL = 60  # seconds
+
+_cache: dict[tuple, tuple[float, list[dict]]] = {}
+_cache_lock = threading.Lock()
+
+
+def search(
+    query: str,
+    root_qid: str | None = None,
+    limit: int = 10,
+) -> list[dict]:
+    """Return up to *limit* Wikidata taxa matching *query*.
+
+    Each result is ``{"curie": "WD:Q<n>", "label": str, "description": str}``.
+    Returns [] on any network or parse failure.
+
+    When *root_qid* is given (e.g. ``"Q16521"`` for *taxon*) only items that
+    are the root itself or a descendant via ``wdt:P171*`` are returned.
+    """
+    cache_key = (query.lower(), root_qid, limit)
+    with _cache_lock:
+        if cache_key in _cache:
+            ts, cached = _cache[cache_key]
+            if time.monotonic() - ts < _CACHE_TTL:
+                return cached
+
+    results = _search_uncached(query, root_qid, limit)
+
+    with _cache_lock:
+        now = time.monotonic()
+        stale = [k for k, (ts, _) in _cache.items() if now - ts >= _CACHE_TTL]
+        for k in stale:
+            del _cache[k]
+        _cache[cache_key] = (now, results)
+
+    return results
+
+
+# ── internals ─────────────────────────────────────────────────────────────────
+
+
+def _search_uncached(
+    query: str,
+    root_qid: str | None,
+    limit: int,
+) -> list[dict]:
+    # Over-fetch so SPARQL filtering still yields enough results.
+    overfetch = min(limit * 2, 20)
+    candidates = _wbsearch(query, overfetch)
+    if not candidates:
+        return []
+
+    qids = [c["qid"] for c in candidates]
+    valid = _sparql_filter(qids, root_qid)
+
+    results: list[dict] = []
+    for c in candidates:
+        if c["qid"] in valid:
+            results.append(
+                {
+                    "curie": f"WD:{c['qid']}",
+                    "label": c["label"],
+                    "description": c.get("description", ""),
+                }
+            )
+        if len(results) >= limit:
+            break
+
+    return results
+
+
+def _wbsearch(query: str, limit: int) -> list[dict]:
+    """Call wbsearchentities and return a list of {qid, label, description}."""
+    params = urllib.parse.urlencode(
+        {
+            "action": "wbsearchentities",
+            "search": query,
+            "language": "en",
+            "type": "item",
+            "limit": limit,
+            "format": "json",
+        }
+    )
+    req = urllib.request.Request(
+        f"{_WIKIDATA_API}?{params}",
+        headers={"User-Agent": _USER_AGENT},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+    except (URLError, OSError, ValueError):
+        return []
+
+    out: list[dict] = []
+    for item in data.get("search", []):
+        qid = item.get("id", "")
+        if not qid.startswith("Q"):
+            continue
+        out.append(
+            {
+                "qid": qid,
+                "label": item.get("label", qid),
+                "description": item.get("description", ""),
+            }
+        )
+    return out
+
+
+def _sparql_filter(qids: list[str], root_qid: str | None) -> set[str]:
+    """Return the subset of *qids* that are taxa (and descendants of *root_qid*)."""
+    if not qids:
+        return set()
+
+    values = " ".join(f"wd:{q}" for q in qids)
+
+    if root_qid:
+        where = (
+            f"VALUES ?item {{ {values} }}\n"
+            f"    ?item wdt:P105 ?rank .\n"
+            f"    ?item wdt:P171* wd:{root_qid} ."
+        )
+    else:
+        where = (
+            f"VALUES ?item {{ {values} }}\n"
+            f"    ?item wdt:P105 ?rank ."
+        )
+
+    sparql = f"SELECT ?item WHERE {{\n    {where}\n}}"
+    params = urllib.parse.urlencode({"query": sparql, "format": "json"})
+    req = urllib.request.Request(
+        f"{_SPARQL_ENDPOINT}?{params}",
+        headers={
+            "User-Agent": _USER_AGENT,
+            "Accept": "application/sparql-results+json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+    except (URLError, OSError, ValueError):
+        return set()
+
+    valid: set[str] = set()
+    for binding in data.get("results", {}).get("bindings", []):
+        uri = binding.get("item", {}).get("value", "")
+        # uri shape: "http://www.wikidata.org/entity/Q12345"
+        if "/entity/Q" in uri:
+            valid.add(uri.rsplit("/", 1)[-1])
+    return valid

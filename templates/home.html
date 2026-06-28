@@ -1,12 +1,51 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Home — Loom{% endblock %}
 
-{% block content %}
-<h1 style="margin-top:0">Welcome to Loom</h1>
-<p style="color:#475569">Knowledge annotation tool</p>
+{% block extra_head %}
+<style>
+  .home-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .home-hero-icon {
+    width: 56px;
+    height: 56px;
+    color: #2d7a5a;
+    flex-shrink: 0;
+  }
+  .home-hero-text h1 {
+    margin: 0 0 .2rem;
+    font-size: 1.75rem;
+    color: #193d2e;
+    letter-spacing: -.01em;
+  }
+  .home-hero-text p {
+    margin: 0;
+    color: #6b7280;
+    font-size: .95rem;
+  }
+  .home-actions {
+    display: flex;
+    gap: .75rem;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
 
-<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:2rem">
+{% block content %}
+<div class="home-hero">
+  <img src="{% static 'img/loom-icon.svg' %}" class="home-hero-icon" alt="Loom">
+  <div class="home-hero-text">
+    <h1>Loom</h1>
+    <p>Causal annotation workbench for EcoWeaver</p>
+  </div>
+</div>
+
+<div class="home-actions">
   <a href="{% url 'my-queue' %}" class="btn btn-primary">My queue</a>
   <a href="{% url 'project-list' %}" class="btn btn-secondary">Projects</a>
   {% if user.is_staff %}

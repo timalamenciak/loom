@@ -11,6 +11,42 @@ from apps.projects.models import Project, ProjectMembership
 
 from .loaders import ontology_entries
 from .services import search_terms
+from .wikidata_search import search as wikidata_search
+
+
+def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[dict]:
+    """Append Wikidata live results when the caller requests it.
+
+    Triggered by ``?wikidata_live=1``; ``?root_qid=`` is optional.  Results
+    whose CURIE already appears in *results* are silently dropped so local
+    terms take precedence.
+
+    Wikidata results carry ``"source": "wikidata"`` so the frontend can label
+    them distinctly.  Any failure (network, timeout, 429, unexpected exception)
+    is silently swallowed — annotation work must never block on Wikidata being
+    reachable.
+    """
+    if request.GET.get("wikidata_live") != "1":
+        return results
+    root_qid = request.GET.get("root_qid") or None
+    try:
+        wd = wikidata_search(q, root_qid=root_qid, limit=limit)
+    except Exception:
+        return results
+    seen = {r["curie"] for r in results}
+    for item in wd:
+        if item["curie"] not in seen:
+            results.append(
+                {
+                    "curie": item["curie"],
+                    "label": item["label"],
+                    "definition": item.get("description", ""),
+                    "synonyms": [],
+                    "source": "wikidata",
+                }
+            )
+            seen.add(item["curie"])
+    return results
 
 
 class OntologySearchView(LoginRequiredMixin, View):
@@ -38,6 +74,7 @@ class OntologySearchView(LoginRequiredMixin, View):
             }
             for t in terms
         ]
+        results = _merge_wikidata(request, results, q, limit)
         return JsonResponse({"results": results})
 
 
@@ -64,45 +101,46 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
             snapshot = graph.ontology_snapshot or snapshot
 
         q = request.GET.get("q", "").strip()
-        if len(q) < 2 or snapshot is None:
+        if len(q) < 2:
             return JsonResponse({"results": []})
         try:
             limit = min(max(int(request.GET.get("limit", 20)), 1), 50)
         except ValueError:
             limit = 20
 
-        if graph and snapshot:
-            allowed_prefixes = set((snapshot.source_versions or {}).keys())
-            if not allowed_prefixes:
-                allowed_prefixes = set(
-                    snapshot.releases.values_list("prefix", flat=True)
-                )
-        else:
-            selected_names = set(project.ontology_names or [])
-            allowed_prefixes = {
-                entry["prefix"]
-                for entry in ontology_entries()
-                if entry["name"] in selected_names
+        # Local DB search — only possible when a snapshot exists.
+        results: list[dict] = []
+        if snapshot is not None:
+            if graph and snapshot:
+                allowed_prefixes = set((snapshot.source_versions or {}).keys())
+                if not allowed_prefixes:
+                    allowed_prefixes = set(
+                        snapshot.releases.values_list("prefix", flat=True)
+                    )
+            else:
+                selected_names = set(project.ontology_names or [])
+                allowed_prefixes = {
+                    entry["prefix"]
+                    for entry in ontology_entries()
+                    if entry["name"] in selected_names
+                }
+            requested = {
+                prefix.strip()
+                for prefix in request.GET.get("prefixes", "").split(",")
+                if prefix.strip()
             }
-        requested = {
-            prefix.strip()
-            for prefix in request.GET.get("prefixes", "").split(",")
-            if prefix.strip()
-        }
-        prefixes = (
-            sorted(allowed_prefixes & requested)
-            if requested
-            else sorted(allowed_prefixes)
-        )
-        if requested and not prefixes:
-            return JsonResponse({"results": []})
-
-        terms = search_terms(
-            q, prefixes=prefixes or None, snapshot=snapshot, limit=limit
-        )
-        return JsonResponse(
-            {
-                "results": [
+            prefixes = (
+                sorted(allowed_prefixes & requested)
+                if requested
+                else sorted(allowed_prefixes)
+            )
+            # Only query DB when the prefix intersection is non-empty (or no
+            # specific prefixes were requested).
+            if prefixes or not requested:
+                terms = search_terms(
+                    q, prefixes=prefixes or None, snapshot=snapshot, limit=limit
+                )
+                results = [
                     {
                         "curie": term.curie,
                         "label": term.label,
@@ -111,5 +149,8 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
                     }
                     for term in terms
                 ]
-            }
-        )
+
+        # Live lookup (Wikidata etc.) — always attempted when caller requests it,
+        # even when the local snapshot is absent or yields nothing.
+        results = _merge_wikidata(request, results, q, limit)
+        return JsonResponse({"results": results})

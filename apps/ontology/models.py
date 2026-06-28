@@ -5,7 +5,19 @@ from django.db import models
 
 
 class OntologyRelease(models.Model):
-    """One immutable, content-addressed load of a configured ontology."""
+    """One content-addressed load of a configured ontology, or an ad hoc accumulation.
+
+    ``source_kind="bulk"`` (the default) represents a single OBO/OWL file fetched
+    at a point in time and treated as immutable — ``source_sha256`` is the hash of
+    that file and never changes after the load completes.
+
+    ``source_kind="wikidata_adhoc"`` represents a per-project accumulation of
+    Wikidata terms picked individually by annotators.  ``source_sha256`` is
+    recomputed from the sorted set of (curie, label) pairs each time a new term is
+    added; it therefore changes with every addition.  This is expected and fine:
+    unlike bulk releases, adhoc releases are mutable by design and are not meant to
+    be pinned for reproducibility.
+    """
 
     STATUS_LOADING = "loading"
     STATUS_READY = "ready"
@@ -14,6 +26,13 @@ class OntologyRelease(models.Model):
         (STATUS_LOADING, "Loading"),
         (STATUS_READY, "Ready"),
         (STATUS_FAILED, "Failed"),
+    ]
+
+    SOURCE_KIND_BULK = "bulk"
+    SOURCE_KIND_WIKIDATA_ADHOC = "wikidata_adhoc"
+    SOURCE_KIND_CHOICES = [
+        (SOURCE_KIND_BULK, "Bulk OBO/OWL load"),
+        (SOURCE_KIND_WIKIDATA_ADHOC, "Ad hoc Wikidata picks"),
     ]
 
     name = models.CharField(max_length=200)
@@ -26,9 +45,29 @@ class OntologyRelease(models.Model):
         max_length=20, choices=STATUS_CHOICES, default=STATUS_LOADING
     )
     error = models.TextField(blank=True)
+    source_kind = models.CharField(
+        max_length=30,
+        choices=SOURCE_KIND_CHOICES,
+        default=SOURCE_KIND_BULK,
+        db_index=True,
+    )
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="wikidata_adhoc_releases",
+    )
 
     class Meta:
         ordering = ["prefix", "-loaded_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "prefix"],
+                condition=models.Q(source_kind="wikidata_adhoc"),
+                name="unique_wikidata_adhoc_per_project_prefix",
+            )
+        ]
 
     def __str__(self):
         return f"{self.prefix} ({self.source_sha256[:12] or self.status})"

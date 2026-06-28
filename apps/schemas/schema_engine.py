@@ -203,6 +203,14 @@ class LoomSchemaView:
         else:
             widget = "text"
 
+        routing = ontology_routing.get(slot_name, [])
+        if isinstance(routing, list):
+            ontology_prefixes: list[str] = routing
+            wikidata_live: dict | None = None
+        else:
+            ontology_prefixes = routing.get("prefixes", [])
+            wikidata_live = routing.get("wikidata_live") or None
+
         spec: dict = {
             "name": slot_name,
             "label": (slot.title or slot_name).replace("_", " ").title(),
@@ -211,7 +219,8 @@ class LoomSchemaView:
             "multivalued": bool(slot.multivalued),
             "description": slot.description or "",
             "ifabsent": slot.ifabsent,
-            "ontology_prefixes": ontology_routing.get(slot_name, []),
+            "ontology_prefixes": ontology_prefixes,
+            "wikidata_live": wikidata_live,
             "minimum_value": slot.minimum_value,
             "maximum_value": slot.maximum_value,
             "has_minimum_value": slot.minimum_value is not None,

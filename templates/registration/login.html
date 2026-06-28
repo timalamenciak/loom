@@ -1,29 +1,130 @@
-{% extends "base.html" %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log in — Loom</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font-size: 15px;
+      background: #f4f9f6;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
 
-{% block title %}Log in — Loom{% endblock %}
+    .login-card {
+      width: 100%;
+      max-width: 380px;
+      background: #fff;
+      border: 1px solid #cfdfd8;
+      border-radius: 10px;
+      padding: 2.25rem 2rem;
+      box-shadow: 0 4px 20px rgba(25,61,46,.10);
+    }
 
-{% block extra_head %}
-<style>
-  .login-wrap { max-width: 380px; margin: 5rem auto; }
-  .login-brand { font-size: 1.8rem; font-weight: 700; color: #1e293b; margin-bottom: .25rem; }
-  .login-sub { color: #64748b; margin-bottom: 2rem; font-size: .95rem; }
-  .field { margin-bottom: 1.25rem; }
-  .field label { display: block; font-size: .85rem; font-weight: 600; color: #374151; margin-bottom: .35rem; }
-  .field input { width: 100%; padding: .55rem .75rem; border: 1px solid #cbd5e1; border-radius: 4px; font-size: .95rem; }
-  .field input:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
-  .field .errors { color: #b91c1c; font-size: .83rem; margin-top: .25rem; }
-  .login-btn { width: 100%; padding: .6rem; background: #1e293b; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; margin-top: .5rem; }
-  .login-btn:hover { background: #0f172a; }
-</style>
-{% endblock %}
+    .login-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .login-logo-icon {
+      width: 52px;
+      height: 52px;
+      color: #2d7a5a;
+    }
 
-{% block content %}
-<div class="login-wrap">
-  <div class="login-brand">Loom</div>
-  <div class="login-sub">Knowledge annotation tool</div>
+    .login-brand {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #193d2e;
+      text-align: center;
+      margin: 0 0 .3rem;
+      letter-spacing: -.01em;
+    }
+    .login-sub {
+      color: #6b7280;
+      text-align: center;
+      margin: 0 0 1.75rem;
+      font-size: .9rem;
+    }
+
+    .field { margin-bottom: 1.1rem; }
+    .field label {
+      display: block;
+      font-size: .85rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: .3rem;
+    }
+    .field input {
+      width: 100%;
+      padding: .55rem .7rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: .95rem;
+      background: #fff;
+      transition: border-color .15s;
+    }
+    .field input:focus { outline: 2px solid #2d7a5a; border-color: #2d7a5a; }
+    .field .errors { color: #b91c1c; font-size: .83rem; margin-top: .25rem; }
+
+    .message-error {
+      padding: .5rem .8rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      font-size: .875rem;
+      background: #fee2e2;
+      color: #7f1d1d;
+      border: 1px solid #fca5a5;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: .6rem;
+      background: #2d7a5a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: .5rem;
+      transition: background .15s;
+      letter-spacing: .01em;
+    }
+    .login-btn:hover { background: #245e45; }
+
+    .site-footer {
+      margin-top: 1.5rem;
+      font-size: .7rem;
+      color: #9ca3af;
+      text-align: center;
+    }
+    .site-footer a { color: #9ca3af; }
+    .site-footer a:hover { color: #2d7a5a; }
+  </style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="login-logo">
+    <img src="{% static 'img/loom-icon.svg' %}" class="login-logo-icon" alt="Loom">
+  </div>
+
+  <h1 class="login-brand">Loom</h1>
+  <p class="login-sub">EcoWeaver annotation workbench</p>
 
   {% if form.non_field_errors %}
-  <div class="message message-error" style="margin-bottom:1rem">{{ form.non_field_errors }}</div>
+  <div class="message-error">{{ form.non_field_errors }}</div>
   {% endif %}
 
   <form method="post">
@@ -38,4 +139,13 @@
     <button type="submit" class="login-btn">Log in</button>
   </form>
 </div>
-{% endblock %}
+
+<footer class="site-footer">
+  <a href="https://thenounproject.com/browse/icons/term/hand-loom/" target="_blank" rel="noopener">Hand Loom</a>
+  icon by Fath Yusuf Iskhaqy from
+  <a href="https://thenounproject.com/" target="_blank" rel="noopener">Noun Project</a>
+  (CC&nbsp;BY&nbsp;3.0)
+</footer>
+
+</body>
+</html>

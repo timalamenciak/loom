@@ -80,12 +80,19 @@
   <input type="text"
          id="id_{{ field_name }}_label"
          data-ontology-prefixes="{{ slot.ontology_prefixes|join:',' }}"
+         {% if slot.wikidata_live %}data-wikidata-live="true"{% endif %}
+         {% if slot.wikidata_live.root_qid %}data-wikidata-root-qid="{{ slot.wikidata_live.root_qid }}"{% endif %}
          data-curie-target="id_{{ field_name }}"
          value="{{ current_data|dict_get:field_name }}"
          placeholder="Search ontology…"
          autocomplete="off">
   <input type="hidden" name="{{ field_name }}" id="id_{{ field_name }}"
          value="{{ current_data|dict_get:field_name }}">
+  {% if slot.wikidata_live %}
+  {# Wikidata hint inputs — populated by JS on term selection; validated server-side before use #}
+  <input type="hidden" name="{{ field_name }}_wd_label" id="id_{{ field_name }}_wd_label" value="">
+  <input type="hidden" name="{{ field_name }}_wd_def"   id="id_{{ field_name }}_wd_def"   value="">
+  {% endif %}
 </div>
 
 {% elif slot.widget == "checkbox" %}
