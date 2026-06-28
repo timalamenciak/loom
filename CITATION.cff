@@ -17,8 +17,8 @@ authors:
   - family-names: Alamenciak
     given-names: Tim
     email: tim.alamenciak@gmail.com
-    affiliation: "RacoonLab"
-    orcid: "https://orcid.org/0000-0000-0000-0000"  # replace with real ORCID
+    affiliation: "Carleton University"
+    orcid: "https://orcid.org/0000-0002-1296-2528"  # replace with real ORCID
 
 keywords:
   - causal annotation

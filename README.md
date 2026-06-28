@@ -1,5 +1,11 @@
 # Loom
 
+[![CI](https://github.com/timalamenciak/loom/actions/workflows/ci.yml/badge.svg)](https://github.com/timalamenciak/loom/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/timalamenciak/loom/graph/badge.svg)](https://codecov.io/gh/timalamenciak/loom)
+[![Latest release](https://img.shields.io/github/v/release/timalamenciak/loom)](https://github.com/timalamenciak/loom/releases)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Self-hosted annotation workbench for the **Causal Mosaic (CAMO)** schema. Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
 
 Current package version: **0.1.0** (semantic versioning). The single source of

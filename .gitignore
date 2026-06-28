@@ -19,6 +19,7 @@ build/
 .mypy_cache/
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Editor
