@@ -73,7 +73,7 @@ def get_or_create_adhoc_wikidata_term(
     """
     if not curie.startswith("WD:Q"):
         return None
-    qid = curie[len("WD:"):]
+    qid = curie[len("WD:") :]
 
     # Fast path: term already exists — skip network call entirely.
     with transaction.atomic():
@@ -127,7 +127,8 @@ def _scan_dict(project, data: dict, post, prefix: str) -> None:
             hint_label = post.get(f"{full_key}_wd_label", "")
             hint_def = post.get(f"{full_key}_wd_def", "")
             get_or_create_adhoc_wikidata_term(
-                project, value,
+                project,
+                value,
                 hint_label=hint_label,
                 hint_definition=hint_def,
             )
@@ -139,7 +140,8 @@ def _scan_dict(project, data: dict, post, prefix: str) -> None:
                     hint_label = post.get(f"{full_key}_wd_label", "")
                     hint_def = post.get(f"{full_key}_wd_def", "")
                     get_or_create_adhoc_wikidata_term(
-                        project, item,
+                        project,
+                        item,
                         hint_label=hint_label,
                         hint_definition=hint_def,
                     )
@@ -170,9 +172,7 @@ def _update_release_hash(release: OntologyRelease) -> None:
     The hash changes with every new term addition — this is expected behaviour
     for an accumulating adhoc release (see module docstring).
     """
-    rows = list(
-        release.terms.order_by("curie").values_list("curie", "label")
-    )
+    rows = list(release.terms.order_by("curie").values_list("curie", "label"))
     manifest = "\n".join(f"{curie}\t{label}" for curie, label in rows)
     new_hash = hashlib.sha256(manifest.encode()).hexdigest()
     OntologyRelease.objects.filter(pk=release.pk).update(

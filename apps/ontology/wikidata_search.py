@@ -151,10 +151,7 @@ def _sparql_filter(qids: list[str], root_qid: str | None) -> set[str]:
             f"    ?item wdt:P171* wd:{root_qid} ."
         )
     else:
-        where = (
-            f"VALUES ?item {{ {values} }}\n"
-            f"    ?item wdt:P105 ?rank ."
-        )
+        where = f"VALUES ?item {{ {values} }}\n" f"    ?item wdt:P105 ?rank ."
 
     sparql = f"SELECT ?item WHERE {{\n    {where}\n}}"
     params = urllib.parse.urlencode({"query": sparql, "format": "json"})
