@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml README.md ./
 RUN mkdir -p apps loom && \
     touch apps/__init__.py && \
-    echo '__version__ = "dev"' > loom/__init__.py
+    echo '__version__ = "0.0.0"' > loom/__init__.py
 RUN python -m pip wheel --wheel-dir /wheels .
 
 
