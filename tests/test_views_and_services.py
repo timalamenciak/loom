@@ -225,7 +225,7 @@ def test_document_reader_pdf_and_span_htmx_paths(client, workspace, tmp_path, se
     response = client.get(pdf_url)
     assert response.status_code == 200
     assert response["Content-Disposition"] == 'inline; filename="paper.pdf"'
-    response.close()
+    assert b"%PDF-1.4" in b"".join(response.streaming_content)
 
     create_url = reverse("span-create", args=[workspace.document.pk])
     bad = client.post(create_url, {"start_char": "bad", "end_char": 2})
