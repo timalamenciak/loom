@@ -54,16 +54,22 @@ def search_terms(
             return [exact]
 
     # 2. Trigram similarity (optional; requires pg_trgm extension + GIN index)
+    # Searches both label and synonym_labels so e.g. PATO synonyms surface.
     try:
         from django.contrib.postgres.search import TrigramSimilarity
         from django.db import transaction
+        from django.db.models.functions import Greatest
 
         sid = transaction.savepoint()
         try:
             results = list(
-                qs.annotate(sim=TrigramSimilarity("label", query))
-                .filter(sim__gt=0.15)
-                .order_by("-sim")[:limit]
+                qs.annotate(
+                    sim=TrigramSimilarity("label", query),
+                    syn_sim=TrigramSimilarity("synonym_labels", query),
+                )
+                .annotate(best_sim=Greatest("sim", "syn_sim"))
+                .filter(best_sim__gt=0.15)
+                .order_by("-best_sim")[:limit]
             )
             transaction.savepoint_commit(sid)
             if results:

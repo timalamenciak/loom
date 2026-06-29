@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Hidden slots — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> /
+  <a href="{% url 'project-settings' project.pk %}">Settings</a> /
+  Hidden slots
+</div>
+<div class="page-header"><h1>Hidden slots</h1></div>
+
+<p class="muted" style="max-width:52rem;margin-bottom:1rem">
+  Checked slots are removed from annotation forms for all annotators in this project.
+  Use this to streamline the annotation form for specific workflows — e.g. hide advanced
+  causal features when only core annotation is needed. Global system slots (pipeline-managed
+  fields, ids) are always hidden and do not appear here.
+</p>
+
+{% if not node_slots and not edge_slots %}
+<p class="message message-warning">No active schema — configure a schema in
+  <a href="{% url 'project-settings' project.pk %}">Project settings</a> first.</p>
+{% else %}
+
+<form method="post" class="settings-form">
+  {% csrf_token %}
+
+  {% if node_slots %}
+  <section class="settings-card">
+    <h2>Node (CausalNode) slots</h2>
+    <div style="columns:2;gap:1.5rem">
+      {% for slot in node_slots %}
+      <div class="field" style="break-inside:avoid;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
+        <input type="checkbox" name="hidden_slots" value="{{ slot }}"
+               id="hs_node_{{ slot }}"
+               {% if slot in hidden %}checked{% endif %}>
+        <label for="hs_node_{{ slot }}" style="font-size:.85rem;font-weight:400;margin:0;font-family:monospace">{{ slot }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if edge_slots %}
+  <section class="settings-card">
+    <h2>Edge (CausalEdge) slots</h2>
+    <div style="columns:2;gap:1.5rem">
+      {% for slot in edge_slots %}
+      <div class="field" style="break-inside:avoid;margin-bottom:.35rem;display:flex;align-items:center;gap:.5rem">
+        <input type="checkbox" name="hidden_slots" value="{{ slot }}"
+               id="hs_edge_{{ slot }}"
+               {% if slot in hidden %}checked{% endif %}>
+        <label for="hs_edge_{{ slot }}" style="font-size:.85rem;font-weight:400;margin:0;font-family:monospace">{{ slot }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <div style="display:flex;gap:.75rem;margin-top:.75rem">
+    <button type="submit" class="btn btn-primary">Save hidden slots</button>
+    <a href="{% url 'project-settings' project.pk %}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

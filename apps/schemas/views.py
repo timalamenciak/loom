@@ -4,8 +4,22 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
+from pathlib import Path
+
+import yaml
+from django.conf import settings
+
 from .models import SchemaVersion
 from .schema_engine import get_schema_view, invalidate_cache
+
+
+def _load_ui_config():
+    config_path = Path(settings.BASE_DIR) / "config" / "loom_ui.yaml"
+    try:
+        with config_path.open() as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
 
 
 def _require_superuser(request):
@@ -38,7 +52,14 @@ class SchemaDetailView(LoginRequiredMixin, View):
         _require_superuser(request)
         sv = get_object_or_404(SchemaVersion, pk=pk)
         lsv = get_schema_view(sv)
-        edge_spec = lsv.form_spec("CausalEdge")
+        ui = _load_ui_config()
+        edge_spec = lsv.form_spec(
+            "CausalEdge",
+            ui_layers=ui.get("layers"),
+            ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
+            globally_hidden_slots=ui.get("globally_hidden_slots", []),
+        )
         return render(
             request,
             "schemas/schema_detail.html",

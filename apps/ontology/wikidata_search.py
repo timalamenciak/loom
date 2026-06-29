@@ -145,10 +145,15 @@ def _sparql_filter(qids: list[str], root_qid: str | None) -> set[str]:
     values = " ".join(f"wd:{q}" for q in qids)
 
     if root_qid:
+        # UNION handles two cases:
+        # 1. P171+ — descendants of a specific taxon node (e.g. Animalia Q23038)
+        # 2. P31/P279* — instances/subclasses of a concept class (e.g. taxon Q16521)
         where = (
             f"VALUES ?item {{ {values} }}\n"
             f"    ?item wdt:P105 ?rank .\n"
-            f"    ?item wdt:P171* wd:{root_qid} ."
+            f"    {{ ?item wdt:P171+ wd:{root_qid} }}\n"
+            f"    UNION\n"
+            f"    {{ ?item wdt:P31/wdt:P279* wd:{root_qid} }}"
         )
     else:
         where = f"VALUES ?item {{ {values} }}\n" f"    ?item wdt:P105 ?rank ."

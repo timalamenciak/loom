@@ -49,6 +49,11 @@ urlpatterns = [
     ),
     path("<int:pk>/delete/", views.ProjectDeleteView.as_view(), name="project-delete"),
     path(
+        "<int:pk>/settings/hidden-slots/",
+        views.ProjectHiddenSlotsView.as_view(),
+        name="project-hidden-slots",
+    ),
+    path(
         "<int:pk>/ontology/search/",
         ProjectOntologySearchView.as_view(),
         name="project-ontology-search",

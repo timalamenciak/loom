@@ -89,20 +89,31 @@ class LoomSchemaView:
         ui_layers: list[dict] | None = None,
         ontology_routing: dict | None = None,
         widget_overrides: dict | None = None,
+        globally_hidden_slots: list[str] | None = None,
+        slot_help_texts: dict | None = None,
     ) -> list[dict]:
         """
         Build a layered form spec for *class_name*.
         *ui_layers* is the layers list from loom_ui.yaml.
         *ontology_routing* is the ontology_routing dict from loom_ui.yaml.
+        *globally_hidden_slots* are excluded before layer assignment.
+        *slot_help_texts* maps slot name → placeholder/hint string shown in the form.
         """
         if ontology_routing is None:
             ontology_routing = {}
         if widget_overrides is None:
             widget_overrides = {}
+        if slot_help_texts is None:
+            slot_help_texts = {}
+        hidden = frozenset(globally_hidden_slots or [])
 
-        slot_names = self._all_slot_names(class_name)
+        slot_names = [
+            n for n in self._all_slot_names(class_name) if n not in hidden
+        ]
         slot_specs = {
-            name: self._slot_spec(name, class_name, ontology_routing, widget_overrides)
+            name: self._slot_spec(
+                name, class_name, ontology_routing, widget_overrides, slot_help_texts
+            )
             for name in slot_names
         }
 
@@ -185,6 +196,7 @@ class LoomSchemaView:
         class_name: str,
         ontology_routing: dict,
         widget_overrides: dict,
+        slot_help_texts: dict | None = None,
     ) -> dict:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
@@ -218,6 +230,7 @@ class LoomSchemaView:
             "required": bool(slot.required),
             "multivalued": bool(slot.multivalued),
             "description": slot.description or "",
+            "help_text": (slot_help_texts or {}).get(slot_name, ""),
             "ifabsent": slot.ifabsent,
             "ontology_prefixes": ontology_prefixes,
             "wikidata_live": wikidata_live,
@@ -243,6 +256,7 @@ class LoomSchemaView:
                     ui_layers=None,
                     ontology_routing=ontology_routing,
                     widget_overrides=widget_overrides,
+                    slot_help_texts=slot_help_texts,
                 )
 
         return spec

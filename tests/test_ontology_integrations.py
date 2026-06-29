@@ -249,7 +249,9 @@ def test_sparql_filter_builds_queries_parses_results_and_fails_closed():
     assert wikidata_search._sparql_filter([], None) == set()
     with patch("urllib.request.urlopen", return_value=Response(payload)) as opened:
         assert wikidata_search._sparql_filter(["Q1"], "Q16521") == {"Q1"}
-    assert "P171%2A" in opened.call_args.args[0].full_url
+    url = opened.call_args.args[0].full_url
+    assert "P171%2B" in url  # wdt:P171+ (transitive taxon hierarchy)
+    assert "P279" in url  # P31/P279* branch for metaclass roots like Q16521
 
     with patch("urllib.request.urlopen", return_value=Response(payload)):
         assert wikidata_search._sparql_filter(["Q1"], None) == {"Q1"}

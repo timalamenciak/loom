@@ -27,6 +27,7 @@ class Project(models.Model):
     ontology_names = models.JSONField(default=list, blank=True)
     auto_infer_ontologies = models.BooleanField(default=True)
     source_document_rollup = models.JSONField(default=list, blank=True)
+    hidden_slots = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -95,6 +96,8 @@ class Document(models.Model):
     canonical_text = models.TextField(null=True, blank=True)
     # offset→page/bbox mapping; populated in Phase 3
     page_map = models.JSONField(null=True, blank=True)
+    # Markdown from docling (richer layout-aware extraction); optional
+    canonical_markdown = models.TextField(null=True, blank=True)
 
     # Bibliographic fields
     title = models.TextField()

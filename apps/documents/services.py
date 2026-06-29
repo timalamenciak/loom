@@ -75,6 +75,32 @@ def set_abstract_as_canonical(document) -> bool:
     return True
 
 
+def extract_markdown_from_pdf(document) -> bool:
+    """Convert PDF to Markdown using docling for better multi-column layout handling.
+
+    Populates document.canonical_markdown in-place (and saves).
+    Returns True on success. Does NOT replace canonical_text — both coexist.
+    This is a slow, one-time operation; call from attach_pdf or a management command,
+    not from the hot request path.
+    """
+    try:
+        from docling.document_converter import DocumentConverter
+    except ImportError:
+        return False
+
+    if not document.pdf_file:
+        return False
+
+    try:
+        converter = DocumentConverter()
+        result = converter.convert(document.pdf_file.path)
+        document.canonical_markdown = result.document.export_to_markdown()
+        document.save(update_fields=["canonical_markdown"])
+        return True
+    except Exception:
+        return False
+
+
 def ensure_canonical_text(document) -> bool:
     """Guarantee canonical_text is populated; return True if text is now available."""
     if pdf_text_needs_extraction(document) and extract_text_from_pdf(document):

@@ -999,3 +999,50 @@ class IRRExportView(LoginRequiredMixin, View):
                 ]
             )
         return resp
+
+
+class ProjectHiddenSlotsView(LoginRequiredMixin, View):
+    """GET/POST: configure which annotation slots are hidden for this project."""
+
+    template_name = "projects/project_hidden_slots.html"
+
+    def _project(self, request, pk):
+        return _require_owner(request, get_object_or_404(Project, pk=pk))
+
+    def _all_slots(self, project):
+        sv = project.active_schema
+        if not sv:
+            return [], []
+        try:
+            from apps.schemas.schema_engine import get_schema_view
+
+            lsv = get_schema_view(sv)
+            node_slots = [s.name for s in lsv._sv.class_induced_slots("CausalNode")]
+            edge_slots = [s.name for s in lsv._sv.class_induced_slots("CausalEdge")]
+            return node_slots, edge_slots
+        except Exception:
+            return [], []
+
+    def get(self, request, pk):
+        project = self._project(request, pk)
+        node_slots, edge_slots = self._all_slots(project)
+        return render(
+            request,
+            self.template_name,
+            {
+                "project": project,
+                "node_slots": node_slots,
+                "edge_slots": edge_slots,
+                "hidden": set(project.hidden_slots or []),
+            },
+        )
+
+    def post(self, request, pk):
+        project = self._project(request, pk)
+        node_slots, edge_slots = self._all_slots(project)
+        all_slots = set(node_slots + edge_slots)
+        selected = set(request.POST.getlist("hidden_slots"))
+        project.hidden_slots = sorted(selected & all_slots)
+        project.save(update_fields=["hidden_slots"])
+        messages.success(request, "Hidden slots saved.")
+        return redirect("project-hidden-slots", pk=project.pk)

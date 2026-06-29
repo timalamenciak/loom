@@ -81,8 +81,10 @@
     function showDocumentView(view) {
         const text = document.getElementById('document-view-text');
         const pdf = document.getElementById('document-view-pdf');
+        const md = document.getElementById('document-view-markdown');
         if (text) text.hidden = view !== 'text';
         if (pdf) pdf.hidden = view !== 'pdf';
+        if (md) md.hidden = view !== 'markdown';
         document.querySelectorAll('[data-document-view-button]').forEach((button) => {
             button.classList.toggle('active', button.dataset.documentViewButton === view);
         });

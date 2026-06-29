@@ -1,7 +1,9 @@
 """Phase 5 annotation views — full annotation surface, session timer, node/edge CRUD."""
 
+import hashlib
 import json
 import logging
+import uuid
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -9,6 +11,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.safestring import mark_safe
+from django.utils.text import slugify
 from django.views import View
 
 from apps.documents.models import TextSpan
@@ -47,8 +50,26 @@ from .services import (
 
 logger = logging.getLogger(__name__)
 
-_NODE_MANAGED_SLOTS = frozenset({"node_id", "source_spans"})
-_EDGE_MANAGED_SLOTS = frozenset({"edge_id", "subject", "object", "source_spans"})
+_NODE_MANAGED_SLOTS = frozenset({"node_id", "source_spans", "id"})
+_EDGE_MANAGED_SLOTS = frozenset({"edge_id", "subject", "object", "source_spans", "id"})
+
+
+def _auto_node_id(data: dict) -> str:
+    """Generate a stable CURIE-style node id from entity_term or name."""
+    entity_term = (data.get("entity_term") or "").strip()
+    if entity_term and ":" in entity_term:
+        return entity_term
+    name = (data.get("name") or "").strip()
+    if name:
+        slug = slugify(name)[:40]
+        suffix = hashlib.md5(name.encode()).hexdigest()[:6]
+        return f"causal_mosaic:{slug}_{suffix}"
+    return f"causal_mosaic:node_{uuid.uuid4().hex[:8]}"
+
+
+def _auto_edge_id() -> str:
+    return f"causal_mosaic:edge_{uuid.uuid4().hex[:8]}"
+
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -209,12 +230,17 @@ def _form_error_response(request, template_name, context):
     return response
 
 
-def _node_form_spec(schema_view):
+def _node_form_spec(schema_view, project=None):
     ui = _load_ui_config()
+    hidden = list(ui.get("globally_hidden_slots", []))
+    if project:
+        hidden = hidden + [s for s in (project.hidden_slots or []) if s not in hidden]
     return schema_view.form_spec(
         "CausalNode",
         ontology_routing=ui.get("ontology_routing", {}),
         widget_overrides=ui.get("widget_overrides", {}),
+        globally_hidden_slots=hidden,
+        slot_help_texts=ui.get("slot_help_text", {}),
     )
 
 
@@ -351,15 +377,25 @@ class AnnotationView(LoginRequiredMixin, View):
                 render_highlighted_text(document.canonical_text, spans)
             )
 
+        # Docling Markdown → rendered HTML (read-only; spans are still on canonical_text)
+        markdown_html = ""
+        if document.canonical_markdown:
+            try:
+                import markdown as _md
+
+                markdown_html = mark_safe(
+                    _md.markdown(
+                        document.canonical_markdown,
+                        extensions=["tables", "fenced_code"],
+                    )
+                )
+            except Exception:
+                pass
+
         # Form specs from the graph-pinned schema
         ui = _load_ui_config()
-        node_spec = _node_form_spec(lsv)
-        edge_spec = lsv.form_spec(
-            "CausalEdge",
-            ui_layers=ui.get("layers"),
-            ontology_routing=ui.get("ontology_routing", {}),
-            widget_overrides=ui.get("widget_overrides", {}),
-        )
+        node_spec = _node_form_spec(lsv, project=project)
+        edge_spec = _edge_form_spec(lsv, ui, project=project)
 
         nodes, edges = _graph_nodes_edges(graph)
         initial_form = request.GET.get("form", "")
@@ -389,6 +425,7 @@ class AnnotationView(LoginRequiredMixin, View):
                 "node_spec": node_spec,
                 "edge_spec": edge_spec,
                 "highlighted_text": highlighted_text,
+                "markdown_html": markdown_html,
                 "spans": spans,
                 "graph_nodes": nodes,
                 "initial_form": initial_form,
@@ -433,12 +470,7 @@ class NodeFormView(LoginRequiredMixin, View):
                 "No active schema — ask an administrator to load one.</p>",
                 content_type="text/html; charset=utf-8",
             )
-        ui = _load_ui_config()
-        node_spec = lsv.form_spec(
-            "CausalNode",
-            ontology_routing=ui.get("ontology_routing", {}),
-            widget_overrides=ui.get("widget_overrides", {}),
-        )
+        node_spec = _node_form_spec(lsv, project=project)
 
         prefill: dict = {}
         selected_ids = _query_span_ids(request)
@@ -492,7 +524,7 @@ class NodeCreateView(LoginRequiredMixin, View):
                     "project": project,
                     "document": document,
                     "graph": graph,
-                    "node_spec": _node_form_spec(lsv),
+                    "node_spec": _node_form_spec(lsv, project=project),
                     "current_data": current_data,
                     "form_errors": bound.errors,
                     "node": None,
@@ -509,6 +541,7 @@ class NodeCreateView(LoginRequiredMixin, View):
             )
 
         resolve_wd_curies_in_data(project, bound.data, request.POST)
+        bound.data["id"] = _auto_node_id(bound.data)
         node = create_node(graph, bound.data, actor=request.user)
         selected_spans = _selected_spans(
             document,
@@ -546,7 +579,7 @@ class NodeEditView(LoginRequiredMixin, View):
                 "No active schema — ask an administrator to load one.</p>",
                 content_type="text/html; charset=utf-8",
             )
-        node_spec = _node_form_spec(lsv)
+        node_spec = _node_form_spec(lsv, project=project)
         nodes, _ = _graph_nodes_edges(graph)
         return render(
             request,
@@ -594,7 +627,7 @@ class NodeEditView(LoginRequiredMixin, View):
                     "project": project,
                     "document": document,
                     "graph": graph,
-                    "node_spec": _node_form_spec(lsv),
+                    "node_spec": _node_form_spec(lsv, project=project),
                     "current_data": bound.data,
                     "form_errors": bound.errors,
                     "node": node,
@@ -611,6 +644,7 @@ class NodeEditView(LoginRequiredMixin, View):
                 },
             )
         resolve_wd_curies_in_data(project, bound.data, request.POST)
+        bound.data["id"] = node.data.get("id") or _auto_node_id(bound.data)
         update_node(node, bound.data, actor=request.user)
         selected_spans = _selected_spans(
             document,
@@ -655,12 +689,17 @@ class NodeDeleteView(LoginRequiredMixin, View):
 # ── Edge views ────────────────────────────────────────────────────────────────
 
 
-def _edge_form_spec(lsv, ui):
+def _edge_form_spec(lsv, ui, project=None):
+    hidden = list(ui.get("globally_hidden_slots", []))
+    if project:
+        hidden = hidden + [s for s in (project.hidden_slots or []) if s not in hidden]
     return lsv.form_spec(
         "CausalEdge",
         ui_layers=ui.get("layers"),
         ontology_routing=ui.get("ontology_routing", {}),
         widget_overrides=ui.get("widget_overrides", {}),
+        globally_hidden_slots=hidden,
+        slot_help_texts=ui.get("slot_help_text", {}),
     )
 
 
@@ -704,6 +743,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
             ui_layers=ui.get("source_document_layers"),
             ontology_routing=ui.get("ontology_routing", {}),
             widget_overrides=ui.get("widget_overrides", {}),
+            globally_hidden_slots=ui.get("globally_hidden_slots", []),
         )
         initial = _source_doc_initial(document, graph)
         rules = document.project.source_document_rollup or []
@@ -751,6 +791,7 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
                 ui_layers=ui.get("source_document_layers"),
                 ontology_routing=ui.get("ontology_routing", {}),
                 widget_overrides=ui.get("widget_overrides", {}),
+                globally_hidden_slots=ui.get("globally_hidden_slots", []),
             )
             return _form_error_response(
                 request,
@@ -796,7 +837,7 @@ class EdgeFormView(LoginRequiredMixin, View):
                 content_type="text/html; charset=utf-8",
             )
         ui = _load_ui_config()
-        edge_spec = _edge_form_spec(lsv, ui)
+        edge_spec = _edge_form_spec(lsv, ui, project=project)
         nodes, _ = _graph_nodes_edges(graph)
 
         selected_ids = _query_span_ids(request)
@@ -877,7 +918,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
                     "project": project,
                     "document": document,
                     "graph": graph,
-                    "edge_spec": _edge_form_spec(lsv, _load_ui_config()),
+                    "edge_spec": _edge_form_spec(lsv, _load_ui_config(), project=project),
                     "current_data": current_data,
                     "form_errors": bound.errors,
                     "edge": None,
@@ -892,6 +933,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
                     ),
                 },
             )
+        bound.data["id"] = _auto_edge_id()
         edge = create_edge(graph, subject, object_node, bound.data, actor=request.user)
         selected_spans = _selected_spans(
             document,
@@ -930,7 +972,7 @@ class EdgeEditView(LoginRequiredMixin, View):
                 content_type="text/html; charset=utf-8",
             )
         ui = _load_ui_config()
-        edge_spec = _edge_form_spec(lsv, ui)
+        edge_spec = _edge_form_spec(lsv, ui, project=project)
         nodes, _ = _graph_nodes_edges(graph)
 
         # Merge node IDs into data for node_picker pre-selection
@@ -1009,7 +1051,7 @@ class EdgeEditView(LoginRequiredMixin, View):
                     "project": project,
                     "document": document,
                     "graph": graph,
-                    "edge_spec": _edge_form_spec(lsv, _load_ui_config()),
+                    "edge_spec": _edge_form_spec(lsv, _load_ui_config(), project=project),
                     "current_data": current_data,
                     "form_errors": bound.errors,
                     "edge": edge,
@@ -1025,6 +1067,7 @@ class EdgeEditView(LoginRequiredMixin, View):
                     ),
                 },
             )
+        bound.data["id"] = edge.data.get("id") or _auto_edge_id()
         update_edge(
             edge,
             bound.data,
@@ -1316,17 +1359,8 @@ class SchemaDemoView(LoginRequiredMixin, View):
             )
 
         ui = _load_ui_config()
-        edge_spec = lsv.form_spec(
-            "CausalEdge",
-            ui_layers=ui.get("layers"),
-            ontology_routing=ui.get("ontology_routing", {}),
-            widget_overrides=ui.get("widget_overrides", {}),
-        )
-        node_spec = lsv.form_spec(
-            "CausalNode",
-            ontology_routing=ui.get("ontology_routing", {}),
-            widget_overrides=ui.get("widget_overrides", {}),
-        )
+        edge_spec = _edge_form_spec(lsv, ui)
+        node_spec = _node_form_spec(lsv)
 
         return render(
             request,

@@ -221,6 +221,15 @@
   {% endif %}
 </section>
 
+<section class="settings-card">
+  <h2>Annotation form</h2>
+  <p class="muted">Hide specific schema slots from annotation forms for all annotators in this project.
+  This lets you streamline the form for workflows that don't need every feature.</p>
+  <a href="{% url 'project-hidden-slots' project.pk %}" class="btn btn-secondary">
+    Manage hidden slots{% if project.hidden_slots %} ({{ project.hidden_slots|length }} hidden){% endif %}
+  </a>
+</section>
+
 <section class="settings-card danger-zone">
   <h2>Danger zone</h2>
   <p>Deleting this project permanently removes its documents, assignments, annotations, spans, and work sessions.</p>
