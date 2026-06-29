@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(os.environ.get("APP_DIR") or Path(__file__).resolve().parent.parent.parent)
 
 
 def _positive_env_int(name: str, default: int) -> int:
