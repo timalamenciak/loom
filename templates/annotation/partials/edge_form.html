@@ -32,6 +32,11 @@
         {{ layer.label }}
       </summary>
       <div style="padding-top:.5rem">
+        {% if layer.id == "source_document" %}
+        <p class="help" style="margin-bottom:.75rem;padding:.5rem .75rem;background:#f0f9ff;border-radius:4px;border-left:3px solid #0ea5e9;font-size:.8rem">
+          Bibliographic fields (title, authors, year, DOI, journal) are pre-filled from the document record — verify they are correct. Fill in the study-level fields (section, location, temporal context, ecosystem, taxa, study design) for this specific claim.
+        </p>
+        {% endif %}
         {% for slot in layer.slots %}
           {% if slot.name != "edge_id" and slot.name != "source_spans" %}
             {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}

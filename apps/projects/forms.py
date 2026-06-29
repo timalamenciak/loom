@@ -127,7 +127,8 @@ class ProjectSettingsForm(forms.ModelForm):
         if unknown:
             self.add_error(
                 "other_ontologies",
-                "Not present in config/ontologies.yaml: " + ", ".join(unknown),
+                "Not a registered ontology (not in config/ontologies.yaml or the "
+                "project-registered sources): " + ", ".join(unknown),
             )
         cleaned["ontology_names"] = sorted(names)
         return cleaned

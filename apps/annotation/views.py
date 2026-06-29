@@ -196,6 +196,22 @@ def _selected_spans(document, user, span_ids, *, target_kind, target=None):
     return [span for span in spans if span.edge_id in {None, target_id}]
 
 
+def _source_doc_prefill(document) -> dict:
+    """Build auto-populated source_document fields from the Document model."""
+    sd: dict = {}
+    if document.title:
+        sd["title"] = document.title
+    if document.authors:
+        sd["authors"] = list(document.authors)
+    if document.year:
+        sd["year"] = document.year
+    if document.doi:
+        sd["doi"] = document.doi
+    if document.journal:
+        sd["journal"] = document.journal
+    return sd
+
+
 def _excerpt_text(spans) -> str:
     return "\n\n[...]\n\n".join(
         span.text.strip() for span in spans if span.text.strip()
@@ -695,6 +711,7 @@ class EdgeFormView(LoginRequiredMixin, View):
         prefill: dict = {}
         if selected_spans:
             prefill["original_sentence"] = _excerpt_text(selected_spans)
+        prefill["source_document"] = _source_doc_prefill(document)
 
         return render(
             request,
@@ -823,6 +840,14 @@ class EdgeEditView(LoginRequiredMixin, View):
         current_data = dict(edge.data)
         current_data["subject"] = edge.subject.node_id
         current_data["object"] = edge.object.node_id
+        # Pre-fill source_document bib fields from document if not yet annotated
+        if not current_data.get("source_document"):
+            current_data["source_document"] = _source_doc_prefill(document)
+        else:
+            sd = dict(current_data["source_document"])
+            for k, v in _source_doc_prefill(document).items():
+                sd.setdefault(k, v)
+            current_data["source_document"] = sd
 
         return render(
             request,

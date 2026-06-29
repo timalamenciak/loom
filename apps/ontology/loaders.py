@@ -21,21 +21,51 @@ def _load_config() -> dict:
         return yaml.safe_load(f) or {}
 
 
+def _adhoc_entries() -> list[dict]:
+    """Return AdHocOntologySource rows as entry dicts, silently skipping DB errors."""
+    try:
+        from .models import AdHocOntologySource
+
+        return [
+            {
+                "name": src.name,
+                "prefix": src.prefix,
+                "url": src.url,
+                "description": src.description,
+            }
+            for src in AdHocOntologySource.objects.all()
+        ]
+    except Exception:
+        return []
+
+
 def ontology_config(name: str) -> dict | None:
-    """Return the ontologies.yaml entry for *name*, or None."""
+    """Return the entry for *name* from ontologies.yaml, then the DB, or None."""
     cfg = _load_config()
     for entry in cfg.get("ontologies", []):
+        if entry["name"] == name:
+            return entry
+    for entry in _adhoc_entries():
         if entry["name"] == name:
             return entry
     return None
 
 
 def ontology_entries() -> list[dict]:
-    return list(_load_config().get("ontologies", []))
+    """Return all ontology entries: YAML first, then DB-only additions."""
+    yaml_entries = list(_load_config().get("ontologies", []))
+    yaml_keys = {e["name"].lower() for e in yaml_entries} | {
+        e["prefix"].lower() for e in yaml_entries
+    }
+    merged = list(yaml_entries)
+    for entry in _adhoc_entries():
+        if entry["name"].lower() not in yaml_keys and entry["prefix"].lower() not in yaml_keys:
+            merged.append(entry)
+    return merged
 
 
 def list_ontology_names() -> list[str]:
-    return [o["name"] for o in _load_config().get("ontologies", [])]
+    return [o["name"] for o in ontology_entries()]
 
 
 def preload_names() -> list[str]:

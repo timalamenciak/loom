@@ -1,4 +1,5 @@
 import csv
+import re
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -601,6 +602,135 @@ class AssignDocumentView(LoginRequiredMixin, View):
             "projects/document_assign.html",
             {"project": project, "document": doc, "form": form, "existing": existing},
         )
+
+
+# ---------------------------------------------------------------------------
+# Ad-hoc ontology registration
+# ---------------------------------------------------------------------------
+
+_VALID_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
+_VALID_URL_SCHEMES = ("http://", "https://")
+
+
+class RegisterOntologySourceView(LoginRequiredMixin, View):
+    """POST-only: register an OBO/OWL URL for an unresolved ontology prefix
+    and immediately load it into the project's ontology snapshot."""
+
+    def _project(self, request, pk):
+        return _require_owner(request, get_object_or_404(Project, pk=pk))
+
+    def post(self, request, pk):
+        project = self._project(request, pk)
+
+        prefix = request.POST.get("prefix", "").strip()
+        name = request.POST.get("name", "").strip()
+        url = request.POST.get("url", "").strip()
+        description = request.POST.get("description", "").strip()
+
+        # --- validate inputs ---
+        if not prefix:
+            messages.error(request, "Prefix is required.")
+            return redirect("project-settings", pk=project.pk)
+        if not name or not _VALID_NAME.match(name):
+            messages.error(
+                request,
+                "Name must start with a letter and contain only lowercase "
+                "letters, digits, underscores, or hyphens.",
+            )
+            return redirect("project-settings", pk=project.pk)
+        if not url or not any(url.startswith(s) for s in _VALID_URL_SCHEMES):
+            messages.error(request, "A valid http:// or https:// URL is required.")
+            return redirect("project-settings", pk=project.pk)
+
+        # Don't let the GUI shadow a curated YAML entry
+        from apps.ontology.loaders import _load_config
+
+        yaml_names = {e["name"].lower() for e in _load_config().get("ontologies", [])}
+        yaml_prefixes = {
+            e["prefix"].lower() for e in _load_config().get("ontologies", [])
+        }
+        if name.lower() in yaml_names or prefix.lower() in yaml_prefixes:
+            messages.error(
+                request,
+                f'"{name}" / "{prefix}" is already defined in config/ontologies.yaml '
+                "and cannot be overridden here.",
+            )
+            return redirect("project-settings", pk=project.pk)
+
+        # --- register in DB ---
+        from apps.ontology.models import AdHocOntologySource
+
+        # Guard against the `name` unique constraint being violated by a
+        # different prefix that already uses this name.
+        name_taken = (
+            AdHocOntologySource.objects.filter(name=name).exclude(prefix=prefix).first()
+        )
+        if name_taken:
+            messages.error(
+                request,
+                f'Name "{name}" is already used for prefix "{name_taken.prefix}". '
+                "Choose a different name.",
+            )
+            return redirect("project-settings", pk=project.pk)
+
+        source_obj, created = AdHocOntologySource.objects.update_or_create(
+            prefix=prefix,
+            defaults={
+                "name": name,
+                "url": url,
+                "description": description,
+                "created_by": request.user,
+            },
+        )
+
+        # --- load synchronously (120 s download timeout via urllib) ---
+        from apps.ontology.loaders import load_ontology_release
+
+        try:
+            release, term_count = load_ontology_release(name)
+        except Exception as exc:
+            messages.error(request, f"Failed to load ontology: {exc}")
+            return redirect("project-settings", pk=project.pk)
+
+        # --- add to project and rebuild snapshot ---
+        names = set(project.ontology_names or [])
+        names.add(name)
+        project.ontology_names = sorted(names)
+        project.save(update_fields=["ontology_names", "updated_at"])
+
+        from apps.ontology.project_service import request_project_ontologies
+
+        load_request = request_project_ontologies(
+            project, request.user, project.ontology_names
+        )
+
+        AuditEvent.objects.create(
+            actor=request.user,
+            action="ontology.source.registered",
+            target_type="Project",
+            target_id=str(project.pk),
+            diff={
+                "prefix": prefix,
+                "name": name,
+                "url": url,
+                "term_count": term_count,
+                "created": created,
+            },
+        )
+
+        if load_request.status == load_request.STATUS_COMPLETE:
+            messages.success(
+                request,
+                f'Registered "{name}" ({prefix}, {term_count:,} terms) and '
+                "added it to the project snapshot.",
+            )
+        else:
+            messages.success(
+                request,
+                f'Registered "{name}" ({prefix}, {term_count:,} terms); '
+                "snapshot rebuild is queued.",
+            )
+        return redirect("project-settings", pk=project.pk)
 
 
 # ---------------------------------------------------------------------------

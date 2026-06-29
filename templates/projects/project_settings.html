@@ -52,10 +52,40 @@
     </div>
     {% endif %}
     {% if inferred.unresolved %}
-    <div class="message message-warning">
-      Unresolved ontology prefixes:
-      {% for item in inferred.unresolved %}<code>{{ item.prefix }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.
-      Add these to <code>config/ontologies.yaml</code> before selecting them.
+    <div class="unresolved-prefix-list">
+      <p class="message message-warning" style="margin-bottom:0.5rem">
+        The following prefixes appear in the schema but have no registered ontology source.
+        Expand each one to provide an OWL or OBO file URL.
+      </p>
+      {% for item in inferred.unresolved %}
+      <details class="unresolved-prefix-detail">
+        <summary>
+          <code>{{ item.prefix }}</code>
+          <span class="muted">({{ item.reasons|join:", " }})</span>
+          — register an OWL/OBO source
+        </summary>
+        <form method="post" action="{% url 'project-register-ontology' project.pk %}" class="register-ontology-form">
+          {% csrf_token %}
+          <input type="hidden" name="prefix" value="{{ item.prefix }}">
+          <div class="field">
+            <label>Name <span class="muted">(slug used internally, e.g. my_ontology)</span></label>
+            <input type="text" name="name" value="{{ item.prefix|lower }}" pattern="[a-z][a-z0-9_\-]*" required>
+          </div>
+          <div class="field">
+            <label>OWL or OBO file URL</label>
+            <input type="url" name="url" placeholder="https://example.org/my_ontology.obo" required style="width:100%">
+          </div>
+          <div class="field">
+            <label>Description <span class="muted">(optional)</span></label>
+            <input type="text" name="description" placeholder="Brief description of this ontology">
+          </div>
+          <div class="field">
+            <button type="submit" class="btn btn-sm btn-primary">Register &amp; load</button>
+            <span class="muted" style="margin-left:0.5rem">Downloading and indexing may take up to a minute for large files.</span>
+          </div>
+        </form>
+      </details>
+      {% endfor %}
     </div>
     {% endif %}
     <div class="field ontology-checklist">

@@ -61,8 +61,12 @@ def infer_ontologies(schema_version) -> dict:
 
     try:
         ui = yaml.safe_load(_UI_CONFIG.read_text(encoding="utf-8")) or {}
-        for prefixes in (ui.get("ontology_routing") or {}).values():
-            for prefix in prefixes or []:
+        for routing in (ui.get("ontology_routing") or {}).values():
+            if isinstance(routing, dict):
+                prefixes = routing.get("prefixes") or []
+            else:
+                prefixes = routing or []
+            for prefix in prefixes:
                 evidence[str(prefix).lower()].add("UI ontology routing")
     except FileNotFoundError:
         pass

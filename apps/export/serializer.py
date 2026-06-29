@@ -99,7 +99,7 @@ def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
     return out
 
 
-def _serialize_edge(edge, slot_ranges: dict[str, str]) -> dict:
+def _serialize_edge(edge, slot_ranges: dict[str, str], document=None) -> dict:
     base = {
         "edge_id": edge.edge_id,
         "subject": edge.subject.node_id,
@@ -111,6 +111,23 @@ def _serialize_edge(edge, slot_ranges: dict[str, str]) -> dict:
         merged["predicate"] = edge.predicate
     if edge.claim_strength:
         merged["claim_strength"] = edge.claim_strength
+
+    # Merge document bibliographic fields into source_document as base values;
+    # annotator-supplied fields in the JSONB take precedence.
+    if document is not None:
+        doc_bib: dict = {}
+        if document.doi:
+            doc_bib["doi"] = document.doi
+        if document.title:
+            doc_bib["title"] = document.title
+        if document.authors:
+            doc_bib["authors"] = list(document.authors)
+        if document.year:
+            doc_bib["year"] = document.year
+        if document.journal:
+            doc_bib["journal"] = document.journal
+        edge_sd = merged.get("source_document") or {}
+        merged["source_document"] = {**doc_bib, **edge_sd}
 
     result = _clean(merged, slot_ranges)
 
@@ -149,7 +166,7 @@ def serialize_graph(graph) -> dict:
         _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
     ]
     edges = [
-        _serialize_edge(e, slot_ranges)
+        _serialize_edge(e, slot_ranges, document=graph.document)
         for e in graph.edges.select_related("subject", "object")
         .all()
         .order_by("-created_at")

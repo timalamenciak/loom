@@ -173,6 +173,31 @@ class OntologyTerm(models.Model):
         return f"{self.curie} — {self.label}"
 
 
+class AdHocOntologySource(models.Model):
+    """A user-registered OBO/OWL source that supplements config/ontologies.yaml.
+
+    Entries here are discovered by the loader alongside YAML entries.  YAML
+    entries take precedence when name or prefix collides.
+    """
+
+    prefix = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=200, unique=True)
+    url = models.URLField(max_length=500)
+    description = models.CharField(max_length=500, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="registered_ontologies",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["prefix"]
+
+    def __str__(self):
+        return f"{self.prefix} ({self.name})"
+
+
 class OntologyLoadRequest(models.Model):
     STATUS_PENDING = "pending"
     STATUS_RUNNING = "running"

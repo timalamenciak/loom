@@ -46,6 +46,12 @@ layers:
     slots:
       - evidential_basis
 
+  - id: source_document
+    label: "Source Document"
+    collapsed_by_default: true
+    slots:
+      - source_document
+
 # slot_name routing can be one of two shapes:
 #   - list of bare prefix strings: uses only local OntologyTerm rows
 #   - dict with optional "prefixes" list and/or "wikidata_live" object:
@@ -70,3 +76,5 @@ widget_overrides:
   original_sentence: textarea
   edge_notes: textarea
   mechanism_description: textarea
+  study_temporal_note: textarea
+  study_sample_size: textarea
