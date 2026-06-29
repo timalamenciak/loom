@@ -1,13 +1,12 @@
+from pathlib import Path
+
+import yaml
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
-
-from pathlib import Path
-
-import yaml
-from django.conf import settings
 
 from .models import SchemaVersion
 from .schema_engine import get_schema_view, invalidate_cache

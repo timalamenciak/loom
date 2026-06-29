@@ -27,9 +27,7 @@ class Command(BaseCommand):
             from docling.document_converter import DocumentConverter  # noqa: F401
         except ImportError:
             self.stderr.write(
-                self.style.ERROR(
-                    "docling is not installed. Run: pip install docling"
-                )
+                self.style.ERROR("docling is not installed. Run: pip install docling")
             )
             return
 

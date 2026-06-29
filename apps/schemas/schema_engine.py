@@ -107,9 +107,7 @@ class LoomSchemaView:
             slot_help_texts = {}
         hidden = frozenset(globally_hidden_slots or [])
 
-        slot_names = [
-            n for n in self._all_slot_names(class_name) if n not in hidden
-        ]
+        slot_names = [n for n in self._all_slot_names(class_name) if n not in hidden]
         slot_specs = {
             name: self._slot_spec(
                 name, class_name, ontology_routing, widget_overrides, slot_help_texts

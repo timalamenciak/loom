@@ -918,7 +918,9 @@ class EdgeCreateView(LoginRequiredMixin, View):
                     "project": project,
                     "document": document,
                     "graph": graph,
-                    "edge_spec": _edge_form_spec(lsv, _load_ui_config(), project=project),
+                    "edge_spec": _edge_form_spec(
+                        lsv, _load_ui_config(), project=project
+                    ),
                     "current_data": current_data,
                     "form_errors": bound.errors,
                     "edge": None,
@@ -1051,7 +1053,9 @@ class EdgeEditView(LoginRequiredMixin, View):
                     "project": project,
                     "document": document,
                     "graph": graph,
-                    "edge_spec": _edge_form_spec(lsv, _load_ui_config(), project=project),
+                    "edge_spec": _edge_form_spec(
+                        lsv, _load_ui_config(), project=project
+                    ),
                     "current_data": current_data,
                     "form_errors": bound.errors,
                     "edge": edge,
