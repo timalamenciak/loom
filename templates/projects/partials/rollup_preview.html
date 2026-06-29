@@ -1,0 +1,38 @@
+{% if error %}
+<p class="message message-error" style="margin:0">{{ error }}</p>
+{% else %}
+<p class="muted" style="font-size:.8rem;margin-bottom:.5rem">
+  Preview for: <strong>{{ graph.document.title|truncatechars:80 }}</strong> — {{ graph.annotator.username }}
+</p>
+{% if rule_results %}
+<table style="width:100%;border-collapse:collapse;font-size:.85rem">
+  <thead>
+    <tr style="border-bottom:2px solid #e5e7eb">
+      <th style="padding:.35rem .5rem;text-align:left;width:30%">Slot</th>
+      <th style="padding:.35rem .5rem;text-align:left">Values</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in rule_results %}
+    <tr style="border-bottom:1px solid #f3f4f6;vertical-align:top">
+      <td style="padding:.35rem .5rem">
+        <code>{{ entry.rule.slot }}</code>
+        <div class="muted" style="font-size:.75rem">{{ entry.rule.source }}.{{ entry.rule.attribute }}</div>
+      </td>
+      <td style="padding:.35rem .5rem">
+        {% if entry.values %}
+        <ul style="margin:0;padding-left:1.2rem">
+          {% for v in entry.values %}<li>{{ v }}</li>{% endfor %}
+        </ul>
+        {% else %}
+        <span class="muted">no values found</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No rollup values produced. Check that your attribute paths match the node/edge data keys.</p>
+{% endif %}
+{% endif %}

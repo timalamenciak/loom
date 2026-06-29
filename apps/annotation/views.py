@@ -705,6 +705,18 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
             ontology_routing=ui.get("ontology_routing", {}),
             widget_overrides=ui.get("widget_overrides", {}),
         )
+        initial = _source_doc_initial(document, graph)
+        rules = document.project.source_document_rollup or []
+        if rules:
+            from apps.annotation.rollup import roll_up_source_document
+
+            nodes_data = list(graph.nodes.values_list("data", flat=True))
+            edges_data = list(graph.edges.values_list("data", flat=True))
+            rolled = roll_up_source_document(nodes_data, edges_data, rules)
+            saved = graph.source_document or {}
+            for slot, value in rolled.items():
+                if slot not in saved:
+                    initial.setdefault(slot, value)
         return render(
             request,
             "annotation/partials/source_document_form.html",
@@ -713,7 +725,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
                 "document": document,
                 "graph": graph,
                 "sd_spec": sd_spec,
-                "current_data": _source_doc_initial(document, graph),
+                "current_data": initial,
                 "assignment": assignment,
             },
         )

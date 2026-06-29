@@ -26,6 +26,7 @@ class Project(models.Model):
     )
     ontology_names = models.JSONField(default=list, blank=True)
     auto_infer_ontologies = models.BooleanField(default=True)
+    source_document_rollup = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

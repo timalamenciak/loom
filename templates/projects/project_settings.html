@@ -111,6 +111,116 @@
   </div>
 </form>
 
+<section class="settings-card">
+  <h2>Source document rollup</h2>
+  <p class="muted">Configure which node/edge attributes are automatically aggregated into
+  <code>SourceDocument</code> slots for every article in this project. These values appear
+  as suggestions when an annotator opens the Source doc form, and are stamped onto all
+  edges at export time if the annotator has not overridden a slot manually.</p>
+  <p class="muted" style="margin-top:.25rem">Note: <code>SourceDocument</code> is
+  special-cased in Loom as a rollup target — this is intentional, not a schema-driven
+  feature. See CLAUDE.md for details.</p>
+
+  {% if project.source_document_rollup %}
+  <table style="width:100%;border-collapse:collapse;margin-bottom:1rem;font-size:.875rem">
+    <thead>
+      <tr style="border-bottom:2px solid #e5e7eb">
+        <th style="padding:.4rem .6rem;text-align:left">Slot</th>
+        <th style="padding:.4rem .6rem;text-align:left">Source</th>
+        <th style="padding:.4rem .6rem;text-align:left">Attribute path</th>
+        <th style="padding:.4rem .6rem;text-align:left">Operation</th>
+        <th style="padding:.4rem .6rem"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for rule in project.source_document_rollup %}
+      <tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:.4rem .6rem"><code>{{ rule.slot }}</code></td>
+        <td style="padding:.4rem .6rem">{{ rule.source }}</td>
+        <td style="padding:.4rem .6rem"><code>{{ rule.attribute }}</code></td>
+        <td style="padding:.4rem .6rem">{{ rule.operation }}</td>
+        <td style="padding:.4rem .6rem">
+          <form method="post" action="{% url 'project-rollup-remove' project.pk rule.slot %}" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="action-link" style="color:#ef4444"
+                    onclick="return confirm('Remove rollup rule for \'{{ rule.slot }}\'?')">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="margin-bottom:1rem">No rollup rules configured yet.</p>
+  {% endif %}
+
+  <details style="margin-bottom:1rem;border:1px solid #e5e7eb;border-radius:4px;padding:.5rem .75rem">
+    <summary style="cursor:pointer;font-size:.875rem;font-weight:600;color:#374151">Add rollup rule</summary>
+    <form method="post" action="{% url 'project-rollup-add' project.pk %}" style="margin-top:.75rem">
+      {% csrf_token %}
+      <div class="field">
+        <label>SourceDocument slot</label>
+        {% if sd_slots %}
+        <select name="slot">
+          <option value="">— select a slot —</option>
+          {% for slot_name in sd_slots %}
+          <option value="{{ slot_name }}">{{ slot_name }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="text" name="slot" placeholder="slot name (load a schema first)">
+        {% endif %}
+        <div class="help">The SourceDocument slot that will receive the aggregated values.</div>
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <select name="source">
+          <option value="node">Node</option>
+          <option value="edge">Edge</option>
+        </select>
+        <div class="help">Whether to pull values from node data or edge data.</div>
+      </div>
+      <div class="field">
+        <label>Attribute path</label>
+        <input type="text" name="attribute" placeholder="e.g. entity_term or mediation.mechanism_type" style="width:100%">
+        <div class="help">Dot-separated path into the node/edge JSONB data. Use the slot name as it appears in the schema.</div>
+      </div>
+      <div class="field">
+        <label>Operation</label>
+        <select name="operation">
+          <option value="list_unique">List unique — deduplicate exact matches</option>
+          <option value="list_all">List all — include every occurrence</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Add rule</button>
+    </form>
+  </details>
+
+  {% if project.source_document_rollup and sample_graphs %}
+  <details style="border:1px solid #e5e7eb;border-radius:4px;padding:.5rem .75rem">
+    <summary style="cursor:pointer;font-size:.875rem;font-weight:600;color:#374151">Preview rollup on a graph</summary>
+    <div style="margin-top:.75rem">
+      <form method="post" action="{% url 'project-rollup-preview' project.pk %}"
+            hx-post="{% url 'project-rollup-preview' project.pk %}"
+            hx-target="#rollup-preview-output"
+            hx-swap="innerHTML">
+        {% csrf_token %}
+        <div class="field">
+          <label>Graph to preview</label>
+          <select name="graph_pk">
+            {% for g in sample_graphs %}
+            <option value="{{ g.pk }}">{{ g.document.title|truncatechars:60 }} — {{ g.annotator.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Run preview</button>
+      </form>
+      <div id="rollup-preview-output" style="margin-top:.75rem"></div>
+    </div>
+  </details>
+  {% endif %}
+</section>
+
 <section class="settings-card danger-zone">
   <h2>Danger zone</h2>
   <p>Deleting this project permanently removes its documents, assignments, annotations, spans, and work sessions.</p>
