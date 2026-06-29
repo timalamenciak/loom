@@ -56,10 +56,9 @@ def _load_ui_config():
     from pathlib import Path
 
     import yaml
+    from django.conf import settings
 
-    config_path = (
-        Path(__file__).resolve().parent.parent.parent / "config" / "loom_ui.yaml"
-    )
+    config_path = Path(settings.BASE_DIR) / "config" / "loom_ui.yaml"
     try:
         with config_path.open() as f:
             return yaml.safe_load(f) or {}

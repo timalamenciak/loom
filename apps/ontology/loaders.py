@@ -9,12 +9,11 @@ import urllib.request
 from pathlib import Path
 
 import yaml
+from django.conf import settings
 
 from .models import OntologyRelease, OntologySnapshot, OntologyTerm
 
-_CONFIG_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "config" / "ontologies.yaml"
-)
+_CONFIG_PATH = Path(settings.BASE_DIR) / "config" / "ontologies.yaml"
 
 
 def _load_config() -> dict:
