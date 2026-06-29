@@ -1,0 +1,14 @@
+[run]
+source =
+    apps
+    loom
+omit =
+    */migrations/*
+    loom/asgi.py
+    loom/wsgi.py
+    loom/settings/*
+
+[report]
+show_missing = True
+skip_covered = True
+fail_under = 90
