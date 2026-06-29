@@ -17,6 +17,8 @@ from .views import (
     ReturnAssignmentView,
     ReviewDocumentView,
     SchemaDemoView,
+    SourceDocumentFormView,
+    SourceDocumentSaveView,
     SubmitAnnotationView,
 )
 
@@ -61,6 +63,17 @@ urlpatterns = [
         "<int:pk>/documents/<int:doc_pk>/annotate/nodes/<int:node_pk>/delete/",
         NodeDeleteView.as_view(),
         name="node-delete",
+    ),
+    # Source document (once per graph)
+    path(
+        "<int:pk>/documents/<int:doc_pk>/annotate/source-document/",
+        SourceDocumentFormView.as_view(),
+        name="source-document-form",
+    ),
+    path(
+        "<int:pk>/documents/<int:doc_pk>/annotate/source-document/save/",
+        SourceDocumentSaveView.as_view(),
+        name="source-document-save",
     ),
     # Edges
     path(

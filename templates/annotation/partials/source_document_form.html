@@ -1,0 +1,43 @@
+{% load annotation_extras %}
+<div class="form-panel-inner">
+  {% with errors=form_errors|dict_get:"_form" %}
+    {% if errors %}<div class="message message-error">{% for error in errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+  {% endwith %}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+    <h3 style="margin:0;font-size:1rem">Source Document</h3>
+    <button type="button"
+            onclick="document.getElementById('form-panel').innerHTML='<p class=\'empty muted\' style=\'padding:1rem;text-align:center\'>Select an action above to annotate.</p>'"
+            style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#6b7280"
+            title="Close">&times;</button>
+  </div>
+
+  <p class="help" style="margin-bottom:.75rem;padding:.5rem .75rem;background:#f0f9ff;border-radius:4px;border-left:3px solid #0ea5e9;font-size:.8rem">
+    Fill this in once per article. Bibliographic fields are pre-filled from the document record — verify them, then add study-level context (section, location, temporal and ecological details). These annotations will be applied to every causal edge from this article.
+  </p>
+
+  <form method="post"
+        action="{% url 'source-document-save' pk=project.pk doc_pk=document.pk %}"
+        hx-post="{% url 'source-document-save' pk=project.pk doc_pk=document.pk %}"
+        hx-target="#graph-panel"
+        hx-swap="innerHTML">
+    {% csrf_token %}
+
+    {% for layer in sd_spec %}
+    <details open
+             style="margin-bottom:.5rem;border:1px solid #e5e7eb;border-radius:4px;padding:.5rem .75rem">
+      <summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:#374151;padding:.2rem 0">
+        {{ layer.label }}
+      </summary>
+      <div style="padding-top:.5rem">
+        {% for slot in layer.slots %}
+          {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+
+    <div class="form-actions" style="margin-top:1rem">
+      <button type="submit" class="btn btn-primary">Save source document</button>
+    </div>
+  </form>
+</div>

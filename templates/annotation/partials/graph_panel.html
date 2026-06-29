@@ -13,6 +13,10 @@
        href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}?form=edge"
        onclick="if(window.LoomAnnotationActions){LoomAnnotationActions.load('{% url 'edge-form' pk=project.pk doc_pk=document.pk %}','#form-panel');return false;}"
        title="Add a causal edge between two existing nodes.">+ Add edge</a>
+    <a class="btn btn-secondary btn-sm"
+       href="{% url 'source-document-form' pk=project.pk doc_pk=document.pk %}"
+       onclick="if(window.LoomAnnotationActions){LoomAnnotationActions.load('{% url 'source-document-form' pk=project.pk doc_pk=document.pk %}','#form-panel');return false;}"
+       title="Fill in study-level metadata applied to all edges from this article (do once per article).">&#128196; Source doc</a>
   </div>{% endif %}
 </div>
 

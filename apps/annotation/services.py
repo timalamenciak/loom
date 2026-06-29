@@ -11,6 +11,14 @@ from .models import CausalGraph, Edge, Node, WorkSession
 
 
 @transaction.atomic
+def update_graph_source_document(graph: CausalGraph, data: dict, actor) -> CausalGraph:
+    graph.source_document = data
+    graph.save(update_fields=["source_document"])
+    emit_audit(actor, "graph.source_document", "CausalGraph", graph.pk, data)
+    return graph
+
+
+@transaction.atomic
 def create_graph(
     document, annotator, schema_version, ontology_snapshot=None
 ) -> CausalGraph:

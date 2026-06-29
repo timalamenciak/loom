@@ -99,7 +99,7 @@ def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
     return out
 
 
-def _serialize_edge(edge, slot_ranges: dict[str, str], document=None) -> dict:
+def _serialize_edge(edge, slot_ranges: dict[str, str], source_document: dict | None = None) -> dict:
     base = {
         "edge_id": edge.edge_id,
         "subject": edge.subject.node_id,
@@ -112,22 +112,9 @@ def _serialize_edge(edge, slot_ranges: dict[str, str], document=None) -> dict:
     if edge.claim_strength:
         merged["claim_strength"] = edge.claim_strength
 
-    # Merge document bibliographic fields into source_document as base values;
-    # annotator-supplied fields in the JSONB take precedence.
-    if document is not None:
-        doc_bib: dict = {}
-        if document.doi:
-            doc_bib["doi"] = document.doi
-        if document.title:
-            doc_bib["title"] = document.title
-        if document.authors:
-            doc_bib["authors"] = list(document.authors)
-        if document.year:
-            doc_bib["year"] = document.year
-        if document.journal:
-            doc_bib["journal"] = document.journal
-        edge_sd = merged.get("source_document") or {}
-        merged["source_document"] = {**doc_bib, **edge_sd}
+    # Inject the graph-level source_document (already merged with doc bib fields)
+    if source_document:
+        merged["source_document"] = source_document
 
     result = _clean(merged, slot_ranges)
 
@@ -154,6 +141,28 @@ def _serialize_source_document(document, slot_ranges: dict[str, str]) -> dict:
     return _clean(d, slot_ranges)
 
 
+def _build_graph_source_document(graph, slot_ranges: dict[str, str]) -> dict:
+    """
+    Merge bibliographic fields from the Document model with the annotator-supplied
+    study-level fields stored in graph.source_document (JSONB).  Document fields
+    provide the base; annotator values override where both are present.
+    """
+    document = graph.document
+    doc_bib: dict = {}
+    if document.doi:
+        doc_bib["doi"] = document.doi
+    if document.title:
+        doc_bib["title"] = document.title
+    if document.authors:
+        doc_bib["authors"] = list(document.authors)
+    if document.year:
+        doc_bib["year"] = document.year
+    if document.journal:
+        doc_bib["journal"] = document.journal
+    annotator_data = graph.source_document or {}
+    return _clean({**doc_bib, **annotator_data}, slot_ranges)
+
+
 def serialize_graph(graph) -> dict:
     """
     Return a CAMO-compatible dict for a CausalGraph instance.
@@ -165,8 +174,10 @@ def serialize_graph(graph) -> dict:
     nodes = [
         _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
     ]
+    # Build source_document once and stamp it onto every edge
+    source_document = _build_graph_source_document(graph, slot_ranges)
     edges = [
-        _serialize_edge(e, slot_ranges, document=graph.document)
+        _serialize_edge(e, slot_ranges, source_document=source_document)
         for e in graph.edges.select_related("subject", "object")
         .all()
         .order_by("-created_at")

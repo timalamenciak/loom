@@ -41,6 +41,7 @@ from .services import (
     set_edge_source_spans,
     set_node_source_spans,
     update_edge,
+    update_graph_source_document,
     update_node,
 )
 
@@ -194,22 +195,6 @@ def _selected_spans(document, user, span_ids, *, target_kind, target=None):
     if target_kind == "node":
         return [span for span in spans if span.node_id in {None, target_id}]
     return [span for span in spans if span.edge_id in {None, target_id}]
-
-
-def _source_doc_prefill(document) -> dict:
-    """Build auto-populated source_document fields from the Document model."""
-    sd: dict = {}
-    if document.title:
-        sd["title"] = document.title
-    if document.authors:
-        sd["authors"] = list(document.authors)
-    if document.year:
-        sd["year"] = document.year
-    if document.doi:
-        sd["doi"] = document.doi
-    if document.journal:
-        sd["journal"] = document.journal
-    return sd
 
 
 def _excerpt_text(spans) -> str:
@@ -679,6 +664,107 @@ def _edge_form_spec(lsv, ui):
     )
 
 
+def _source_doc_initial(document, graph) -> dict:
+    """Merge document bib fields (base) with any already-saved annotator data."""
+    bib: dict = {}
+    if document.doi:
+        bib["doi"] = document.doi
+    if document.title:
+        bib["title"] = document.title
+    if document.authors:
+        bib["authors"] = list(document.authors)
+    if document.year:
+        bib["year"] = document.year
+    if document.journal:
+        bib["journal"] = document.journal
+    return {**bib, **(graph.source_document or {})}
+
+
+class SourceDocumentFormView(LoginRequiredMixin, View):
+    """GET → source-document form partial (HTMX target: #form-panel)."""
+
+    def get(self, request, pk, doc_pk):
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+
+        lsv = get_schema_view(graph.schema_version)
+        if not lsv:
+            from django.http import HttpResponse
+
+            return HttpResponse(
+                '<p class="message message-error" style="padding:1rem">'
+                "No active schema — ask an administrator to load one.</p>",
+                content_type="text/html; charset=utf-8",
+            )
+        ui = _load_ui_config()
+        sd_spec = lsv.form_spec(
+            "SourceDocument",
+            ui_layers=ui.get("source_document_layers"),
+            ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
+        )
+        return render(
+            request,
+            "annotation/partials/source_document_form.html",
+            {
+                "project": project,
+                "document": document,
+                "graph": graph,
+                "sd_spec": sd_spec,
+                "current_data": _source_doc_initial(document, graph),
+                "assignment": assignment,
+            },
+        )
+
+
+class SourceDocumentSaveView(LoginRequiredMixin, View):
+    """POST → save source-document to the graph; refresh graph panel."""
+
+    def post(self, request, pk, doc_pk):
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+
+        lsv = get_schema_view(graph.schema_version)
+        payload, _ = _post_payload(request)
+        bound = lsv.bind_form_data("SourceDocument", payload)
+
+        if not bound.is_valid:
+            ui = _load_ui_config()
+            sd_spec = lsv.form_spec(
+                "SourceDocument",
+                ui_layers=ui.get("source_document_layers"),
+                ontology_routing=ui.get("ontology_routing", {}),
+                widget_overrides=ui.get("widget_overrides", {}),
+            )
+            return _form_error_response(
+                request,
+                "annotation/partials/source_document_form.html",
+                {
+                    "project": project,
+                    "document": document,
+                    "graph": graph,
+                    "sd_spec": sd_spec,
+                    "current_data": dict(bound.data),
+                    "form_errors": bound.errors,
+                    "assignment": assignment,
+                },
+            )
+
+        update_graph_source_document(graph, bound.data, actor=request.user)
+
+        if _is_htmx(request):
+            ctx = _graph_panel_ctx(project, document, graph, assignment)
+            ctx["oob_clear_form"] = True
+            return render(request, "annotation/partials/graph_panel.html", ctx)
+
+        messages.success(request, "Source document saved.")
+        return redirect("annotate", pk=pk, doc_pk=doc_pk)
+
+
 class EdgeFormView(LoginRequiredMixin, View):
     """GET → edge form partial (HTMX target: #form-panel)."""
 
@@ -711,7 +797,6 @@ class EdgeFormView(LoginRequiredMixin, View):
         prefill: dict = {}
         if selected_spans:
             prefill["original_sentence"] = _excerpt_text(selected_spans)
-        prefill["source_document"] = _source_doc_prefill(document)
 
         return render(
             request,
@@ -840,14 +925,6 @@ class EdgeEditView(LoginRequiredMixin, View):
         current_data = dict(edge.data)
         current_data["subject"] = edge.subject.node_id
         current_data["object"] = edge.object.node_id
-        # Pre-fill source_document bib fields from document if not yet annotated
-        if not current_data.get("source_document"):
-            current_data["source_document"] = _source_doc_prefill(document)
-        else:
-            sd = dict(current_data["source_document"])
-            for k, v in _source_doc_prefill(document).items():
-                sd.setdefault(k, v)
-            current_data["source_document"] = sd
 
         return render(
             request,

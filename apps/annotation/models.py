@@ -79,6 +79,7 @@ class CausalGraph(models.Model):
         related_name="graphs",
     )
     provenance = models.JSONField(default=dict)
+    source_document = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT
     )
