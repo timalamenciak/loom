@@ -18,13 +18,17 @@ from loom import __version__
 EXPORTER_VERSION = f"loom-{__version__}"
 
 
-def _schema_slot_ranges(schema_yaml: str) -> dict[str, str]:
-    """Return slot ranges from the graph-pinned schema."""
+def _schema_info(schema_yaml: str) -> tuple[dict[str, str], bool]:
+    """Return (slot_ranges, edge_has_source_document) for the pinned schema."""
     view = SchemaView(schema_yaml)
-    return {
+    slot_ranges = {
         name: (slot.range or "string").lower()
         for name, slot in view.all_slots().items()
     }
+    edge_has_sd = "source_document" in {
+        s.name for s in view.class_induced_slots("CausalEdge")
+    }
+    return slot_ranges, edge_has_sd
 
 
 def _cast(slot_name: str, value, slot_ranges: dict[str, str] | None = None):
@@ -181,14 +185,18 @@ def serialize_graph(graph) -> dict:
     Does not include provenance — caller adds it with build_provenance() after
     serializing to YAML and computing the SHA-256.
     """
-    slot_ranges = _schema_slot_ranges(graph.schema_version.linkml_yaml)
+    slot_ranges, edge_has_sd = _schema_info(graph.schema_version.linkml_yaml)
     nodes = [
         _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
     ]
-    # Build source_document once and stamp it onto every edge
+    # Build source_document once; inject into edges only when the schema supports it
     source_document = _build_graph_source_document(graph, slot_ranges)
     edges = [
-        _serialize_edge(e, slot_ranges, source_document=source_document)
+        _serialize_edge(
+            e,
+            slot_ranges,
+            source_document=source_document if edge_has_sd else None,
+        )
         for e in graph.edges.select_related("subject", "object")
         .all()
         .order_by("-created_at")

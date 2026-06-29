@@ -72,8 +72,8 @@ def test_owner_can_update_project_settings(client, owner, configured_project, sc
 
 @pytest.mark.django_db
 def test_owner_can_upload_and_pin_schema(client, owner, configured_project):
-    content = Path("config/schema/camo-0.5.0.yaml").read_bytes()
-    upload = SimpleUploadedFile("camo-0.5.0.yaml", content, content_type="text/yaml")
+    content = Path("config/schema/camo-0.4.2.yaml").read_bytes()
+    upload = SimpleUploadedFile("camo-0.4.2.yaml", content, content_type="text/yaml")
     client.force_login(owner)
     response = client.post(
         reverse("project-settings", args=[configured_project.pk]),
@@ -86,7 +86,7 @@ def test_owner_can_upload_and_pin_schema(client, owner, configured_project):
     )
     assert response.status_code == 302
     configured_project.refresh_from_db()
-    assert configured_project.active_schema.version == "0.5.0"
+    assert configured_project.active_schema.version == "0.4.2"
 
 
 @pytest.mark.django_db
@@ -106,8 +106,8 @@ def test_existing_graph_keeps_pinned_schema(client, owner, configured_project, s
         graph=graph,
     )
     newer = SchemaVersion.objects.create(
-        version="0.5.0",
-        linkml_yaml=Path("config/schema/camo-0.5.0.yaml").read_text(encoding="utf-8"),
+        version="0.4.2",
+        linkml_yaml=Path("config/schema/camo-0.4.2.yaml").read_text(encoding="utf-8"),
     )
     configured_project.active_schema = newer
     configured_project.save(update_fields=["active_schema"])
