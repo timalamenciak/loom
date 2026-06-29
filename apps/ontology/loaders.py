@@ -59,7 +59,10 @@ def ontology_entries() -> list[dict]:
     }
     merged = list(yaml_entries)
     for entry in _adhoc_entries():
-        if entry["name"].lower() not in yaml_keys and entry["prefix"].lower() not in yaml_keys:
+        if (
+            entry["name"].lower() not in yaml_keys
+            and entry["prefix"].lower() not in yaml_keys
+        ):
             merged.append(entry)
     return merged
 

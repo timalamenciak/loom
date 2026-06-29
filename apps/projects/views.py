@@ -820,7 +820,9 @@ class RollupRemoveRuleView(LoginRequiredMixin, View):
 
     def post(self, request, pk, slot):
         project = _require_owner(request, get_object_or_404(Project, pk=pk))
-        rules = [r for r in (project.source_document_rollup or []) if r.get("slot") != slot]
+        rules = [
+            r for r in (project.source_document_rollup or []) if r.get("slot") != slot
+        ]
         project.source_document_rollup = rules
         project.save(update_fields=["source_document_rollup", "updated_at"])
         AuditEvent.objects.create(
@@ -866,8 +868,7 @@ class RollupPreviewView(LoginRequiredMixin, View):
 
         # Pre-pair rules with their resulting values for the template
         rule_results = [
-            {"rule": rule, "values": rolled.get(rule["slot"], [])}
-            for rule in rules
+            {"rule": rule, "values": rolled.get(rule["slot"], [])} for rule in rules
         ]
 
         return render(

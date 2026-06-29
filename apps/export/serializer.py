@@ -99,7 +99,9 @@ def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
     return out
 
 
-def _serialize_edge(edge, slot_ranges: dict[str, str], source_document: dict | None = None) -> dict:
+def _serialize_edge(
+    edge, slot_ranges: dict[str, str], source_document: dict | None = None
+) -> dict:
     base = {
         "edge_id": edge.edge_id,
         "subject": edge.subject.node_id,
