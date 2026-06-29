@@ -30,7 +30,9 @@ COPY --from=builder /wheels /wheels
 RUN python -m pip install /wheels/*.whl \
     && rm -rf /wheels \
     && addgroup --system loom \
-    && adduser --system --ingroup loom --home /app loom
+    && adduser --system --ingroup loom --home /home/loom loom \
+    && mkdir -p /home/loom \
+    && chown loom:loom /home/loom
 
 COPY manage.py ./
 COPY config ./config
