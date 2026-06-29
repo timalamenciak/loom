@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # discarded; only the third-party dependency wheels go to the runtime stage.
 COPY pyproject.toml README.md ./
 RUN mkdir -p apps loom && \
-    touch apps/__init__.py loom/__init__.py && \
-    echo '__version__ = "dev"' > loom/__version__.py
+    touch apps/__init__.py && \
+    echo '__version__ = "dev"' > loom/__init__.py
 RUN python -m pip wheel --wheel-dir /wheels .
 
 
