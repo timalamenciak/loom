@@ -27,7 +27,7 @@ dependencies = [
     "pyyaml>=6.0",
     "rispy>=0.9",
     "gunicorn>=22.0",
-    "whitenoise>=6.7",
+    "whitenoise>=6.12.0",
     # PDF extraction and Markdown generation: pdfplumber (MIT)
     # layout=True mode preserves multi-column reading order without ML models
     "pdfplumber>=0.11",
