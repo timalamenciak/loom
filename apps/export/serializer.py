@@ -25,9 +25,11 @@ def _schema_info(schema_yaml: str) -> tuple[dict[str, str], bool]:
         name: (slot.range or "string").lower()
         for name, slot in view.all_slots().items()
     }
-    edge_has_sd = "source_document" in {
-        s.name for s in view.class_induced_slots("CausalEdge")
-    }
+    edge_has_sd = False
+    if view.get_class("CausalEdge") is not None:
+        edge_has_sd = "source_document" in {
+            s.name for s in view.class_induced_slots("CausalEdge")
+        }
     return slot_ranges, edge_has_sd
 
 

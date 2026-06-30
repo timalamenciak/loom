@@ -35,6 +35,10 @@ const OntologyAutocomplete = {
         let debounceTimer = null;
         const dropdown = this._buildDropdown();
         input.setAttribute('autocomplete', 'off');
+        input._oaLabels = input._oaLabels || new Map();
+        if (input.dataset.ontologyMultivalue === 'true') {
+            this._renderSelected(input);
+        }
 
         input.addEventListener('input', () => {
             clearTimeout(debounceTimer);
@@ -47,7 +51,12 @@ const OntologyAutocomplete = {
         });
 
         input.addEventListener('keydown', (e) => {
-            if (dropdown.style.display === 'none') return;
+            if (dropdown.style.display === 'none') {
+                if (e.key === 'Enter' && input.dataset.ontologyMultivalue === 'true') {
+                    this._addRawValue(input, e);
+                }
+                return;
+            }
             const items = dropdown.querySelectorAll('.oa-item');
             const active = dropdown.querySelector('.oa-item.active');
             let idx = Array.from(items).indexOf(active);
@@ -63,6 +72,9 @@ const OntologyAutocomplete = {
             } else if (e.key === 'Enter' && active) {
                 e.preventDefault();
                 active.click();
+            } else if (e.key === 'Enter' && input.dataset.ontologyMultivalue === 'true') {
+                this._addRawValue(input, e);
+                dropdown.style.display = 'none';
             } else if (e.key === 'Escape') {
                 dropdown.style.display = 'none';
             }
@@ -155,9 +167,9 @@ const OntologyAutocomplete = {
         item.dataset.curie = term.curie;
         item.dataset.label = term.label;
 
-        const isWikidata = term.source === 'wikidata';
-        const badge = isWikidata
-            ? '<span class="oa-source-badge">Wikidata</span>'
+        const prefix = term.prefix || _prefixFromCurie(term.curie);
+        const prefixPill = prefix
+            ? `<span class="oa-prefix-pill">${_esc(prefix)}</span>`
             : '';
         const defHtml = term.definition
             ? `<div class="oa-def">${_esc(term.definition.slice(0, 120))}${term.definition.length > 120 ? '…' : ''}</div>`
@@ -167,7 +179,7 @@ const OntologyAutocomplete = {
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
               <span class="oa-label">${_esc(term.label)}</span>
               <span style="display:flex;align-items:center;gap:4px;flex-shrink:0">
-                ${badge}
+                ${prefixPill}
                 <code class="oa-curie">${_esc(term.curie)}</code>
               </span>
             </div>
@@ -192,6 +204,12 @@ const OntologyAutocomplete = {
     },
 
     _selectTerm(input, term) {
+        if (input.dataset.ontologyMultivalue === 'true') {
+            this._addMultivalueTerm(input, term);
+            input.value = '';
+            return;
+        }
+
         // Write label to the visible input
         input.value = term.label;
 
@@ -200,7 +218,10 @@ const OntologyAutocomplete = {
             // Write CURIE to sibling hidden input
             const hidden = document.getElementById(curieTarget)
                 || document.querySelector(`[name="${curieTarget}"]`);
-            if (hidden) hidden.value = term.curie;
+            if (hidden) {
+                hidden.value = term.curie;
+                hidden.dispatchEvent(new Event('change', { bubbles: true }));
+            }
 
             // Populate Wikidata hint inputs so the server can validate the pick.
             // For non-WD terms these are cleared so stale WD metadata isn't submitted.
@@ -217,6 +238,80 @@ const OntologyAutocomplete = {
 
         // Dispatch change event so Alpine.js and HTMX know
         input.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+
+    _addMultivalueTerm(input, term) {
+        const hidden = this._hiddenInput(input);
+        if (!hidden || !term.curie) return;
+        const values = this._hiddenValues(hidden);
+        if (!values.includes(term.curie)) {
+            values.push(term.curie);
+        }
+        if (term.label) input._oaLabels.set(term.curie, term.label);
+        hidden.value = values.join('\n');
+        this._clearWikidataHints(input);
+        this._renderSelected(input);
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+
+    _addRawValue(input, event) {
+        const value = input.value.trim();
+        if (!value || !value.includes(':')) return;
+        event.preventDefault();
+        this._addMultivalueTerm(input, { curie: value, label: value });
+        input.value = '';
+    },
+
+    _hiddenInput(input) {
+        const curieTarget = input.dataset.curieTarget;
+        if (!curieTarget) return null;
+        return document.getElementById(curieTarget)
+            || document.querySelector(`[name="${curieTarget}"]`);
+    },
+
+    _hiddenValues(hidden) {
+        return hidden.value
+            .split(/\r?\n/)
+            .map((value) => value.trim())
+            .filter(Boolean);
+    },
+
+    _renderSelected(input) {
+        const hidden = this._hiddenInput(input);
+        const container = input.closest('.field')?.querySelector('[data-ontology-selected]');
+        if (!hidden || !container) return;
+        _ensureOaStyles();
+        const values = this._hiddenValues(hidden);
+        container.innerHTML = '';
+        values.forEach((curie) => {
+            const chip = document.createElement('span');
+            chip.className = 'oa-chip';
+            const prefix = _prefixFromCurie(curie);
+            const label = input._oaLabels.get(curie) || curie;
+            chip.innerHTML = `
+                ${prefix ? `<span class="oa-prefix-pill">${_esc(prefix)}</span>` : ''}
+                <span class="oa-chip-label" title="${_esc(curie)}">${_esc(label)}</span>
+                <button type="button" class="oa-chip-remove" aria-label="Remove ${_esc(curie)}">x</button>
+            `;
+            chip.querySelector('.oa-chip-remove').addEventListener('click', () => {
+                hidden.value = values.filter((value) => value !== curie).join('\n');
+                input._oaLabels.delete(curie);
+                this._renderSelected(input);
+                hidden.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            container.appendChild(chip);
+        });
+        container.style.display = values.length ? 'flex' : 'none';
+    },
+
+    _clearWikidataHints(input) {
+        const curieTarget = input.dataset.curieTarget;
+        if (!curieTarget) return;
+        const wdLabel = document.getElementById(curieTarget + '_wd_label');
+        if (wdLabel) wdLabel.value = '';
+        const wdDef = document.getElementById(curieTarget + '_wd_def');
+        if (wdDef) wdDef.value = '';
     },
 };
 
@@ -400,20 +495,60 @@ function _ensureOaStyles() {
         .oa-label { font-weight: 500; }
         .oa-curie { font-size: 11px; color: var(--muted, #888); flex-shrink: 0; }
         .oa-def { font-size: 11px; color: var(--muted, #888); margin-top: 2px; }
-        .oa-source-badge {
-            display: inline-block;
+        .oa-prefix-pill {
+            display: inline-flex;
+            align-items: center;
+            height: 18px;
             font-size: 10px;
-            padding: 1px 5px;
-            border-radius: 3px;
-            background: var(--wd-badge-bg, #e8f0fe);
-            color: var(--wd-badge-fg, #1558d6);
-            border: 1px solid var(--wd-badge-border, #c5d7fb);
+            line-height: 1;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: var(--ontology-pill-bg, #e8f0fe);
+            color: var(--ontology-pill-fg, #1558d6);
+            border: 1px solid var(--ontology-pill-border, #c5d7fb);
             font-weight: 500;
-            letter-spacing: .01em;
+            letter-spacing: 0;
             white-space: nowrap;
+        }
+        .oa-selected {
+            display: none;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 4px 0 6px;
+        }
+        .oa-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 100%;
+            padding: 2px 4px;
+            border: 1px solid var(--border, #d1d5db);
+            border-radius: 999px;
+            background: var(--bg, #fff);
+            font-size: 12px;
+        }
+        .oa-chip-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .oa-chip-remove {
+            border: 0;
+            background: transparent;
+            color: var(--muted, #666);
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1;
+            padding: 0 3px;
         }
     `;
     document.head.appendChild(s);
+}
+
+function _prefixFromCurie(curie) {
+    const text = String(curie || '');
+    const idx = text.indexOf(':');
+    return idx > 0 ? text.slice(0, idx) : '';
 }
 
 function _esc(str) {

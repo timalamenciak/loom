@@ -1953,6 +1953,7 @@ classes:
           annotations in SSSOM files.
         range: uriorcurie
         annotations:
+          loom_ontologies: "NCBITaxon, CHEBI, ENVO, GO, PATO"
           note: >-
             For taxa use NCBITaxon; for chemicals CHEBI; for environments
             ENVO; for processes GO or ENVO process terms; for qualities PATO.
@@ -1969,6 +1970,7 @@ classes:
           exists.
         range: uriorcurie
         annotations:
+          loom_ontologies: "PATO, GO"
           examples: >-
             PATO:0000070 (abundance), PATO:0000918 (width),
             PATO:0000574 (density), PATO:0001019 (mass),
@@ -2334,6 +2336,7 @@ classes:
         range: uriorcurie
         multivalued: true
         annotations:
+          loom_ontologies: "ENVO, PATO, GO"
           elm_correspondence: conditioned_by_qualifier
           examples: "node:soil_moisture, ENVO:01000335"
 

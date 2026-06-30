@@ -257,6 +257,7 @@ class TestOntologySearchView:
         assert "results" in data
         curies = [r["curie"] for r in data["results"]]
         assert "NCBITaxon:712036" in curies
+        assert any(r["prefix"] == "NCBITaxon" for r in data["results"])
 
     def test_short_query_empty(self, snapshot, superuser):
         from django.test import Client
@@ -277,6 +278,7 @@ class TestOntologySearchView:
         assert len(data["results"]) >= 1
         first = data["results"][0]
         assert "curie" in first
+        assert "prefix" in first
         assert "label" in first
         assert "definition" in first
         assert "synonyms" in first

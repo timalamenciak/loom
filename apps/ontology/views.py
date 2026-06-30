@@ -39,6 +39,7 @@ def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[di
             results.append(
                 {
                     "curie": item["curie"],
+                    "prefix": item.get("prefix") or "WD",
                     "label": item["label"],
                     "definition": item.get("description", ""),
                     "synonyms": [],
@@ -68,6 +69,7 @@ class OntologySearchView(LoginRequiredMixin, View):
         results = [
             {
                 "curie": t.curie,
+                "prefix": t.prefix,
                 "label": t.label,
                 "definition": (t.definition or "")[:200],
                 "synonyms": (t.synonyms or [])[:4],
@@ -149,6 +151,7 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
                 results = [
                     {
                         "curie": term.curie,
+                        "prefix": term.prefix,
                         "label": term.label,
                         "definition": (term.definition or "")[:200],
                         "synonyms": (term.synonyms or [])[:4],

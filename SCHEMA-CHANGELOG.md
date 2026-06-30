@@ -5,6 +5,40 @@ migrated into the canonical Causal Mosaic schema repository. Loom keeps local
 copies under `config/schema/` for development and UI testing, but the schema
 repository remains the source of truth.
 
+## 2026-06-30 - CAMO 0.4.2 ontology routing annotations
+
+Status: pending upstream migration
+
+Local Loom file patched:
+
+- `config/schema/camo-0.4.2.yaml`
+
+Canonical schema change to apply:
+
+- Class: `CausalNode`
+- Slot: `entity_term`
+- Add annotation `loom_ontologies: "NCBITaxon, CHEBI, ENVO, GO, PATO"`.
+- Slot: `variable_attribute`
+- Add annotation `loom_ontologies: "PATO, GO"`.
+- Class: `CausalEdge`
+- Slot: `conditioned_by`
+- Add annotation `loom_ontologies: "ENVO, PATO, GO"`.
+
+Reason:
+
+- Loom now derives ontology autocomplete routing from LinkML slot annotations
+  before falling back to `config/loom_ui.yaml`.
+- The affected slots already have `range: uriorcurie` and schema descriptions
+  that identify preferred ontology families, but that routing was only encoded
+  in Loom's UI sidecar.
+
+Expected Loom behavior after migration:
+
+- `uriorcurie` fields render with ontology autocomplete.
+- Slots with `loom_ontologies` query those ontology prefixes first.
+- Older schemas without this annotation continue to use Loom's sidecar routing
+  as a compatibility fallback.
+
 ## 2026-06-30 - CAMO 0.4.2 SourceDocument ecosystem enum
 
 Status: pending upstream migration

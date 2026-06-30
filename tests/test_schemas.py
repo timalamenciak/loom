@@ -64,6 +64,64 @@ class TestEngineNoDB:
         slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
         assert slots["original_sentence"]["widget"] == "textarea"
 
+    def test_ontology_prefixes_come_from_schema_annotations(self):
+        schema = """
+id: https://example.org/ontology-routing
+name: ontology-routing
+imports: [linkml:types]
+classes:
+  Example:
+    attributes:
+      term:
+        range: uriorcurie
+        annotations:
+          loom_ontologies: "NCBITaxon, ENVO"
+"""
+        stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
+        lsv = LoomSchemaView(stub)
+
+        spec = lsv.form_spec("Example", ontology_routing={"term": ["PATO"]})
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+
+        assert slots["term"]["widget"] == "ontology_autocomplete"
+        assert slots["term"]["ontology_prefixes"] == ["NCBITaxon", "ENVO"]
+
+    def test_ontology_prefixes_fall_back_to_sidecar_routing(self):
+        schema = """
+id: https://example.org/ontology-routing
+name: ontology-routing
+imports: [linkml:types]
+classes:
+  Example:
+    attributes:
+      term:
+        range: uriorcurie
+"""
+        stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
+        lsv = LoomSchemaView(stub)
+
+        spec = lsv.form_spec("Example", ontology_routing={"term": ["PATO"]})
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+
+        assert slots["term"]["ontology_prefixes"] == ["PATO"]
+
+    def test_camo_042_entity_term_uses_schema_ontology_annotations(self):
+        """Schema annotations override the older loom_ui.yaml fallback routing."""
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_042, "0.4.2"))
+        spec = lsv.form_spec(
+            "CausalNode",
+            ontology_routing={"entity_term": ["NCBITaxon", "ENVO"]},
+        )
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+
+        assert slots["entity_term"]["ontology_prefixes"] == [
+            "NCBITaxon",
+            "CHEBI",
+            "ENVO",
+            "GO",
+            "PATO",
+        ]
+
     def test_claim_strength_is_select_with_choices(self):
         lsv = LoomSchemaView(_StubSchemaVersion(CAMO_040))
         spec = lsv.form_spec("CausalEdge")

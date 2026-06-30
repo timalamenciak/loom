@@ -105,6 +105,33 @@ class TestSchemaFieldRendering:
         )
         assert "checked" not in html
 
+    def test_multivalued_ontology_field_renders_autocomplete(self):
+        from django.template.loader import render_to_string
+
+        html = render_to_string(
+            "annotation/partials/form_field.html",
+            {
+                "slot": {
+                    "name": "conditioned_by",
+                    "label": "Conditioned By",
+                    "widget": "ontology_autocomplete",
+                    "required": False,
+                    "description": "",
+                    "multivalued": True,
+                    "ontology_prefixes": ["ENVO", "PATO"],
+                },
+                "prefix": "",
+                "current_data": {"conditioned_by": ["ENVO:1", "PATO:2"]},
+            },
+        )
+
+        assert 'data-ontology-prefixes="ENVO,PATO"' in html
+        assert 'data-ontology-multivalue="true"' in html
+        assert 'name="conditioned_by"' in html
+        assert "ENVO:1" in html
+        assert "PATO:2" in html
+        assert "<textarea" not in html
+
 
 # ---------------------------------------------------------------------------
 # DB fixtures

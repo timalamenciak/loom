@@ -228,13 +228,15 @@ class LoomSchemaView:
         else:
             widget = "text"
 
+        schema_ontology_prefixes = _ann_list(slot.annotations, "loom_ontologies")
         routing = ontology_routing.get(slot_name, [])
         if isinstance(routing, list):
-            ontology_prefixes: list[str] = routing
+            sidecar_ontology_prefixes: list[str] = routing
             wikidata_live: dict | None = None
         else:
-            ontology_prefixes = routing.get("prefixes", [])
+            sidecar_ontology_prefixes = routing.get("prefixes", [])
             wikidata_live = routing.get("wikidata_live") or None
+        ontology_prefixes = schema_ontology_prefixes or sidecar_ontology_prefixes
 
         spec: dict = {
             "name": slot_name,
@@ -302,9 +304,45 @@ def _ann_value(annotations: dict, key: str) -> str:
     """Extract annotation value safely from linkml Annotation objects or plain strings."""
     if not annotations:
         return ""
-    v = annotations.get(key)
+    v = None
+    if hasattr(annotations, "get"):
+        v = annotations.get(key)
+    if v is None:
+        for ann_key, ann_value in _annotation_items(annotations):
+            if ann_key == key:
+                v = ann_value
+                break
     if v is None:
         return ""
     if hasattr(v, "value"):
         return v.value or ""
     return str(v)
+
+
+def _ann_list(annotations: dict, key: str) -> list[str]:
+    """Extract a comma/whitespace separated annotation value as a string list."""
+    value = _ann_value(annotations, key)
+    if not value:
+        return []
+    return [
+        item.strip()
+        for part in str(value).split(",")
+        for item in part.split()
+        if item.strip()
+    ]
+
+
+def _annotation_items(annotations) -> list[tuple[str, object]]:
+    if not annotations:
+        return []
+    if hasattr(annotations, "items"):
+        try:
+            return list(annotations.items())
+        except TypeError:
+            pass
+    if hasattr(annotations, "_items"):
+        try:
+            return list(annotations._items())
+        except TypeError:
+            pass
+    return []

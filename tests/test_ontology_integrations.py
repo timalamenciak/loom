@@ -433,6 +433,7 @@ def test_merge_wikidata_deduplicates_and_fails_closed():
         results = _merge_wikidata(request, local, "term", 5)
     assert [result["curie"] for result in results] == ["WD:Q1", "WD:Q2"]
     assert results[-1]["source"] == "wikidata"
+    assert results[-1]["prefix"] == "WD"
 
     with patch("apps.ontology.views.wikidata_search", side_effect=RuntimeError):
         assert _merge_wikidata(request, local, "term", 5) == local
