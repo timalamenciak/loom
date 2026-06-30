@@ -116,7 +116,7 @@ class TestCleanDict:
         }
 
     def test_casts_new_schema_slots_without_python_changes(self):
-        from apps.export.serializer import _clean, _schema_slot_ranges
+        from apps.export.serializer import _clean, _schema_info
 
         schema = """
 id: https://example.org/test
@@ -130,7 +130,7 @@ slots:
   future_count: {range: integer}
   future_flag: {range: boolean}
 """
-        ranges = _schema_slot_ranges(schema)
+        ranges, _ = _schema_info(schema)
         assert _clean({"future_count": "7", "future_flag": "on"}, ranges) == {
             "future_count": 7,
             "future_flag": True,
