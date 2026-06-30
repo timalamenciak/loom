@@ -36,6 +36,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+marker = [
+    # Heavy ML dependency — only install when Marker-based PDF extraction is needed.
+    # Requires: pip install "loom[marker]"
+    "marker-pdf>=1.0",
+]
 dev = [
     "ruff>=0.4",
     "black==26.5.1",

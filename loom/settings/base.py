@@ -130,6 +130,21 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # LLM proposal seam — off by default; see apps/llm/
 LLM_PROPOSALS_ENABLED = False
 
+# ---------------------------------------------------------------------------
+# Marker PDF-to-Markdown (optional; falls back to pdfplumber when disabled)
+# Install marker-pdf: pip install "loom[marker]"
+# ---------------------------------------------------------------------------
+# Enable Marker instead of pdfplumber for extract_markdown management command.
+MARKER_ENABLED = os.environ.get("LOOM_MARKER_ENABLED", "false").lower() == "true"
+# Add an LLM boost via any OpenAI-compatible endpoint (e.g. a local Qwen server).
+MARKER_LLM_ENABLED = os.environ.get("LOOM_MARKER_LLM_ENABLED", "false").lower() == "true"
+# Base URL of the OpenAI-compatible API, e.g. http://localhost:8080/v1
+MARKER_LLM_BASE_URL = os.environ.get("LOOM_MARKER_LLM_BASE_URL", "")
+# Model name to request, e.g. "qwen2.5-72b-instruct"
+MARKER_LLM_MODEL = os.environ.get("LOOM_MARKER_LLM_MODEL", "")
+# API key; use any non-empty string for endpoints that don't enforce auth.
+MARKER_LLM_API_KEY = os.environ.get("LOOM_MARKER_LLM_API_KEY", "nokey")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

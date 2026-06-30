@@ -1,7 +1,9 @@
 """Phase 3 document services: PDF text extraction, span management."""
 
 import html as _html
+import os as _os
 
+from django.conf import settings as _django_settings
 from django.db import transaction
 
 from .models import TextSpan
@@ -75,20 +77,81 @@ def set_abstract_as_canonical(document) -> bool:
     return True
 
 
-def extract_markdown_from_pdf(document) -> bool:
-    """Convert PDF to Markdown using pdfplumber (no ML models required).
+def _extract_markdown_with_marker(pdf_path: str) -> str | None:
+    """Convert a PDF to Markdown using marker-pdf (>=1.0).
 
-    Populates document.canonical_markdown in-place (and saves).
-    Returns True on success. Does NOT replace canonical_text — both coexist.
-    Uses layout=True extraction where available to better preserve reading order
-    in multi-column documents.
+    Respects MARKER_LLM_* settings for an optional OpenAI-compatible LLM boost
+    (e.g. a local Qwen endpoint). Returns the Markdown string, or None when
+    marker-pdf is not installed or conversion fails.
+
+    LLM service env vars (OPENAI_BASE_URL, OPENAI_API_KEY) are set temporarily
+    around the call and restored on exit so they don't leak to other threads.
+    Marker 1.x passes these to its internal litellm-backed OpenAI service.
     """
+    try:
+        from marker.converters.pdf import PdfConverter
+        from marker.models import create_model_dict
+        from marker.config.parser import ConfigParser
+    except ImportError:
+        return None
+
+    config: dict = {}
+    env_overrides: dict[str, str] = {}
+
+    if (
+        getattr(_django_settings, "MARKER_LLM_ENABLED", False)
+        and getattr(_django_settings, "MARKER_LLM_BASE_URL", "")
+    ):
+        config["use_llm"] = True
+        config["llm_service"] = "marker.services.openai.OpenAIService"
+        env_overrides["OPENAI_BASE_URL"] = _django_settings.MARKER_LLM_BASE_URL
+        env_overrides["OPENAI_API_KEY"] = (
+            _django_settings.MARKER_LLM_API_KEY or "nokey"
+        )
+        if model := getattr(_django_settings, "MARKER_LLM_MODEL", ""):
+            config["openai_model"] = model
+
+    old_env = {k: _os.environ.get(k) for k in env_overrides}
+    try:
+        _os.environ.update(env_overrides)
+        config_parser = ConfigParser(config)
+        converter = PdfConverter(
+            config=config_parser.generate_config_dict(),
+            artifact_dict=create_model_dict(),
+        )
+        rendered = converter(pdf_path)
+        return rendered.markdown
+    except Exception:
+        return None
+    finally:
+        for k, v in old_env.items():
+            if v is None:
+                _os.environ.pop(k, None)
+            else:
+                _os.environ[k] = v
+
+
+def extract_markdown_from_pdf(document) -> bool:
+    """Convert PDF to Markdown, saving to document.canonical_markdown.
+
+    Uses marker-pdf when MARKER_ENABLED is True; falls back to pdfplumber.
+    Does NOT replace canonical_text — both fields coexist.
+    Returns True on success.
+    """
+    if not document.pdf_file:
+        return False
+
+    if getattr(_django_settings, "MARKER_ENABLED", False):
+        markdown = _extract_markdown_with_marker(document.pdf_file.path)
+        if markdown is not None:
+            document.canonical_markdown = markdown
+            document.save(update_fields=["canonical_markdown"])
+            return True
+
+    # pdfplumber fallback
     try:
         import pdfplumber
     except ImportError:
-        return False
-
-    if not document.pdf_file:
         return False
 
     try:

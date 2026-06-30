@@ -7,7 +7,12 @@ from apps.projects.models import Document
 
 
 class Command(BaseCommand):
-    help = "Extract Markdown from uploaded PDFs using pdfplumber (backfill or refresh)."
+    help = (
+        "Extract Markdown from uploaded PDFs (backfill or refresh). "
+        "Uses marker-pdf when LOOM_MARKER_ENABLED=true, otherwise pdfplumber. "
+        "Set LOOM_MARKER_LLM_ENABLED=true and LOOM_MARKER_LLM_BASE_URL to add "
+        "an OpenAI-compatible LLM boost (e.g. a local Qwen endpoint)."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
