@@ -28,11 +28,10 @@ dependencies = [
     "rispy>=0.9",
     "gunicorn>=22.0",
     "whitenoise>=6.7",
-    # PDF extraction: pdfplumber (MIT) — chosen over PyMuPDF (AGPL) at Phase 3
+    # PDF extraction and Markdown generation: pdfplumber (MIT)
+    # layout=True mode preserves multi-column reading order without ML models
     "pdfplumber>=0.11",
-    # Layout-aware PDF→Markdown for academic multi-column papers (heavy; pulls torch)
-    "docling>=2.0",
-    # Server-side markdown rendering for docling output in annotation view
+    # Server-side markdown rendering for canonical_markdown in annotation view
     "markdown>=3.6",
 ]
 

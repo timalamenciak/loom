@@ -96,7 +96,7 @@ class Document(models.Model):
     canonical_text = models.TextField(null=True, blank=True)
     # offset→page/bbox mapping; populated in Phase 3
     page_map = models.JSONField(null=True, blank=True)
-    # Markdown from docling (richer layout-aware extraction); optional
+    # Markdown extracted by pdfplumber with layout=True (optional; coexists with canonical_text)
     canonical_markdown = models.TextField(null=True, blank=True)
 
     # Bibliographic fields

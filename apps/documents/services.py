@@ -75,33 +75,16 @@ def set_abstract_as_canonical(document) -> bool:
     return True
 
 
-def make_docling_converter():
-    """Build a PDF-only DocumentConverter (loads model weights once; reuse across calls)."""
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.document_converter import DocumentConverter, PdfFormatOption
-
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = False
-    return DocumentConverter(
-        allowed_formats=[InputFormat.PDF],
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        },
-    )
-
-
-def extract_markdown_from_pdf(document, converter=None) -> bool:
-    """Convert PDF to Markdown using docling for better multi-column layout handling.
+def extract_markdown_from_pdf(document) -> bool:
+    """Convert PDF to Markdown using pdfplumber (no ML models required).
 
     Populates document.canonical_markdown in-place (and saves).
     Returns True on success. Does NOT replace canonical_text — both coexist.
-    Pass a pre-built converter to avoid reloading model weights per document.
-    This is a slow, one-time operation; call from attach_pdf or a management command,
-    not from the hot request path.
+    Uses layout=True extraction where available to better preserve reading order
+    in multi-column documents.
     """
     try:
-        from docling.document_converter import DocumentConverter  # noqa: F401
+        import pdfplumber
     except ImportError:
         return False
 
@@ -109,11 +92,19 @@ def extract_markdown_from_pdf(document, converter=None) -> bool:
         return False
 
     try:
-        cv = converter or make_docling_converter()
-        result = cv.convert(document.pdf_file.path)
-        document.canonical_markdown = result.document.export_to_markdown()
-        document.save(update_fields=["canonical_markdown"])
-        return True
+        with pdfplumber.open(document.pdf_file.path) as pdf:
+            sections = []
+            for i, page in enumerate(pdf.pages, start=1):
+                try:
+                    text = page.extract_text(layout=True) or ""
+                except TypeError:
+                    text = page.extract_text() or ""
+                text = text.strip()
+                if text:
+                    sections.append(f"## Page {i}\n\n{text}")
+            document.canonical_markdown = "\n\n---\n\n".join(sections)
+            document.save(update_fields=["canonical_markdown"])
+            return True
     except Exception:
         return False
 
