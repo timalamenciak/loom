@@ -68,7 +68,10 @@ def search_terms(
                     syn_sim=TrigramSimilarity("synonym_labels", query),
                 )
                 .annotate(best_sim=Greatest("sim", "syn_sim"))
-                .filter(best_sim__gt=0.15)
+                .filter(
+                    Q(label__trigram_similar=query)
+                    | Q(synonym_labels__trigram_similar=query)
+                )
                 .order_by("-best_sim")[:limit]
             )
             transaction.savepoint_commit(sid)
@@ -102,3 +105,26 @@ def term_by_curie(
         .distinct()
         .first()
     )
+
+
+def terms_by_curies(
+    curies: list[str], snapshot: OntologySnapshot | None = None
+) -> list[OntologyTerm]:
+    """Resolve saved CURIEs to labels within one pinned snapshot."""
+
+    values = [value.strip() for value in curies if value and value.strip()]
+    if not values:
+        return []
+    if snapshot is None:
+        snapshot = get_active_snapshot()
+    if snapshot is None:
+        return []
+    terms = list(
+        OntologyTerm.objects.filter(
+            Q(snapshot=snapshot) | Q(release__snapshots=snapshot),
+            curie__in=values,
+            obsolete=False,
+        ).distinct()
+    )
+    positions = {curie: index for index, curie in enumerate(values)}
+    return sorted(terms, key=lambda term: positions.get(term.curie, len(values)))

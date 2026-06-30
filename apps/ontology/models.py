@@ -1,6 +1,7 @@
 import hashlib
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 
 
@@ -167,6 +168,16 @@ class OntologyTerm(models.Model):
             models.Index(
                 fields=["release", "curie"], name="ontology_release_curie_idx"
             ),
+            GinIndex(
+                fields=["label"],
+                name="ontologyterm_label_trgm_idx",
+                opclasses=["gin_trgm_ops"],
+            ),
+            GinIndex(
+                fields=["synonym_labels"],
+                name="ontologyterm_synonyms_trgm_idx",
+                opclasses=["gin_trgm_ops"],
+            ),
         ]
 
     def __str__(self):
@@ -234,3 +245,39 @@ class OntologyLoadRequest(models.Model):
 
     def __str__(self):
         return f"Ontology load for {self.project} [{self.status}]"
+
+
+class OntologyLoadItem(models.Model):
+    """Per-ontology progress for a project load request."""
+
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETE = "complete"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = OntologyLoadRequest.STATUS_CHOICES
+
+    request = models.ForeignKey(
+        OntologyLoadRequest,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    name = models.CharField(max_length=200)
+    prefix = models.CharField(max_length=50)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING
+    )
+    term_count = models.PositiveIntegerField(default=0)
+    error = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["request", "name"], name="unique_ontology_load_item"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} for request {self.request_id} [{self.status}]"

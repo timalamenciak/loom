@@ -7,7 +7,12 @@ from django.urls import reverse
 
 from apps.annotation.services import create_edge, create_graph, create_node
 from apps.audit.models import AuditEvent
-from apps.ontology.models import OntologySnapshot, OntologyTerm
+from apps.ontology.models import (
+    OntologyLoadItem,
+    OntologyLoadRequest,
+    OntologySnapshot,
+    OntologyTerm,
+)
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 from apps.schemas.ontology_inference import infer_ontologies
@@ -163,6 +168,64 @@ def test_project_admin_who_is_not_owner_cannot_open_settings(
 
 
 @pytest.mark.django_db
+def test_project_settings_shows_each_ontology_load_state(
+    client, owner, configured_project
+):
+    configured_project.ontology_names = ["envo", "pato", "go"]
+    configured_project.save(update_fields=["ontology_names"])
+    request = OntologyLoadRequest.objects.create(
+        project=configured_project,
+        requested_by=owner,
+        ontology_names=["envo", "pato", "go"],
+        status=OntologyLoadRequest.STATUS_RUNNING,
+    )
+    OntologyLoadItem.objects.create(
+        request=request,
+        name="envo",
+        prefix="ENVO",
+        status=OntologyLoadItem.STATUS_COMPLETE,
+        term_count=123,
+    )
+    OntologyLoadItem.objects.create(
+        request=request,
+        name="pato",
+        prefix="PATO",
+        status=OntologyLoadItem.STATUS_RUNNING,
+    )
+    OntologyLoadItem.objects.create(
+        request=request,
+        name="go",
+        prefix="GO",
+        status=OntologyLoadItem.STATUS_FAILED,
+        error="download failed",
+    )
+
+    client.force_login(owner)
+    response = client.get(reverse("project-settings", args=[configured_project.pk]))
+    html = response.content.decode()
+
+    assert response.status_code == 200
+    assert "Loaded ontology status" in html
+    assert "ENVO" in html and "123" in html and "Ready" in html
+    assert "PATO" in html and "Loading" in html
+    assert "GO" in html and "Failed" in html and "download failed" in html
+    assert reverse("project-ontology-status", args=[configured_project.pk]) in html
+
+
+@pytest.mark.django_db
+def test_missing_ontology_registration_form_is_not_nested(
+    client, owner, configured_project
+):
+    client.force_login(owner)
+    response = client.get(reverse("project-settings", args=[configured_project.pk]))
+    html = response.content.decode()
+    settings_close = html.index("</form>")
+    register_action = reverse("project-register-ontology", args=[configured_project.pk])
+
+    assert html.index(register_action) > settings_close
+
+
+@pytest.mark.django_db
 def test_project_search_is_member_and_snapshot_scoped(
     client, owner, configured_project
 ):
@@ -187,6 +250,13 @@ def test_project_search_is_member_and_snapshot_scoped(
     )
     assert response.status_code == 200
     assert response.json()["results"][0]["curie"] == "ENVO:00001001"
+
+    hydrated = client.get(
+        reverse("project-ontology-search", args=[configured_project.pk]),
+        {"curies": "ENVO:00001001", "prefixes": "ENVO"},
+    ).json()
+    assert hydrated["results"][0]["label"] == "temperate biome"
+    assert hydrated["meta"]["status"] == "ready"
 
     stranger = User.objects.create_user("settings-stranger", password="password")
     client.force_login(stranger)

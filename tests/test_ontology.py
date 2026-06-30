@@ -239,6 +239,30 @@ class TestSearchTerms:
         assert t is not None
         assert t.label == "temperate biome"
 
+    def test_schema_driven_selection_validation(self, terms, snapshot):
+        from apps.ontology.validation import add_ontology_errors
+        from apps.schemas.input_binding import BindingResult
+
+        spec = [
+            {
+                "id": "all",
+                "slots": [
+                    {
+                        "name": "entity_term",
+                        "widget": "ontology_autocomplete",
+                        "ontology_prefixes": ["ENVO"],
+                    }
+                ],
+            }
+        ]
+        valid = BindingResult(data={"entity_term": "ENVO:00001001"})
+        add_ontology_errors(valid, spec, snapshot)
+        assert valid.is_valid
+
+        missing = BindingResult(data={"entity_term": "ENVO:99999999"})
+        add_ontology_errors(missing, spec, snapshot)
+        assert "entity_term" in missing.errors
+
 
 # ---------------------------------------------------------------------------
 # API view tests

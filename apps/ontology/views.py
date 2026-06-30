@@ -10,7 +10,7 @@ from apps.annotation.models import CausalGraph
 from apps.projects.models import Project, ProjectMembership
 
 from .loaders import ontology_entries
-from .services import search_terms
+from .services import search_terms, terms_by_curies
 from .wikidata_search import search as wikidata_search
 
 
@@ -22,6 +22,16 @@ def _snapshot_prefixes(snapshot) -> set[str]:
     if not prefixes:
         prefixes.update(snapshot.terms.values_list("prefix", flat=True).distinct())
     return prefixes
+
+
+def _term_json(term) -> dict:
+    return {
+        "curie": term.curie,
+        "prefix": term.prefix,
+        "label": term.label,
+        "definition": (term.definition or "")[:200],
+        "synonyms": (term.synonyms or [])[:4],
+    }
 
 
 def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[dict]:
@@ -75,16 +85,7 @@ class OntologySearchView(LoginRequiredMixin, View):
             return JsonResponse({"results": []})
 
         terms = search_terms(q, prefixes=prefixes, limit=limit)
-        results = [
-            {
-                "curie": t.curie,
-                "prefix": t.prefix,
-                "label": t.label,
-                "definition": (t.definition or "")[:200],
-                "synonyms": (t.synonyms or [])[:4],
-            }
-            for t in terms
-        ]
+        results = [_term_json(term) for term in terms]
         results = _merge_wikidata(request, results, q, limit)
         return JsonResponse({"results": results})
 
@@ -112,17 +113,12 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
                 CausalGraph, pk=graph_pk, document__project=project
             )
             graph_snapshot = graph.ontology_snapshot
-            snapshot = graph_snapshot or snapshot
-        # Fall back to the site-wide active snapshot so search works out of
-        # the box when no per-project snapshot has been pinned yet.
-        if snapshot is None:
-            from .models import OntologySnapshot as _Snap
-
-            snapshot = _Snap.get_active()
+            # A populated graph must remain reproducible against its pinned
+            # snapshot. A graph created before its project finished loading may
+            # use the project snapshot until its first write pins that snapshot.
+            snapshot = graph_snapshot or project_snapshot
 
         q = request.GET.get("q", "").strip()
-        if len(q) < 2:
-            return JsonResponse({"results": []})
         try:
             limit = min(max(int(request.GET.get("limit", 20)), 1), 50)
         except ValueError:
@@ -133,18 +129,35 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
             if prefix.strip()
         }
 
-        if requested and graph_snapshot and project_snapshot:
-            graph_prefixes = _snapshot_prefixes(graph_snapshot)
-            project_prefixes = _snapshot_prefixes(project_snapshot)
-            missing_from_graph = requested - graph_prefixes
-            if missing_from_graph & project_prefixes:
-                snapshot = project_snapshot
+        available_prefixes = _snapshot_prefixes(snapshot)
+        unavailable_prefixes = sorted(requested - available_prefixes)
+        meta = {
+            "snapshot_id": snapshot.pk if snapshot else None,
+            "available_prefixes": sorted(available_prefixes),
+            "unavailable_prefixes": unavailable_prefixes,
+            "status": (
+                "unavailable"
+                if snapshot is None
+                else "partial" if unavailable_prefixes else "ready"
+            ),
+        }
+
+        raw_curies = request.GET.get("curies", "")
+        if raw_curies:
+            curies = [value.strip() for value in raw_curies.split(",") if value.strip()]
+            terms = terms_by_curies(curies[:50], snapshot=snapshot)
+            return JsonResponse(
+                {"results": [_term_json(term) for term in terms], "meta": meta}
+            )
+
+        if len(q) < 2:
+            return JsonResponse({"results": [], "meta": meta})
 
         # Local DB search — only possible when a snapshot exists.
         results: list[dict] = []
         if snapshot is not None:
             if graph and snapshot:
-                allowed_prefixes = _snapshot_prefixes(snapshot)
+                allowed_prefixes = available_prefixes
             else:
                 selected_names = set(project.ontology_names or [])
                 allowed_prefixes = {
@@ -163,18 +176,9 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
                 terms = search_terms(
                     q, prefixes=prefixes or None, snapshot=snapshot, limit=limit
                 )
-                results = [
-                    {
-                        "curie": term.curie,
-                        "prefix": term.prefix,
-                        "label": term.label,
-                        "definition": (term.definition or "")[:200],
-                        "synonyms": (term.synonyms or [])[:4],
-                    }
-                    for term in terms
-                ]
+                results = [_term_json(term) for term in terms]
 
         # Live lookup (Wikidata etc.) — always attempted when caller requests it,
         # even when the local snapshot is absent or yields nothing.
         results = _merge_wikidata(request, results, q, limit)
-        return JsonResponse({"results": results})
+        return JsonResponse({"results": results, "meta": meta})

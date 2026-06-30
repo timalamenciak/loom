@@ -28,6 +28,11 @@ urlpatterns = [
         name="project-settings",
     ),
     path(
+        "<int:pk>/settings/ontology-status/",
+        views.ProjectOntologyStatusView.as_view(),
+        name="project-ontology-status",
+    ),
+    path(
         "<int:pk>/settings/register-ontology/",
         views.RegisterOntologySourceView.as_view(),
         name="project-register-ontology",

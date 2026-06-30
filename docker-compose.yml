@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build: .
+    command: python manage.py migrate --noinput
+    volumes:
+      - .:/opt/loom
+      - loom_media:/opt/loom/media
+      - loom_staticfiles:/opt/loom/staticfiles
+    environment:
+      PYSTOW_HOME: /tmp/pystow
+      APP_DIR: /opt/loom
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
@@ -33,6 +49,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -60,6 +78,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      disable: true
 
 volumes:
   postgres_data:

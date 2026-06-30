@@ -19,7 +19,7 @@ from apps.documents.services import ensure_canonical_text, render_highlighted_te
 from apps.export.serializer import serialize_graph
 from apps.export.validators import validate_graph_data
 from apps.ontology.adhoc import resolve_wd_curies_in_data
-from apps.ontology.models import OntologySnapshot
+from apps.ontology.validation import add_ontology_errors
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 from apps.schemas.schema_engine import get_schema_view
@@ -46,6 +46,7 @@ from .services import (
     update_edge,
     update_graph_source_document,
     update_node,
+    upgrade_graph_ontology_snapshot,
 )
 
 logger = logging.getLogger(__name__)
@@ -331,9 +332,7 @@ class AnnotationView(LoginRequiredMixin, View):
                 document,
                 request.user,
                 new_graph_schema,
-                ontology_snapshot=(
-                    project.ontology_snapshot or OntologySnapshot.get_active()
-                ),
+                ontology_snapshot=project.ontology_snapshot,
                 assignment=assignment,
             )
         else:
@@ -432,8 +431,31 @@ class AnnotationView(LoginRequiredMixin, View):
                 "empty_form_data": {},
                 "excerpt_options": excerpt_options,
                 "can_edit_spans": can_edit,
+                "ontology_snapshot_update_available": bool(
+                    can_edit
+                    and project.ontology_snapshot_id
+                    and graph.ontology_snapshot_id != project.ontology_snapshot_id
+                ),
             },
         )
+
+
+class GraphOntologySnapshotUpgradeView(LoginRequiredMixin, View):
+    """POST: explicitly repin an editable graph to its project snapshot."""
+
+    def post(self, request, pk, doc_pk):
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+        if project.ontology_snapshot is None:
+            messages.error(request, "This project's ontology cache is not ready yet.")
+        else:
+            upgrade_graph_ontology_snapshot(
+                graph, project.ontology_snapshot, request.user
+            )
+            messages.success(request, "Graph ontology snapshot updated.")
+        return redirect("annotate", pk=pk, doc_pk=doc_pk)
 
 
 # ── Graph panel (HTMX partial refresh) ───────────────────────────────────────
@@ -514,6 +536,12 @@ class NodeCreateView(LoginRequiredMixin, View):
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
+        if bound.is_valid:
+            add_ontology_errors(
+                bound,
+                _node_form_spec(lsv, project=project),
+                graph.ontology_snapshot or project.ontology_snapshot,
+            )
         if not bound.is_valid:
             current_data = dict(bound.data)
             nodes, _ = _graph_nodes_edges(graph)
@@ -618,6 +646,12 @@ class NodeEditView(LoginRequiredMixin, View):
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
+        if bound.is_valid:
+            add_ontology_errors(
+                bound,
+                _node_form_spec(lsv, project=project),
+                graph.ontology_snapshot or project.ontology_snapshot,
+            )
         if not bound.is_valid:
             nodes, _ = _graph_nodes_edges(graph)
             return _form_error_response(
@@ -783,16 +817,22 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
         lsv = get_schema_view(graph.schema_version)
         payload, _ = _post_payload(request)
         bound = lsv.bind_form_data("SourceDocument", payload)
+        ui = _load_ui_config()
+        sd_spec = lsv.form_spec(
+            "SourceDocument",
+            ui_layers=ui.get("source_document_layers"),
+            ontology_routing=ui.get("ontology_routing", {}),
+            widget_overrides=ui.get("widget_overrides", {}),
+            globally_hidden_slots=ui.get("globally_hidden_slots", []),
+        )
+        if bound.is_valid:
+            add_ontology_errors(
+                bound,
+                sd_spec,
+                graph.ontology_snapshot or project.ontology_snapshot,
+            )
 
         if not bound.is_valid:
-            ui = _load_ui_config()
-            sd_spec = lsv.form_spec(
-                "SourceDocument",
-                ui_layers=ui.get("source_document_layers"),
-                ontology_routing=ui.get("ontology_routing", {}),
-                widget_overrides=ui.get("widget_overrides", {}),
-                globally_hidden_slots=ui.get("globally_hidden_slots", []),
-            )
             return _form_error_response(
                 request,
                 "annotation/partials/source_document_form.html",
@@ -907,6 +947,12 @@ class EdgeCreateView(LoginRequiredMixin, View):
         bound = lsv.bind_form_data(
             "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
         )
+        if bound.is_valid:
+            add_ontology_errors(
+                bound,
+                _edge_form_spec(lsv, _load_ui_config(), project=project),
+                graph.ontology_snapshot or project.ontology_snapshot,
+            )
         if not bound.is_valid:
             current_data = dict(bound.data)
             current_data.update({"subject": subject_id, "object": object_id})
@@ -1037,6 +1083,12 @@ class EdgeEditView(LoginRequiredMixin, View):
         bound = lsv.bind_form_data(
             "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
         )
+        if bound.is_valid:
+            add_ontology_errors(
+                bound,
+                _edge_form_spec(lsv, _load_ui_config(), project=project),
+                graph.ontology_snapshot or project.ontology_snapshot,
+            )
         if not bound.is_valid:
             current_data = dict(bound.data)
             current_data.update(

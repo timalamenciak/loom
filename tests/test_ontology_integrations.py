@@ -12,9 +12,11 @@ from django.http import QueryDict
 from django.test import RequestFactory
 from django.urls import reverse
 
-from apps.annotation.models import CausalGraph
+from apps.annotation.models import CausalGraph, Node
+from apps.audit.models import AuditEvent
 from apps.ontology import adhoc, loaders, wikidata_search
 from apps.ontology.models import (
+    OntologyLoadItem,
     OntologyLoadRequest,
     OntologyRelease,
     OntologySnapshot,
@@ -25,7 +27,7 @@ from apps.ontology.project_service import (
     process_load_request,
     request_project_ontologies,
 )
-from apps.projects.models import Document, Project, ProjectMembership
+from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 
 MINI_OBO = b"""\
@@ -221,8 +223,9 @@ def test_wikidata_taxon_search_uses_claim_filter_for_generic_taxon_root():
     ]
     with (
         patch.object(wikidata_search, "_wbsearch", return_value=candidates),
-        patch.object(wikidata_search, "_claim_filter", return_value={"Q149892"})
-        as claim_filter,
+        patch.object(
+            wikidata_search, "_claim_filter", return_value={"Q149892"}
+        ) as claim_filter,
         patch.object(wikidata_search, "_sparql_filter") as sparql_filter,
     ):
         assert wikidata_search._search_uncached("Canis", "Q16521", 10) == [
@@ -240,9 +243,27 @@ def test_claim_filter_accepts_taxon_rank_or_taxon_instance_and_fails_closed():
     payload = json.dumps(
         {
             "entities": {
-                "Q149892": {"claims": {"P105": [{"mainsnak": {"datavalue": {"value": {"id": "Q34740"}}}}]}},
-                "Q18498": {"claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q16521"}}}}]}},
-                "Q144": {"claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q55983715"}}}}]}},
+                "Q149892": {
+                    "claims": {
+                        "P105": [
+                            {"mainsnak": {"datavalue": {"value": {"id": "Q34740"}}}}
+                        ]
+                    }
+                },
+                "Q18498": {
+                    "claims": {
+                        "P31": [
+                            {"mainsnak": {"datavalue": {"value": {"id": "Q16521"}}}}
+                        ]
+                    }
+                },
+                "Q144": {
+                    "claims": {
+                        "P31": [
+                            {"mainsnak": {"datavalue": {"value": {"id": "Q55983715"}}}}
+                        ]
+                    }
+                },
             }
         }
     ).encode()
@@ -432,6 +453,9 @@ def test_project_ontology_request_validates_supersedes_and_completes(project):
     older.refresh_from_db()
     assert older.status == OntologyLoadRequest.STATUS_FAILED
     assert request.status == OntologyLoadRequest.STATUS_PENDING
+    assert list(request.items.values_list("name", "status")) == [
+        ("envo", OntologyLoadItem.STATUS_PENDING)
+    ]
 
     _release("envo", "ENVO", "c" * 64)
     with patch(
@@ -439,6 +463,7 @@ def test_project_ontology_request_validates_supersedes_and_completes(project):
     ):
         ready = request_project_ontologies(project, project.created_by, ["envo"])
     assert ready.status == OntologyLoadRequest.STATUS_COMPLETE
+    assert ready.items.get(name="envo").status == OntologyLoadItem.STATUS_COMPLETE
     project.refresh_from_db()
     assert project.ontology_snapshot is not None
 
@@ -452,6 +477,9 @@ def test_process_load_request_download_failure_and_terminal_noop(project):
     failed = process_load_request(request, allow_download=False)
     assert failed.status == OntologyLoadRequest.STATUS_FAILED
     assert "has not been loaded" in failed.error
+    item = failed.items.get(name="missing")
+    assert item.status == OntologyLoadItem.STATUS_FAILED
+    assert "has not been loaded" in item.error
 
     failed.status = OntologyLoadRequest.STATUS_COMPLETE
     failed.save(update_fields=["status"])
@@ -483,10 +511,8 @@ def test_merge_wikidata_deduplicates_and_fails_closed():
     assert _merge_wikidata(request, local, "term", 5) == local
 
 
-def test_project_search_falls_back_to_active_snapshot(client, project):
-    """ProjectOntologySearchView must use the active snapshot when the project
-    has no snapshot pinned, so annotators see results without manual snapshot
-    configuration."""
+def test_project_search_does_not_leak_active_snapshot(client, project):
+    """Project search waits for a project-pinned, reproducible snapshot."""
     user = project.created_by
     ProjectMembership.objects.create(
         project=project, user=user, role=ProjectMembership.ROLE_ADMIN
@@ -518,13 +544,12 @@ def test_project_search_falls_back_to_active_snapshot(client, project):
     url = reverse("project-ontology-search", args=[project.pk])
     response = client.get(url, {"q": "fallback"})
     assert response.status_code == 200
-    results = response.json()["results"]
-    assert any(
-        r["curie"] == "TEST:999" for r in results
-    ), "Expected fallback to active snapshot to surface TEST:999"
+    payload = response.json()
+    assert payload["results"] == []
+    assert payload["meta"]["status"] == "unavailable"
 
 
-def test_project_search_uses_project_snapshot_when_graph_snapshot_lacks_prefix(
+def test_project_search_keeps_graph_pinned_when_project_has_newer_prefix(
     client, project
 ):
     user = project.created_by
@@ -572,7 +597,33 @@ def test_project_search_uses_project_snapshot_when_graph_snapshot_lacks_prefix(
     )
 
     assert response.status_code == 200
-    assert response.json()["results"][0]["curie"] == "PATO:0002019"
+    payload = response.json()
+    assert payload["results"] == []
+    assert payload["meta"]["unavailable_prefixes"] == ["PATO"]
+
+    assignment = Assignment.objects.create(
+        project=project,
+        document=document,
+        annotator=user,
+        assigned_by=user,
+        graph=graph,
+    )
+    response = client.post(
+        reverse("graph-ontology-snapshot-upgrade", args=[project.pk, document.pk])
+    )
+    assert response.status_code == 302
+    graph.refresh_from_db()
+    assert graph.ontology_snapshot == project_snapshot
+    assert assignment.graph == graph
+    assert AuditEvent.objects.filter(
+        action="graph.ontology_snapshot.upgrade", target_id=str(graph.pk)
+    ).exists()
+
+    upgraded = client.get(
+        reverse("project-ontology-search", args=[project.pk]),
+        {"q": "abundance", "prefixes": "PATO", "graph": graph.pk},
+    ).json()
+    assert upgraded["results"][0]["curie"] == "PATO:0002019"
 
 
 def test_ontology_search_live_and_project_permissions(client, project):
@@ -593,9 +644,101 @@ def test_ontology_search_live_and_project_permissions(client, project):
     assert response.json()["results"][0]["source"] == "wikidata"
 
     project_url = reverse("project-ontology-search", args=[project.pk])
-    assert client.get(project_url, {"q": "x"}).json() == {"results": []}
+    short = client.get(project_url, {"q": "x"}).json()
+    assert short["results"] == []
+    assert short["meta"]["status"] == "unavailable"
     assert client.get(project_url, {"q": "oak", "limit": "bad"}).status_code == 200
 
     stranger = get_user_model().objects.create_user("ontology-stranger")
     client.force_login(stranger)
     assert client.get(project_url, {"q": "oak"}).status_code == 403
+
+
+def test_project_load_to_annotation_autocomplete_journey(client, project):
+    user = project.created_by
+    ProjectMembership.objects.create(
+        project=project, user=user, role=ProjectMembership.ROLE_ADMIN
+    )
+    schema = SchemaVersion.objects.create(
+        version="ontology-journey",
+        linkml_yaml="""
+id: https://example.org/ontology-journey
+name: ontology-journey
+imports: [linkml:types]
+classes:
+  CausalNode:
+    attributes:
+      id: {range: string}
+      name: {range: string, required: true}
+      entity_term:
+        range: uriorcurie
+        annotations:
+          loom_ontologies: TEST
+  CausalEdge: {}
+""",
+    )
+    project.active_schema = schema
+    project.ontology_names = ["test"]
+    project.save(update_fields=["active_schema", "ontology_names"])
+    entry = {
+        "name": "test",
+        "prefix": "TEST",
+        "url": "https://example.org/test.obo",
+        "description": "Test ontology",
+    }
+    with (
+        patch(
+            "apps.ontology.project_service.list_ontology_names", return_value=["test"]
+        ),
+        patch("apps.ontology.project_service.ontology_entries", return_value=[entry]),
+    ):
+        load_request = request_project_ontologies(project, user, ["test"])
+    with (
+        patch("apps.ontology.project_service.ontology_entries", return_value=[entry]),
+        patch.object(loaders, "ontology_config", return_value=entry),
+        patch.object(loaders, "_read_source", return_value=MINI_OBO),
+    ):
+        process_load_request(load_request)
+
+    project.refresh_from_db()
+    assert project.ontology_snapshot is not None
+    assert project.ontology_snapshot.releases.get(prefix="TEST").term_count == 1
+
+    document = Document.objects.create(
+        project=project,
+        source=Document.SOURCE_MANUAL,
+        title="Ontology journey",
+        canonical_text="Evidence.",
+    )
+    graph = CausalGraph.objects.create(
+        document=document,
+        annotator=user,
+        schema_version=schema,
+        ontology_snapshot=project.ontology_snapshot,
+    )
+    Assignment.objects.create(
+        project=project,
+        document=document,
+        annotator=user,
+        assigned_by=user,
+        graph=graph,
+    )
+    client.force_login(user)
+
+    form = client.get(reverse("node-form", args=[project.pk, document.pk]))
+    assert form.status_code == 200
+    assert 'data-ontology-prefixes="TEST"' in form.content.decode()
+
+    search = client.get(
+        reverse("project-ontology-search", args=[project.pk]),
+        {"q": "first", "prefixes": "TEST", "graph": graph.pk},
+    ).json()
+    assert search["results"][0]["curie"] == "TEST:1"
+
+    created = client.post(
+        reverse("node-create", args=[project.pk, document.pk]),
+        {"name": "First", "entity_term": "TEST:1"},
+        HTTP_HX_REQUEST="true",
+    )
+    assert created.status_code == 200
+    assert Node.objects.get(graph=graph).data["entity_term"] == "TEST:1"

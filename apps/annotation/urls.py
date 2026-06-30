@@ -7,6 +7,7 @@ from .views import (
     EdgeCreateView,
     EdgeEditView,
     EdgeFormView,
+    GraphOntologySnapshotUpgradeView,
     GraphPanelView,
     GraphView,
     HeartbeatView,
@@ -42,6 +43,11 @@ urlpatterns = [
         "<int:pk>/documents/<int:doc_pk>/annotate/graph/",
         GraphPanelView.as_view(),
         name="graph-panel",
+    ),
+    path(
+        "<int:pk>/documents/<int:doc_pk>/annotate/ontology-snapshot/upgrade/",
+        GraphOntologySnapshotUpgradeView.as_view(),
+        name="graph-ontology-snapshot-upgrade",
     ),
     # Nodes
     path(

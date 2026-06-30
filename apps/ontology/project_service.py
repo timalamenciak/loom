@@ -7,8 +7,13 @@ from django.utils import timezone
 
 from apps.audit.models import AuditEvent
 
-from .loaders import list_ontology_names, load_ontology_release
-from .models import OntologyLoadRequest, OntologyRelease, OntologySnapshot
+from .loaders import list_ontology_names, load_ontology_release, ontology_entries
+from .models import (
+    OntologyLoadItem,
+    OntologyLoadRequest,
+    OntologyRelease,
+    OntologySnapshot,
+)
 
 
 def _ready_release(name: str):
@@ -63,15 +68,34 @@ def request_project_ontologies(project, actor, names: list[str]):
     if unknown:
         raise ValueError("Unknown ontologies: " + ", ".join(sorted(unknown)))
 
-    project.ontology_load_requests.filter(
+    superseded = project.ontology_load_requests.filter(
         status=OntologyLoadRequest.STATUS_PENDING
-    ).update(
+    )
+    superseded_ids = list(superseded.values_list("pk", flat=True))
+    superseded.update(
         status=OntologyLoadRequest.STATUS_FAILED, error="Superseded by newer settings"
+    )
+    OntologyLoadItem.objects.filter(
+        request_id__in=superseded_ids,
+        status=OntologyLoadItem.STATUS_PENDING,
+    ).update(
+        status=OntologyLoadItem.STATUS_FAILED, error="Superseded by newer settings"
     )
     request = OntologyLoadRequest.objects.create(
         project=project,
         requested_by=actor,
         ontology_names=names,
+    )
+    prefixes = {entry["name"]: entry["prefix"] for entry in ontology_entries()}
+    OntologyLoadItem.objects.bulk_create(
+        [
+            OntologyLoadItem(
+                request=request,
+                name=name,
+                prefix=prefixes.get(name, name),
+            )
+            for name in names
+        ]
     )
     if all(_ready_release(name) for name in names):
         process_load_request(request, allow_download=False)
@@ -96,12 +120,36 @@ def process_load_request(request, *, allow_download: bool = True):
         request.started_at = timezone.now()
         request.save(update_fields=["status", "error", "started_at"])
 
+        prefixes = {entry["name"]: entry["prefix"] for entry in ontology_entries()}
+        for name in request.ontology_names:
+            OntologyLoadItem.objects.get_or_create(
+                request=request,
+                name=name,
+                defaults={"prefix": prefixes.get(name, name)},
+            )
+
+    active_item = None
     try:
         for name in request.ontology_names:
-            if not _ready_release(name):
+            active_item = request.items.get(name=name)
+            active_item.status = OntologyLoadItem.STATUS_RUNNING
+            active_item.error = ""
+            active_item.started_at = timezone.now()
+            active_item.finished_at = None
+            active_item.save(
+                update_fields=["status", "error", "started_at", "finished_at"]
+            )
+
+            release = _ready_release(name)
+            if not release:
                 if not allow_download:
                     raise ValueError(f"Ontology '{name}' has not been loaded yet")
-                load_ontology_release(name)
+                release, _count = load_ontology_release(name)
+            active_item.status = OntologyLoadItem.STATUS_COMPLETE
+            active_item.term_count = release.term_count
+            active_item.finished_at = timezone.now()
+            active_item.save(update_fields=["status", "term_count", "finished_at"])
+            active_item = None
         snapshot = compose_snapshot(request.ontology_names)
         with transaction.atomic():
             project = (
@@ -127,8 +175,73 @@ def process_load_request(request, *, allow_download: bool = True):
                 },
             )
     except Exception as exc:
+        finished_at = timezone.now()
+        if active_item is not None:
+            active_item.status = OntologyLoadItem.STATUS_FAILED
+            active_item.error = str(exc)
+            active_item.finished_at = finished_at
+            active_item.save(update_fields=["status", "error", "finished_at"])
+        request.items.filter(status=OntologyLoadItem.STATUS_PENDING).update(
+            status=OntologyLoadItem.STATUS_FAILED,
+            error="Not attempted because another ontology failed to load.",
+            finished_at=finished_at,
+        )
         request.status = OntologyLoadRequest.STATUS_FAILED
         request.error = str(exc)
-        request.finished_at = timezone.now()
+        request.finished_at = finished_at
         request.save(update_fields=["status", "error", "finished_at"])
     return request
+
+
+def project_ontology_status(project) -> list[dict]:
+    """Return display-ready status rows for the project's selected ontologies."""
+
+    entries = {entry["name"]: entry for entry in ontology_entries()}
+    snapshot_releases = {}
+    if project.ontology_snapshot_id:
+        snapshot_releases = {
+            release.name: release
+            for release in project.ontology_snapshot.releases.all()
+        }
+
+    latest = project.ontology_load_requests.prefetch_related("items").first()
+    latest_items = {item.name: item for item in latest.items.all()} if latest else {}
+    rows = []
+    for name in project.ontology_names or []:
+        entry = entries.get(name, {"name": name, "prefix": name, "description": ""})
+        release = snapshot_releases.get(name)
+        item = latest_items.get(name)
+        if item is not None and item.status in {
+            item.STATUS_PENDING,
+            item.STATUS_RUNNING,
+        }:
+            status = item.status
+            term_count = release.term_count if release else item.term_count
+            error = item.error
+        elif release is not None:
+            status = "complete"
+            term_count = release.term_count
+            error = (
+                f"Latest reload failed: {item.error}"
+                if item and item.status == item.STATUS_FAILED
+                else ""
+            )
+        elif item is not None:
+            status = item.status
+            term_count = item.term_count
+            error = item.error
+        else:
+            status = "pending"
+            term_count = 0
+            error = "Waiting for an ontology load request."
+        rows.append(
+            {
+                "name": name,
+                "prefix": entry.get("prefix", name),
+                "description": entry.get("description", ""),
+                "status": status,
+                "term_count": term_count,
+                "error": error,
+            }
+        )
+    return rows

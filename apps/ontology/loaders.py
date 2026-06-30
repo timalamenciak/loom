@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import hashlib
 import io
 import urllib.request
@@ -10,6 +9,8 @@ from pathlib import Path
 
 import yaml
 from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
 
 from .models import OntologyRelease, OntologySnapshot, OntologyTerm
 
@@ -128,7 +129,7 @@ def load_ontology(
         "url": url,
         "sha256": release.source_sha256,
         "term_count": term_count,
-        "loaded_at": datetime.datetime.utcnow().isoformat(),
+        "loaded_at": timezone.now().isoformat(),
     }
     snapshot.source_versions = meta
     snapshot.save(update_fields=["source_versions"])
@@ -180,35 +181,36 @@ def load_ontology_release(
         status=OntologyRelease.STATUS_LOADING,
     )
     try:
-        ont = pronto.Ontology(io.BytesIO(content))
-        batch = []
-        for term in ont.terms():
-            curie = str(term.id)
-            term_prefix = curie.split(":")[0] if ":" in curie else prefix
-            if term_prefix != prefix:
-                continue
-            synonyms = [syn.description for syn in (term.synonyms or [])]
-            batch.append(
-                OntologyTerm(
-                    release=release,
-                    prefix=prefix,
-                    curie=curie,
-                    label=term.name or curie,
-                    synonyms=synonyms,
-                    synonym_labels=" ".join(synonyms),
-                    definition=str(term.definition) if term.definition else "",
-                    obsolete=bool(term.obsolete),
+        with transaction.atomic():
+            ont = pronto.Ontology(io.BytesIO(content))
+            batch = []
+            for term in ont.terms():
+                curie = str(term.id)
+                term_prefix = curie.split(":")[0] if ":" in curie else prefix
+                if term_prefix != prefix:
+                    continue
+                synonyms = [syn.description for syn in (term.synonyms or [])]
+                batch.append(
+                    OntologyTerm(
+                        release=release,
+                        prefix=prefix,
+                        curie=curie,
+                        label=term.name or curie,
+                        synonyms=synonyms,
+                        synonym_labels=" ".join(synonyms),
+                        definition=str(term.definition) if term.definition else "",
+                        obsolete=bool(term.obsolete),
+                    )
                 )
-            )
-            if len(batch) >= 2000:
+                if len(batch) >= 2000:
+                    OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+                    batch = []
+            if batch:
                 OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
-                batch = []
-        if batch:
-            OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
-        count = release.terms.count()
-        release.term_count = count
-        release.status = OntologyRelease.STATUS_READY
-        release.save(update_fields=["term_count", "status"])
+            count = release.terms.count()
+            release.term_count = count
+            release.status = OntologyRelease.STATUS_READY
+            release.save(update_fields=["term_count", "status"])
         return release, count
     except Exception as exc:
         release.status = OntologyRelease.STATUS_FAILED

@@ -1,0 +1,27 @@
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.operations import TrigramExtension
+from django.db import migrations
+
+
+class Migration(migrations.Migration):
+    dependencies = [("ontology", "0007_ontologyloaditem")]
+
+    operations = [
+        TrigramExtension(),
+        migrations.AddIndex(
+            model_name="ontologyterm",
+            index=GinIndex(
+                fields=["label"],
+                name="ontologyterm_label_trgm_idx",
+                opclasses=["gin_trgm_ops"],
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="ontologyterm",
+            index=GinIndex(
+                fields=["synonym_labels"],
+                name="ontologyterm_synonyms_trgm_idx",
+                opclasses=["gin_trgm_ops"],
+            ),
+        ),
+    ]

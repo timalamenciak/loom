@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import OntologyLoadRequest, OntologyRelease, OntologySnapshot, OntologyTerm
+from .models import (
+    OntologyLoadItem,
+    OntologyLoadRequest,
+    OntologyRelease,
+    OntologySnapshot,
+    OntologyTerm,
+)
 
 
 @admin.register(OntologyRelease)
@@ -42,3 +48,10 @@ class OntologyLoadRequestAdmin(admin.ModelAdmin):
     list_display = ["project", "status", "requested_by", "created_at", "finished_at"]
     list_filter = ["status"]
     readonly_fields = ["created_at", "started_at", "finished_at", "error"]
+
+
+@admin.register(OntologyLoadItem)
+class OntologyLoadItemAdmin(admin.ModelAdmin):
+    list_display = ["request", "name", "prefix", "status", "term_count"]
+    list_filter = ["status", "prefix"]
+    search_fields = ["name", "prefix", "error"]

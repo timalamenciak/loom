@@ -1,0 +1,40 @@
+<div id="ontology-load-status"
+     class="ontology-load-status"
+     aria-live="polite"
+     {% if latest_load.status == "pending" or latest_load.status == "running" %}
+     hx-get="{% url 'project-ontology-status' project.pk %}"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  {% if ontology_statuses %}
+  <h3>Loaded ontology status</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:.875rem">
+    <thead>
+      <tr style="border-bottom:2px solid #e5e7eb">
+        <th style="padding:.4rem .6rem;text-align:left">Ontology</th>
+        <th style="padding:.4rem .6rem;text-align:left">Status</th>
+        <th style="padding:.4rem .6rem;text-align:right">Cached classes</th>
+        <th style="padding:.4rem .6rem;text-align:left">Details</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for item in ontology_statuses %}
+      <tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:.4rem .6rem"><code>{{ item.prefix }}</code> — {{ item.description|default:item.name }}</td>
+        <td style="padding:.4rem .6rem">
+          <span class="badge badge-{{ item.status }}">
+            {% if item.status == "complete" %}Ready{% elif item.status == "running" %}Loading{% elif item.status == "failed" %}Failed{% else %}Queued{% endif %}
+          </span>
+        </td>
+        <td style="padding:.4rem .6rem;text-align:right">{% if item.status == "complete" %}{{ item.term_count|default:0 }}{% else %}—{% endif %}</td>
+        <td style="padding:.4rem .6rem">{% if item.error %}<span class="field-error">{{ item.error }}</span>{% else %}<span class="muted">{{ item.name }}</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% elif latest_load %}
+    <p class="muted">Latest ontology load: <span class="badge badge-{{ latest_load.status }}">{{ latest_load.get_status_display }}</span>{% if latest_load.error %} — {{ latest_load.error }}{% endif %}</p>
+  {% else %}
+    <p class="muted">No ontologies are selected for this project.</p>
+  {% endif %}
+</div>

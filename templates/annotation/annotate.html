@@ -144,6 +144,14 @@
          tabindex="-1">{{ project.name }}</a>
       &rsaquo; {{ document.title|truncatechars:80 }}
     </span>
+    {% if ontology_snapshot_update_available %}
+    <form method="post" action="{% url 'graph-ontology-snapshot-upgrade' project.pk document.pk %}" style="margin:0">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-secondary" title="Use the ontologies currently loaded for this project">
+        Update ontology cache
+      </button>
+    </form>
+    {% endif %}
 
     {% if session %}
     <span class="session-timer"

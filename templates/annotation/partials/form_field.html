@@ -94,6 +94,7 @@
          autocomplete="off">
   <input type="hidden" name="{{ field_name }}" id="id_{{ field_name }}"
          value="{% if slot.multivalued %}{{ current_data|dict_get:field_name|join_lines }}{% else %}{{ current_data|dict_get:field_name }}{% endif %}">
+  <div class="help" data-ontology-status aria-live="polite"></div>
   {% if slot.wikidata_live %}
   {# Wikidata hint inputs — populated by JS on term selection; validated server-side before use #}
   <input type="hidden" name="{{ field_name }}_wd_label" id="id_{{ field_name }}_wd_label" value="">

@@ -36,15 +36,24 @@ const OntologyAutocomplete = {
         const dropdown = this._buildDropdown();
         input.setAttribute('autocomplete', 'off');
         input._oaLabels = input._oaLabels || new Map();
+        input._oaSelectedLabel = '';
+        input._oaAbort = null;
         if (input.dataset.ontologyMultivalue === 'true') {
             this._renderSelected(input);
         }
+        this._hydrate(input);
 
         input.addEventListener('input', () => {
             clearTimeout(debounceTimer);
             const q = input.value.trim();
+            if (input.dataset.ontologyMultivalue !== 'true') {
+                const hidden = this._hiddenInput(input);
+                if (hidden && q !== input._oaSelectedLabel) hidden.value = '';
+                input.setCustomValidity(q ? 'Select a term from the suggestions.' : '');
+            }
             if (q.length < 2) {
                 dropdown.style.display = 'none';
+                this._setStatus(input, '');
                 return;
             }
             debounceTimer = setTimeout(() => this._fetch(input, dropdown, q), 250);
@@ -132,12 +141,21 @@ const OntologyAutocomplete = {
             }
         }
 
+        if (input._oaAbort) input._oaAbort.abort();
+        input._oaAbort = new AbortController();
+        this._setStatus(input, 'Searching…');
         let data;
         try {
-            const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const resp = await fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                signal: input._oaAbort.signal,
+            });
+            if (!resp.ok) throw new Error(`Search failed (${resp.status})`);
             data = await resp.json();
-        } catch {
+        } catch (error) {
+            if (error.name === 'AbortError') return;
             dropdown.style.display = 'none';
+            this._setStatus(input, 'Ontology search is temporarily unavailable.', true);
             return;
         }
 
@@ -150,6 +168,14 @@ const OntologyAutocomplete = {
             Object.assign(empty.style, { padding: '8px 12px', color: '#888', fontSize: '13px' });
             dropdown.appendChild(empty);
             dropdown.style.display = 'block';
+            const unavailable = data.meta?.unavailable_prefixes || [];
+            this._setStatus(
+                input,
+                unavailable.length
+                    ? `Not loaded: ${unavailable.join(', ')}.`
+                    : 'No matching cached terms.',
+                unavailable.length > 0,
+            );
             return;
         }
 
@@ -158,6 +184,12 @@ const OntologyAutocomplete = {
             dropdown.appendChild(this._buildItem(input, term, idx === 0));
         });
 
+        const unavailable = data.meta?.unavailable_prefixes || [];
+        this._setStatus(
+            input,
+            unavailable.length ? `Some ontologies are not loaded: ${unavailable.join(', ')}.` : '',
+            unavailable.length > 0,
+        );
         dropdown.style.display = 'block';
     },
 
@@ -212,6 +244,8 @@ const OntologyAutocomplete = {
 
         // Write label to the visible input
         input.value = term.label;
+        input._oaSelectedLabel = term.label;
+        input.setCustomValidity('');
 
         const curieTarget = input.dataset.curieTarget;
         if (curieTarget) {
@@ -312,6 +346,42 @@ const OntologyAutocomplete = {
         if (wdLabel) wdLabel.value = '';
         const wdDef = document.getElementById(curieTarget + '_wd_def');
         if (wdDef) wdDef.value = '';
+    },
+
+    async _hydrate(input) {
+        const hidden = this._hiddenInput(input);
+        if (!hidden) return;
+        const values = this._hiddenValues(hidden);
+        if (!values.length) return;
+
+        const prefixes = input.dataset.ontologyPrefixes || '';
+        const separator = this._searchUrl.includes('?') ? '&' : '?';
+        const url = `${this._searchUrl}${separator}curies=${encodeURIComponent(values.join(','))}&prefixes=${encodeURIComponent(prefixes)}`;
+        try {
+            const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!resp.ok) throw new Error(`Lookup failed (${resp.status})`);
+            const data = await resp.json();
+            (data.results || []).forEach((term) => input._oaLabels.set(term.curie, term.label));
+            if (input.dataset.ontologyMultivalue === 'true') {
+                this._renderSelected(input);
+            } else {
+                const match = (data.results || []).find((term) => term.curie === hidden.value);
+                if (match) {
+                    input.value = match.label;
+                    input._oaSelectedLabel = match.label;
+                    input.setCustomValidity('');
+                }
+            }
+        } catch {
+            this._setStatus(input, 'Saved term label could not be resolved.', true);
+        }
+    },
+
+    _setStatus(input, message, isError = false) {
+        const status = input.closest('.field')?.querySelector('[data-ontology-status]');
+        if (!status) return;
+        status.textContent = message;
+        status.style.color = isError ? '#b91c1c' : '';
     },
 };
 

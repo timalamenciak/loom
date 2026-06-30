@@ -12,6 +12,7 @@ from .models import CausalGraph, Edge, Node, WorkSession
 
 @transaction.atomic
 def update_graph_source_document(graph: CausalGraph, data: dict, actor) -> CausalGraph:
+    pin_graph_ontology_snapshot(graph, actor)
     graph.source_document = data
     graph.save(update_fields=["source_document"])
     emit_audit(actor, "graph.source_document", "CausalGraph", graph.pk, data)
@@ -32,6 +33,48 @@ def create_graph(
     return graph
 
 
+def pin_graph_ontology_snapshot(graph: CausalGraph, actor) -> CausalGraph:
+    """Pin an unversioned graph to its project's current ontology snapshot."""
+
+    if graph.ontology_snapshot_id:
+        return graph
+    snapshot_id = graph.document.project.ontology_snapshot_id
+    if not snapshot_id:
+        return graph
+    graph.ontology_snapshot_id = snapshot_id
+    graph.save(update_fields=["ontology_snapshot"])
+    emit_audit(
+        actor or graph.annotator,
+        "graph.ontology_snapshot.pin",
+        "CausalGraph",
+        graph.pk,
+        {"ontology_snapshot_id": snapshot_id},
+    )
+    return graph
+
+
+@transaction.atomic
+def upgrade_graph_ontology_snapshot(graph: CausalGraph, snapshot, actor) -> CausalGraph:
+    """Explicitly move a graph to a newer project ontology snapshot."""
+
+    if snapshot is None or graph.ontology_snapshot_id == snapshot.pk:
+        return graph
+    old_snapshot_id = graph.ontology_snapshot_id
+    graph.ontology_snapshot = snapshot
+    graph.save(update_fields=["ontology_snapshot"])
+    emit_audit(
+        actor or graph.annotator,
+        "graph.ontology_snapshot.upgrade",
+        "CausalGraph",
+        graph.pk,
+        {
+            "old_snapshot_id": old_snapshot_id,
+            "new_snapshot_id": snapshot.pk,
+        },
+    )
+    return graph
+
+
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 
 
@@ -42,6 +85,7 @@ def create_node(
     origin: str = Node.ORIGIN_HUMAN,
     actor=None,
 ) -> Node:
+    pin_graph_ontology_snapshot(graph, actor)
     name = data.get("name", "").strip() or _derive_name(data)
     category = data.get("entity_type", "")
     node = Node.objects.create(
@@ -58,6 +102,7 @@ def create_node(
 
 @transaction.atomic
 def update_node(node: Node, data: dict, actor=None) -> Node:
+    pin_graph_ontology_snapshot(node.graph, actor)
     node.name = data.get("name", "").strip() or _derive_name(data)
     node.category = data.get("entity_type", node.category)
     node.data = data
@@ -111,6 +156,7 @@ def create_edge(
     origin: str = Edge.ORIGIN_HUMAN,
     actor=None,
 ) -> Edge:
+    pin_graph_ontology_snapshot(graph, actor)
     if subject.graph_id != graph.pk or object_node.graph_id != graph.pk:
         raise ValueError("Edge endpoints must belong to the edge graph.")
     edge = Edge.objects.create(
@@ -135,6 +181,7 @@ def update_edge(
     object_node: Node = None,
     actor=None,
 ) -> Edge:
+    pin_graph_ontology_snapshot(edge.graph, actor)
     if subject is not None and subject.graph_id != edge.graph_id:
         raise ValueError("Edge subject must belong to the edge graph.")
     if object_node is not None and object_node.graph_id != edge.graph_id:

@@ -13,7 +13,10 @@ from django.views.generic import ListView
 
 from apps.audit.models import AuditEvent
 from apps.ontology.models import OntologySnapshot
-from apps.ontology.project_service import request_project_ontologies
+from apps.ontology.project_service import (
+    project_ontology_status,
+    request_project_ontologies,
+)
 from apps.schemas.models import SchemaVersion
 from apps.schemas.ontology_inference import infer_ontologies
 from apps.schemas.services import get_or_create_schema_version
@@ -258,6 +261,7 @@ class ProjectSettingsView(LoginRequiredMixin, View):
             "form": form,
             "inferred": inferred,
             "latest_load": latest_load,
+            "ontology_statuses": project_ontology_status(project),
             "sd_slots": _sd_slots(project),
             "sample_graphs": sample_graphs,
         }
@@ -325,6 +329,22 @@ class ProjectSettingsView(LoginRequiredMixin, View):
                 request, "Project settings saved; ontology loading is queued."
             )
         return redirect("project-settings", pk=project.pk)
+
+
+class ProjectOntologyStatusView(LoginRequiredMixin, View):
+    """HTMX fragment showing per-source ontology loading progress."""
+
+    def get(self, request, pk):
+        project = _require_owner(request, get_object_or_404(Project, pk=pk))
+        return render(
+            request,
+            "projects/partials/ontology_status.html",
+            {
+                "project": project,
+                "latest_load": project.ontology_load_requests.first(),
+                "ontology_statuses": project_ontology_status(project),
+            },
+        )
 
 
 class ProjectDeleteView(LoginRequiredMixin, View):
@@ -735,26 +755,14 @@ class RegisterOntologySourceView(LoginRequiredMixin, View):
             },
         )
 
-        # --- load synchronously (120 s download timeout via urllib) ---
-        from apps.ontology.loaders import load_ontology_release
-
-        try:
-            release, term_count = load_ontology_release(name)
-        except Exception as exc:
-            messages.error(request, f"Failed to load ontology: {exc}")
-            return redirect("project-settings", pk=project.pk)
-
-        # --- add to project and rebuild snapshot ---
+        # Add to the project and let the ontology worker download/index it.
+        # Large sources must never block the settings request.
         names = set(project.ontology_names or [])
         names.add(name)
         project.ontology_names = sorted(names)
         project.save(update_fields=["ontology_names", "updated_at"])
 
-        from apps.ontology.project_service import request_project_ontologies
-
-        load_request = request_project_ontologies(
-            project, request.user, project.ontology_names
-        )
+        request_project_ontologies(project, request.user, project.ontology_names)
 
         AuditEvent.objects.create(
             actor=request.user,
@@ -765,23 +773,15 @@ class RegisterOntologySourceView(LoginRequiredMixin, View):
                 "prefix": prefix,
                 "name": name,
                 "url": url,
-                "term_count": term_count,
+                "term_count": 0,
                 "created": created,
             },
         )
 
-        if load_request.status == load_request.STATUS_COMPLETE:
-            messages.success(
-                request,
-                f'Registered "{name}" ({prefix}, {term_count:,} terms) and '
-                "added it to the project snapshot.",
-            )
-        else:
-            messages.success(
-                request,
-                f'Registered "{name}" ({prefix}, {term_count:,} terms); '
-                "snapshot rebuild is queued.",
-            )
+        messages.success(
+            request,
+            f'Registered "{name}" ({prefix}); download and indexing are queued.',
+        )
         return redirect("project-settings", pk=project.pk)
 
 
