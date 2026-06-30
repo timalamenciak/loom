@@ -380,6 +380,45 @@ class TestSchemaEngine:
             == "node_picker"
         )
 
+    def test_cached_schema_view_refreshes_when_schema_content_changes(self, db):
+        old_schema = """
+id: https://example.org/cache
+name: cache
+version: cache
+classes:
+  OldClass:
+    attributes:
+      name:
+        range: string
+"""
+        new_schema = """
+id: https://example.org/cache
+name: cache
+version: cache
+classes:
+  NewClass:
+    attributes:
+      name:
+        range: string
+"""
+        schema = SchemaVersion.objects.create(
+            version="cache",
+            linkml_yaml=old_schema,
+            is_active=True,
+        )
+
+        old_view = get_schema_view(schema)
+        assert "OldClass" in old_view.class_names()
+
+        schema.linkml_yaml = new_schema
+        schema.save(update_fields=["linkml_yaml"])
+        schema.refresh_from_db()
+        new_view = get_schema_view(schema)
+
+        assert new_view is not old_view
+        assert "NewClass" in new_view.class_names()
+        assert "OldClass" not in new_view.class_names()
+
 
 # ── Schema switching (Phase 2 acceptance criterion) ───────────────────────────
 

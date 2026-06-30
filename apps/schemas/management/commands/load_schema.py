@@ -22,6 +22,16 @@ class Command(BaseCommand):
             dest="version",
             help="Override the version string (defaults to the 'version:' field in the YAML)",
         )
+        parser.add_argument(
+            "--replace-version",
+            action="store_true",
+            default=False,
+            help=(
+                "Update existing SchemaVersion rows with this version in place. "
+                "Useful for local schema testing because projects and graphs "
+                "keep their existing schema foreign keys."
+            ),
+        )
 
     def handle(self, *args, **options):
         path = Path(options["yaml_file"])
@@ -48,6 +58,43 @@ class Command(BaseCommand):
             SchemaView(content)
         except Exception as exc:
             raise CommandError(f"Invalid LinkML schema: {exc}") from exc
+
+        if options["replace_version"]:
+            matches = list(
+                SchemaVersion.objects.filter(version=version).order_by(
+                    "-is_active", "-loaded_at", "-pk"
+                )
+            )
+            if matches:
+                target = next((schema for schema in matches if schema.is_active), None)
+                target = target or matches[0]
+
+                if options["activate"]:
+                    SchemaVersion.objects.exclude(pk=target.pk).update(
+                        is_active=False
+                    )
+
+                for schema in matches:
+                    schema.linkml_yaml = content
+                    update_fields = ["linkml_yaml"]
+                    if options["activate"] and schema.pk == target.pk:
+                        schema.is_active = True
+                        update_fields.append("is_active")
+                    schema.save(update_fields=update_fields)
+
+                invalidate_cache()
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Updated {len(matches)} existing CAMO {version} "
+                        "SchemaVersion row(s) in place"
+                        + (
+                            f" - pk={target.pk} set as active"
+                            if options["activate"]
+                            else ""
+                        )
+                    )
+                )
+                return
 
         sv = SchemaVersion.objects.create(
             version=version,

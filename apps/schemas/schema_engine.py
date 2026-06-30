@@ -31,7 +31,7 @@ import threading
 
 from linkml_runtime.utils.schemaview import SchemaView
 
-_cache: dict[int, "LoomSchemaView"] = {}
+_cache: dict[int, tuple[str, "LoomSchemaView"]] = {}
 _lock = threading.Lock()
 
 # Primitive range → widget type
@@ -60,9 +60,11 @@ _PRIMITIVE_WIDGET = {
 def get_schema_view(schema_version) -> "LoomSchemaView":
     """Return a cached LoomSchemaView for *schema_version*."""
     with _lock:
-        if schema_version.pk not in _cache:
-            _cache[schema_version.pk] = LoomSchemaView(schema_version)
-        return _cache[schema_version.pk]
+        digest = schema_version.sha256
+        cached = _cache.get(schema_version.pk)
+        if cached is None or cached[0] != digest:
+            _cache[schema_version.pk] = (digest, LoomSchemaView(schema_version))
+        return _cache[schema_version.pk][1]
 
 
 def invalidate_cache(schema_version_pk: int | None = None):

@@ -47,3 +47,20 @@ Loom follow-up after upstream schema update:
 - Reload or reactivate the patched 0.4.2 schema in any development/project
   database; existing `SchemaVersion` rows do not automatically change when the
   YAML file changes on disk.
+
+Temporary Loom test-server reload:
+
+```bash
+python manage.py load_schema config/schema/camo-0.4.2.yaml --schema-version 0.4.2 --activate --replace-version
+```
+
+For Docker Compose:
+
+```bash
+docker compose exec web python manage.py load_schema config/schema/camo-0.4.2.yaml --schema-version 0.4.2 --activate --replace-version
+```
+
+`--replace-version` updates existing `SchemaVersion(version="0.4.2")` rows in
+place so existing projects and graphs keep their foreign-key pins but receive
+the patched YAML content. Without this, `load_schema --activate` creates a new
+row that existing graphs may never use.

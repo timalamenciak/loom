@@ -100,6 +100,55 @@ def test_load_and_list_schema_commands(db, tmp_path):
     assert "[ACTIVE]" in output.getvalue()
 
 
+def test_load_schema_replace_version_updates_existing_pins(db, tmp_path):
+    old_schema = SchemaVersion.objects.create(
+        version="1.2.3",
+        linkml_yaml=MINIMAL_SCHEMA,
+        is_active=True,
+    )
+    duplicate = SchemaVersion.objects.create(
+        version="1.2.3",
+        linkml_yaml=MINIMAL_SCHEMA,
+        is_active=False,
+    )
+    replacement = MINIMAL_SCHEMA.replace("range: string", "range: integer")
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(replacement, encoding="utf-8")
+    output = StringIO()
+
+    call_command("load_schema", schema_path, "--replace-version", stdout=output)
+
+    assert SchemaVersion.objects.filter(version="1.2.3").count() == 2
+    old_schema.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert "range: integer" in old_schema.linkml_yaml
+    assert "range: integer" in duplicate.linkml_yaml
+    assert old_schema.is_active
+    assert "Updated 2 existing CAMO 1.2.3" in output.getvalue()
+
+
+def test_load_schema_replace_version_can_activate_existing_row(db, tmp_path):
+    active = SchemaVersion.objects.create(
+        version="active",
+        linkml_yaml=MINIMAL_SCHEMA.replace("version: 1.2.3", "version: active"),
+        is_active=True,
+    )
+    target = SchemaVersion.objects.create(
+        version="1.2.3",
+        linkml_yaml=MINIMAL_SCHEMA,
+        is_active=False,
+    )
+    schema_path = tmp_path / "schema.yaml"
+    schema_path.write_text(MINIMAL_SCHEMA, encoding="utf-8")
+
+    call_command("load_schema", schema_path, "--replace-version", "--activate")
+
+    active.refresh_from_db()
+    target.refresh_from_db()
+    assert not active.is_active
+    assert target.is_active
+
+
 def test_load_schema_override_fallback_and_errors(db, tmp_path):
     missing = tmp_path / "missing.yaml"
     with pytest.raises(CommandError, match="File not found"):
