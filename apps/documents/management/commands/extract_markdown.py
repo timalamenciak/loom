@@ -2,7 +2,7 @@
 
 from django.core.management.base import BaseCommand
 
-from apps.documents.services import extract_markdown_from_pdf
+from apps.documents.services import extract_markdown_from_pdf, make_docling_converter
 from apps.projects.models import Document
 
 
@@ -43,9 +43,15 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(f"Processing {total} document(s)…")
+        try:
+            converter = make_docling_converter()
+        except Exception as exc:
+            self.stderr.write(self.style.ERROR(f"Failed to initialise docling: {exc}"))
+            return
+
         ok = skip = 0
         for doc in qs.iterator():
-            if extract_markdown_from_pdf(doc):
+            if extract_markdown_from_pdf(doc, converter=converter):
                 ok += 1
                 self.stdout.write(f"  ✓  [{doc.pk}] {doc.title[:70]}")
             else:

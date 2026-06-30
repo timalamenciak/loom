@@ -75,16 +75,33 @@ def set_abstract_as_canonical(document) -> bool:
     return True
 
 
-def extract_markdown_from_pdf(document) -> bool:
+def make_docling_converter():
+    """Build a PDF-only DocumentConverter (loads model weights once; reuse across calls)."""
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.do_ocr = False
+    return DocumentConverter(
+        allowed_formats=[InputFormat.PDF],
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        },
+    )
+
+
+def extract_markdown_from_pdf(document, converter=None) -> bool:
     """Convert PDF to Markdown using docling for better multi-column layout handling.
 
     Populates document.canonical_markdown in-place (and saves).
     Returns True on success. Does NOT replace canonical_text — both coexist.
+    Pass a pre-built converter to avoid reloading model weights per document.
     This is a slow, one-time operation; call from attach_pdf or a management command,
     not from the hot request path.
     """
     try:
-        from docling.document_converter import DocumentConverter
+        from docling.document_converter import DocumentConverter  # noqa: F401
     except ImportError:
         return False
 
@@ -92,8 +109,8 @@ def extract_markdown_from_pdf(document) -> bool:
         return False
 
     try:
-        converter = DocumentConverter()
-        result = converter.convert(document.pdf_file.path)
+        cv = converter or make_docling_converter()
+        result = cv.convert(document.pdf_file.path)
         document.canonical_markdown = result.document.export_to_markdown()
         document.save(update_fields=["canonical_markdown"])
         return True
