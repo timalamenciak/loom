@@ -91,6 +91,7 @@ All variables live in `.env` (copied from `.env.example`). Never commit `.env`.
 | `LOOM_MAX_RIS_UPLOAD_MB` | No | `10` | RIS upload limit |
 | `LOOM_MAX_BUNDLE_UPLOAD_MB` | No | `2048` | Compressed RIS/PDF bundle limit |
 | `LOOM_MAX_BUNDLE_UNCOMPRESSED_MB` | No | `2048` | Expanded bundle safety limit |
+| `GUNICORN_CMD_ARGS` | No | `--timeout=300` | Gunicorn options; allows large bundle file I/O to finish |
 
 ## Running without Docker
 

@@ -505,15 +505,14 @@ class RISBundleImportView(LoginRequiredMixin, View):
                 request,
                 "Could not match PDF(s): " + ", ".join(result.unmatched_pdfs[:10]),
             )
-        if result.extraction_succeeded:
+        if result.extraction_deferred:
             messages.info(
                 request,
-                f"Text extracted for {len(result.extraction_succeeded)} attached PDF(s).",
-            )
-        if result.extraction_failed:
-            messages.warning(
-                request,
-                f"Text extraction failed for {len(result.extraction_failed)} attached PDF(s).",
+                (
+                    "PDF text extraction was deferred to keep this large import "
+                    "responsive. Text will be extracted when each document is opened "
+                    "for annotation."
+                ),
             )
         return redirect("project-detail", pk=project.pk)
 

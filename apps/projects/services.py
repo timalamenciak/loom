@@ -129,8 +129,7 @@ class BundleImportResult:
     attached: list[Document] = field(default_factory=list)
     already_had_pdf: list[Document] = field(default_factory=list)
     unmatched_pdfs: list[str] = field(default_factory=list)
-    extraction_succeeded: list[Document] = field(default_factory=list)
-    extraction_failed: list[Document] = field(default_factory=list)
+    extraction_deferred: list[Document] = field(default_factory=list)
 
 
 def _normalized_match_key(value: str | None) -> str:
@@ -202,7 +201,12 @@ def _match_pdf_to_document(
 
 
 def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
-    """Import one RIS file and matching article PDFs from a ZIP archive."""
+    """Import one RIS file and matching article PDFs from a ZIP archive.
+
+    Text extraction is deliberately deferred. Extracting every PDF in a large
+    bundle can exceed the web worker timeout; annotation views extract one PDF
+    on demand, and the ``extract_text`` command supports proactive batch work.
+    """
     result = BundleImportResult()
     validate_bundle_upload(file_obj)
     file_obj.seek(0)
@@ -286,10 +290,7 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
 
             attach_pdf_to_document(doc, io.BytesIO(archive.read(info)), safe_name)
             result.attached.append(doc)
-            if extract_pdf_text_for_document(doc):
-                result.extraction_succeeded.append(doc)
-            else:
-                result.extraction_failed.append(doc)
+            result.extraction_deferred.append(doc)
 
     return result
 

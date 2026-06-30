@@ -246,7 +246,7 @@ def test_import_zipped_ris_bundle_attaches_pdfs_by_doi(project, settings, tmp_pa
 
 
 @pytest.mark.django_db
-def test_import_zipped_ris_bundle_extracts_text(
+def test_import_zipped_ris_bundle_defers_text_extraction(
     project, settings, tmp_path, monkeypatch
 ):
     settings.MEDIA_ROOT = tmp_path
@@ -258,10 +258,7 @@ def test_import_zipped_ris_bundle_extracts_text(
     )
 
     def extract_text(document):
-        document.canonical_text = "Extracted full text"
-        document.page_map = [{"page": 1, "start_char": 0, "end_char": 19}]
-        document.save(update_fields=["canonical_text", "page_map"])
-        return True
+        raise AssertionError("bundle imports must not extract PDF text synchronously")
 
     monkeypatch.setattr(
         "apps.projects.services.extract_pdf_text_for_document", extract_text
@@ -270,8 +267,8 @@ def test_import_zipped_ris_bundle_extracts_text(
 
     doc = Document.objects.get(doi="10.1234/test.2021")
     assert result.attached == [doc]
-    assert result.extraction_succeeded == [doc]
-    assert doc.canonical_text == "Extracted full text"
+    assert result.extraction_deferred == [doc]
+    assert doc.canonical_text == doc.abstract
 
 
 @pytest.mark.django_db

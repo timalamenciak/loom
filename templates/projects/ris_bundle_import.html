@@ -11,7 +11,8 @@
   <p class="muted">
     Upload a <strong>.zip</strong> file containing one RIS file and the PDFs for those records.
     Loom creates or reuses the RIS records, then attaches PDFs matched by attachment filename,
-    DOI, or title. Existing PDFs are not replaced.
+    DOI, or title. Existing PDFs are not replaced. To keep large imports responsive, full text
+    is extracted when each document is first opened for annotation.
   </p>
 
   <form method="post" enctype="multipart/form-data" data-upload-progress-form>

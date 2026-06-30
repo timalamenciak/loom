@@ -163,7 +163,8 @@ class RISBundleImportForm(forms.Form):
         label="RIS + PDF ZIP file",
         help_text=(
             "Upload a .zip file containing exactly one .ris file and the article PDFs. "
-            "PDFs are matched by RIS attachment filename, DOI, or title."
+            "PDFs are matched by RIS attachment filename, DOI, or title. "
+            "Full text is extracted when a document is first opened for annotation."
         ),
         widget=forms.ClearableFileInput(attrs={"accept": ".zip,application/zip"}),
     )

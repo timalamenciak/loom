@@ -28,7 +28,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PYSTOW_HOME=/tmp/pystow \
     APP_DIR=/opt/loom \
-    PYTHONPATH=/opt/loom
+    PYTHONPATH=/opt/loom \
+    GUNICORN_CMD_ARGS=--timeout=300
 
 WORKDIR /opt/loom
 
