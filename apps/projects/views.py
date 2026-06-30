@@ -34,6 +34,7 @@ from .services import (
     assign_document,
     attach_pdf_to_document,
     delete_project,
+    extract_pdf_text_for_document,
     import_ris_file,
     import_zipped_ris_bundle,
 )
@@ -504,14 +505,10 @@ class RISBundleImportView(LoginRequiredMixin, View):
                 request,
                 "Could not match PDF(s): " + ", ".join(result.unmatched_pdfs[:10]),
             )
-        if result.extraction_deferred:
+        if result.extraction_succeeded:
             messages.info(
                 request,
-                (
-                    f"Text extraction was deferred for {len(result.extraction_deferred)} "
-                    "PDF(s). Run the extract_text command for this project before full-text "
-                    "annotation."
-                ),
+                f"Text extracted for {len(result.extraction_succeeded)} attached PDF(s).",
             )
         if result.extraction_failed:
             messages.warning(
@@ -561,11 +558,12 @@ class PDFUploadView(LoginRequiredMixin, View):
                 {"project": project, "form": form},
             )
 
+        text_extracted = extract_pdf_text_for_document(doc)
         messages.success(request, f'Uploaded "{doc.title}".')
-        messages.info(
-            request,
-            "Text extraction was deferred. Run the extract_text command before full-text annotation.",
-        )
+        if text_extracted:
+            messages.info(request, "Text extracted and ready for full-text annotation.")
+        else:
+            messages.warning(request, "PDF saved, but text extraction failed.")
         return redirect("document-detail", pk=project.pk, doc_pk=doc.pk)
 
 
@@ -618,11 +616,12 @@ class AttachPDFView(LoginRequiredMixin, View):
                 {"project": project, "document": doc, "form": form},
             )
 
+        text_extracted = extract_pdf_text_for_document(doc)
         messages.success(request, f'PDF attached to "{doc.title[:60]}".')
-        messages.info(
-            request,
-            "Text extraction was deferred. Run the extract_text command before full-text annotation.",
-        )
+        if text_extracted:
+            messages.info(request, "Text extracted and ready for full-text annotation.")
+        else:
+            messages.warning(request, "PDF saved, but text extraction failed.")
         return redirect("document-detail", pk=project.pk, doc_pk=doc.pk)
 
 

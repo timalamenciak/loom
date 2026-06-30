@@ -95,6 +95,26 @@
   {% endif %}
 </div>
 
+{% elif slot.widget == "enum_autocomplete" %}
+<div class="field">
+  <label for="id_{{ field_name }}_display">
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <input type="text"
+         id="id_{{ field_name }}_display"
+         data-enum-autocomplete
+         data-choices="{{ slot.choices|to_json }}"
+         data-hidden-target="id_{{ field_name }}"
+         value="{{ current_data|dict_get:field_name }}"
+         placeholder="Type to filter…"
+         autocomplete="off">
+  <input type="hidden"
+         name="{{ field_name }}"
+         id="id_{{ field_name }}"
+         value="{{ current_data|dict_get:field_name }}">
+</div>
+
 {% elif slot.widget == "checkbox" %}
 <div class="field" style="display:flex;align-items:center;gap:.5rem">
   <input type="hidden" name="{{ field_name }}" value="false">

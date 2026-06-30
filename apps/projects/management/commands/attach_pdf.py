@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.projects.models import Document
-from apps.projects.services import attach_pdf_to_document
+from apps.projects.services import attach_pdf_to_document, extract_pdf_text_for_document
 
 
 class Command(BaseCommand):
@@ -28,3 +28,11 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"Attached PDF to document #{doc.pk}: {doc.title[:60]}")
         )
+        if extract_pdf_text_for_document(doc):
+            chars = len(doc.canonical_text or "")
+            pages = len(doc.page_map or [])
+            self.stdout.write(
+                self.style.SUCCESS(f"Extracted text ({chars} chars, {pages} pages).")
+            )
+        else:
+            self.stdout.write(self.style.WARNING("Text extraction failed."))

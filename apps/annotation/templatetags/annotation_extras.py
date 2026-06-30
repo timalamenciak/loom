@@ -1,3 +1,5 @@
+import json
+
 from django import template
 
 register = template.Library()
@@ -34,6 +36,18 @@ def is_checked(value):
     if value is True:
         return True
     return str(value).strip().lower() in {"true", "1", "yes", "on"}
+
+
+@register.filter
+def to_json(value):
+    """Serialize *value* to a JSON string for embedding in a data-* attribute.
+
+    Django's template auto-escaping will HTML-encode the result (replacing
+    ``"`` with ``&quot;`` etc.), which is correct for attribute values — the
+    browser HTML-decodes before the JS reads it, so JSON.parse() receives the
+    original string.
+    """
+    return json.dumps(value, ensure_ascii=True)
 
 
 @register.filter

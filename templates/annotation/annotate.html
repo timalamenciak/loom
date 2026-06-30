@@ -330,20 +330,23 @@
 </script>
 {% endif %}
 
-{# ── HTMX CSRF + ontology autocomplete re-init after HTMX swaps ── #}
+{# ── Autocomplete init — ontology (server-side AJAX) + enum (client-side filter) ── #}
 <script>
   window.loomOntologySearchUrl = "{% url 'project-ontology-search' project.pk %}?graph={{ graph.pk }}";
-  // Re-attach ontology autocomplete whenever HTMX swaps new content into the form panel
-  document.getElementById('form-panel')?.addEventListener('htmx:afterSwap', () => {
-    window.OntologyAutocomplete?.init(window.loomOntologySearchUrl);
-  });
 
-  // Also handle the case where htmx:afterSettle fires (for OOB swaps)
+  function _initAutocomplete() {
+    window.OntologyAutocomplete?.init(window.loomOntologySearchUrl);
+    window.EnumAutocomplete?.init();
+  }
+
+  // Init for any forms in the initial server-rendered HTML (e.g. ?form=node).
+  _initAutocomplete();
+
+  // Re-attach after HTMX (or fallback JS) swaps new content into the form panel.
+  document.getElementById('form-panel')?.addEventListener('htmx:afterSwap', _initAutocomplete);
+
   document.addEventListener('htmx:afterSettle', (e) => {
-    const target = e.detail.target;
-    if (target && target.id === 'form-panel') {
-      window.OntologyAutocomplete?.init(window.loomOntologySearchUrl);
-    }
+    if (e.detail?.target?.id === 'form-panel') _initAutocomplete();
   });
 </script>
 {% endblock %}

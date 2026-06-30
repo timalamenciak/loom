@@ -222,6 +222,175 @@ const OntologyAutocomplete = {
 
 window.OntologyAutocomplete = OntologyAutocomplete;
 
+// ── EnumAutocomplete ────────────────────────────────────────────────────────
+// Client-side filterable dropdown for large LinkML enums (e.g. EcosystemFunctionalGroupEnum).
+// Attaches to inputs with [data-enum-autocomplete] that carry a [data-choices] JSON array
+// of {value, label} objects, and a [data-hidden-target] pointing to the hidden <input>
+// that holds the submitted enum value.
+
+const EnumAutocomplete = {
+    init() {
+        document.querySelectorAll('[data-enum-autocomplete]').forEach((el) => {
+            this.attach(el);
+        });
+    },
+
+    attach(input) {
+        if (input.dataset.enumAutocompleteAttached === 'true') return;
+        input.dataset.enumAutocompleteAttached = 'true';
+
+        const hiddenId = input.dataset.hiddenTarget;
+        const hidden = hiddenId ? document.getElementById(hiddenId) : null;
+
+        let choices = [];
+        try {
+            choices = JSON.parse(input.getAttribute('data-choices') || '[]');
+        } catch (_) {
+            return;
+        }
+
+        // Pre-fill visible label from the stored enum value.
+        if (hidden && hidden.value) {
+            const match = choices.find((c) => c.value === hidden.value);
+            if (match) input.value = match.label;
+        }
+
+        const dropdown = this._buildDropdown();
+        input.setAttribute('autocomplete', 'off');
+
+        let debounceTimer = null;
+
+        input.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => this._render(input, dropdown, choices, hidden), 150);
+        });
+
+        input.addEventListener('focus', () => {
+            this._render(input, dropdown, choices, hidden);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (dropdown.style.display === 'none') {
+                if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                    e.preventDefault();
+                    this._render(input, dropdown, choices, hidden);
+                }
+                return;
+            }
+            const items = dropdown.querySelectorAll('.oa-item');
+            const active = dropdown.querySelector('.oa-item.active');
+            let idx = Array.from(items).indexOf(active);
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                idx = Math.min(idx + 1, items.length - 1);
+                items.forEach((item, n) => item.classList.toggle('active', n === idx));
+                items[idx]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                idx = Math.max(idx - 1, 0);
+                items.forEach((item, n) => item.classList.toggle('active', n === idx));
+                items[idx]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && active) {
+                e.preventDefault();
+                active.click();
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        input.addEventListener('blur', () => {
+            setTimeout(() => {
+                dropdown.style.display = 'none';
+                // If the visible text is blank, clear the hidden value too.
+                if (!input.value.trim() && hidden) {
+                    hidden.value = '';
+                }
+            }, 150);
+        });
+
+        document.body.appendChild(dropdown);
+        window.addEventListener('resize', () => this._positionDropdown(input, dropdown));
+    },
+
+    _render(input, dropdown, choices, hidden) {
+        const q = input.value.trim().toLowerCase();
+        const filtered = q
+            ? choices.filter(
+                (c) =>
+                    c.label.toLowerCase().includes(q) ||
+                    c.value.toLowerCase().replace(/_/g, ' ').includes(q)
+              )
+            : choices;
+
+        this._positionDropdown(input, dropdown);
+        dropdown.innerHTML = '';
+
+        if (filtered.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = 'No matches.';
+            Object.assign(empty.style, { padding: '8px 12px', color: '#888', fontSize: '13px' });
+            dropdown.appendChild(empty);
+            dropdown.style.display = 'block';
+            return;
+        }
+
+        _ensureOaStyles();
+        filtered.slice(0, 60).forEach((choice, idx) => {
+            const item = document.createElement('div');
+            item.className = 'oa-item' + (idx === 0 ? ' active' : '');
+            item.innerHTML = `<span class="oa-label">${_esc(choice.label)}</span>`;
+            Object.assign(item.style, {
+                padding: '6px 12px',
+                cursor: 'pointer',
+                borderBottom: '1px solid var(--border, #eee)',
+                fontSize: '13px',
+            });
+            item.addEventListener('mouseenter', () => {
+                item.closest('.oa-dropdown').querySelectorAll('.oa-item')
+                    .forEach((i) => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+            item.addEventListener('click', () => {
+                input.value = choice.label;
+                if (hidden) hidden.value = choice.value;
+                dropdown.style.display = 'none';
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            dropdown.appendChild(item);
+        });
+
+        dropdown.style.display = 'block';
+    },
+
+    _buildDropdown() {
+        const el = document.createElement('div');
+        el.className = 'oa-dropdown';
+        Object.assign(el.style, {
+            position: 'fixed',
+            zIndex: '8888',
+            background: 'var(--bg, #fff)',
+            border: '1px solid var(--border, #ddd)',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+            maxHeight: '260px',
+            overflowY: 'auto',
+            display: 'none',
+            minWidth: '300px',
+        });
+        return el;
+    },
+
+    _positionDropdown(input, dropdown) {
+        const rect = input.getBoundingClientRect();
+        dropdown.style.left = `${rect.left}px`;
+        dropdown.style.top = `${rect.bottom + 2}px`;
+        dropdown.style.width = `${Math.max(rect.width, 320)}px`;
+    },
+};
+
+window.EnumAutocomplete = EnumAutocomplete;
+
 function _ensureOaStyles() {
     if (document.getElementById('oa-style')) return;
     const s = document.createElement('style');

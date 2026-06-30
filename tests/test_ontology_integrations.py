@@ -440,6 +440,47 @@ def test_merge_wikidata_deduplicates_and_fails_closed():
     assert _merge_wikidata(request, local, "term", 5) == local
 
 
+def test_project_search_falls_back_to_active_snapshot(client, project):
+    """ProjectOntologySearchView must use the active snapshot when the project
+    has no snapshot pinned, so annotators see results without manual snapshot
+    configuration."""
+    user = project.created_by
+    ProjectMembership.objects.create(
+        project=project, user=user, role=ProjectMembership.ROLE_ADMIN
+    )
+    client.force_login(user)
+
+    # Build an active snapshot with a term
+    release = OntologyRelease.objects.create(
+        name="test",
+        prefix="TEST",
+        source_url="https://example.org/test.obo",
+        source_sha256="a" * 64,
+        status=OntologyRelease.STATUS_READY,
+        term_count=1,
+    )
+    snapshot = OntologySnapshot.objects.create(is_active=True)
+    snapshot.releases.add(release)
+    OntologyTerm.objects.create(
+        release=release,
+        curie="TEST:999",
+        label="fallback term",
+        prefix="TEST",
+        obsolete=False,
+    )
+
+    # Project intentionally has no ontology_snapshot pinned.
+    assert project.ontology_snapshot is None
+
+    url = reverse("project-ontology-search", args=[project.pk])
+    response = client.get(url, {"q": "fallback"})
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert any(r["curie"] == "TEST:999" for r in results), (
+        "Expected fallback to active snapshot to surface TEST:999"
+    )
+
+
 def test_ontology_search_live_and_project_permissions(client, project):
     ProjectMembership.objects.create(
         project=project,

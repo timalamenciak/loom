@@ -34,6 +34,7 @@
 
     function initFormEnhancements() {
         window.OntologyAutocomplete?.init(window.loomOntologySearchUrl || '/ontology/search/');
+        window.EnumAutocomplete?.init();
     }
 
     function swapHtml(target, html) {

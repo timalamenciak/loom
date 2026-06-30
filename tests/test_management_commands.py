@@ -192,10 +192,15 @@ def test_attach_pdf_command_success_and_failures(project, tmp_path, settings):
     pdf.write_bytes(b"%PDF-1.4\nsmall test file")
     output = StringIO()
 
-    call_command("attach_pdf", document.pk, pdf, stdout=output)
+    with patch(
+        "apps.projects.management.commands.attach_pdf.extract_pdf_text_for_document",
+        return_value=True,
+    ):
+        call_command("attach_pdf", document.pk, pdf, stdout=output)
     document.refresh_from_db()
     assert document.has_pdf
     assert "Attached PDF" in output.getvalue()
+    assert "Extracted text" in output.getvalue()
 
     with pytest.raises(CommandError, match="No document"):
         call_command("attach_pdf", 999999, pdf)

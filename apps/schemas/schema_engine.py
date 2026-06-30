@@ -35,6 +35,10 @@ _cache: dict[int, "LoomSchemaView"] = {}
 _lock = threading.Lock()
 
 # Primitive range → widget type
+# Enums with more than this many choices get a client-side filterable
+# autocomplete widget instead of a plain <select> dropdown.
+_LARGE_ENUM_THRESHOLD = 20
+
 _PRIMITIVE_WIDGET = {
     "string": "text",
     "str": "text",
@@ -199,6 +203,11 @@ class LoomSchemaView:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
 
+        # Pre-compute enum choices so we can use the count for widget selection.
+        _enum_choices: list[dict] = []
+        if self._sv.get_enum(slot.range or ""):
+            _enum_choices = self._enum_choices(slot.range)
+
         # Widget classification
         if slot_name in widget_overrides:
             widget = widget_overrides[slot_name]
@@ -207,7 +216,11 @@ class LoomSchemaView:
         elif slot_range in _PRIMITIVE_WIDGET:
             widget = _PRIMITIVE_WIDGET[slot_range]
         elif self._sv.get_enum(slot.range or ""):
-            widget = "select"
+            widget = (
+                "enum_autocomplete"
+                if len(_enum_choices) > _LARGE_ENUM_THRESHOLD
+                else "select"
+            )
         elif self._sv.get_class(slot.range or ""):
             widget = "fieldset"
         else:
@@ -241,8 +254,8 @@ class LoomSchemaView:
             "pattern": slot.pattern or "",
         }
 
-        if widget == "select":
-            spec["choices"] = self._enum_choices(slot.range)
+        if widget in ("select", "enum_autocomplete"):
+            spec["choices"] = _enum_choices
 
         if widget == "fieldset":
             is_inlined = getattr(slot, "inlined", False) or getattr(
@@ -266,10 +279,15 @@ class LoomSchemaView:
         choices = []
         for pv_name, pv in (enum_def.permissible_values or {}).items():
             ann = pv.annotations or {}
+            label = (
+                _ann_value(ann, "display_label")
+                or _ann_value(ann, "preferred_label")
+                or pv_name.replace("_", " ").title()
+            )
             choices.append(
                 {
                     "value": pv_name,
-                    "label": pv_name.replace("_", " ").title(),
+                    "label": label,
                     "description": pv.description or "",
                     "linguistic_cues": _ann_value(ann, "linguistic_cues"),
                     "exemplars": _ann_value(ann, "exemplars"),

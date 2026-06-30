@@ -129,7 +129,7 @@ class BundleImportResult:
     attached: list[Document] = field(default_factory=list)
     already_had_pdf: list[Document] = field(default_factory=list)
     unmatched_pdfs: list[str] = field(default_factory=list)
-    extraction_deferred: list[Document] = field(default_factory=list)
+    extraction_succeeded: list[Document] = field(default_factory=list)
     extraction_failed: list[Document] = field(default_factory=list)
 
 
@@ -286,7 +286,10 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
 
             attach_pdf_to_document(doc, io.BytesIO(archive.read(info)), safe_name)
             result.attached.append(doc)
-            result.extraction_deferred.append(doc)
+            if extract_pdf_text_for_document(doc):
+                result.extraction_succeeded.append(doc)
+            else:
+                result.extraction_failed.append(doc)
 
     return result
 
@@ -309,6 +312,13 @@ def attach_pdf_to_document(
     doc.sha256 = sha256
     doc.save(update_fields=["pdf_file", "sha256"])
     return doc
+
+
+def extract_pdf_text_for_document(doc: Document) -> bool:
+    """Extract canonical text for a stored PDF attachment."""
+    from apps.documents import services as document_services
+
+    return document_services.extract_text_from_pdf(doc)
 
 
 def _hash_limited_upload(file_obj, maximum: int, label: str) -> str:

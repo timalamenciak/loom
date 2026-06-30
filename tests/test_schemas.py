@@ -12,6 +12,7 @@ from apps.schemas.schema_engine import LoomSchemaView, get_schema_view, invalida
 
 CAMO_040 = "config/schema/camo-0.4.0.yaml"
 CAMO_041 = "config/schema/camo-0.4.1.yaml"
+CAMO_042 = "config/schema/camo-0.4.2.yaml"
 CAMO_050 = "config/schema/camo-0.5.0.yaml"
 
 
@@ -105,6 +106,36 @@ class TestEngineNoDB:
     def test_v050_adds_hypothesis_record_no_db(self):
         lsv = LoomSchemaView(_StubSchemaVersion(CAMO_050, "0.5.0"))
         assert "HypothesisRecord" in lsv.class_names()
+
+    def test_large_enum_gets_enum_autocomplete_widget(self):
+        """EcosystemFunctionalGroupEnum has 110 values in 0.4.2 → enum_autocomplete."""
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_042, "0.4.2"))
+        spec = lsv.form_spec("CausalEdge")
+        all_slots = [s for layer in spec for s in layer["slots"]]
+        eco = next((s for s in all_slots if s["name"] == "ecosystem_context"), None)
+        assert eco is not None, "ecosystem_context slot not found in CausalEdge spec"
+        assert eco["widget"] == "enum_autocomplete"
+        assert len(eco["choices"]) == 110
+
+    def test_enum_autocomplete_choices_use_display_label(self):
+        """Choices for EcosystemFunctionalGroupEnum should use schema display_label annotations."""
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_042, "0.4.2"))
+        spec = lsv.form_spec("CausalEdge")
+        all_slots = [s for layer in spec for s in layer["slots"]]
+        eco = next(s for s in all_slots if s["name"] == "ecosystem_context")
+        first = eco["choices"][0]
+        # display_label includes the IUCN GET code prefix, e.g. "T1.1 Tropical-..."
+        assert first["label"].startswith("T"), (
+            f"Expected label starting with IUCN code, got: {first['label']!r}"
+        )
+
+    def test_small_enum_stays_as_select(self):
+        """ClaimStrengthEnum (4 values) stays as a plain select, not enum_autocomplete."""
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_040))
+        spec = lsv.form_spec("CausalEdge")
+        all_slots = [s for layer in spec for s in layer["slots"]]
+        cs = next(s for s in all_slots if s["name"] == "claim_strength")
+        assert cs["widget"] == "select"
 
     def test_v040_missing_biotic_interaction_type_no_db(self):
         lsv = LoomSchemaView(_StubSchemaVersion(CAMO_040))

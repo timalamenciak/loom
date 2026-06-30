@@ -99,6 +99,12 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
                 CausalGraph, pk=graph_pk, document__project=project
             )
             snapshot = graph.ontology_snapshot or snapshot
+        # Fall back to the site-wide active snapshot so search works out of
+        # the box when no per-project snapshot has been pinned yet.
+        if snapshot is None:
+            from .models import OntologySnapshot as _Snap
+
+            snapshot = _Snap.get_active()
 
         q = request.GET.get("q", "").strip()
         if len(q) < 2:

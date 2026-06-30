@@ -246,7 +246,7 @@ def test_import_zipped_ris_bundle_attaches_pdfs_by_doi(project, settings, tmp_pa
 
 
 @pytest.mark.django_db
-def test_import_zipped_ris_bundle_defers_text_extraction(
+def test_import_zipped_ris_bundle_extracts_text(
     project, settings, tmp_path, monkeypatch
 ):
     settings.MEDIA_ROOT = tmp_path
@@ -257,15 +257,21 @@ def test_import_zipped_ris_bundle_defers_text_extraction(
         }
     )
 
-    def fail_if_called(document):
-        raise AssertionError("bundle import should not extract PDF text in the request")
+    def extract_text(document):
+        document.canonical_text = "Extracted full text"
+        document.page_map = [{"page": 1, "start_char": 0, "end_char": 19}]
+        document.save(update_fields=["canonical_text", "page_map"])
+        return True
 
-    monkeypatch.setattr("apps.documents.services.extract_text_from_pdf", fail_if_called)
+    monkeypatch.setattr(
+        "apps.projects.services.extract_pdf_text_for_document", extract_text
+    )
     result = import_zipped_ris_bundle(project, upload)
 
     doc = Document.objects.get(doi="10.1234/test.2021")
     assert result.attached == [doc]
-    assert result.extraction_deferred == [doc]
+    assert result.extraction_succeeded == [doc]
+    assert doc.canonical_text == "Extracted full text"
 
 
 @pytest.mark.django_db
@@ -508,8 +514,8 @@ def test_ris_bundle_import_view(client, project, admin_user, settings, tmp_path)
 
 
 @pytest.mark.django_db
-def test_pdf_upload_view_defers_text_extraction(
-    client, project, admin_user, settings, tmp_path
+def test_pdf_upload_view_extracts_text(
+    client, project, admin_user, settings, tmp_path, monkeypatch
 ):
     settings.MEDIA_ROOT = tmp_path
     client.force_login(admin_user)
@@ -519,6 +525,15 @@ def test_pdf_upload_view_defers_text_extraction(
         content_type="application/pdf",
     )
 
+    def extract_text(document):
+        document.canonical_text = "Extracted standalone text"
+        document.page_map = [{"page": 1, "start_char": 0, "end_char": 25}]
+        document.save(update_fields=["canonical_text", "page_map"])
+        return True
+
+    monkeypatch.setattr(
+        "apps.projects.views.extract_pdf_text_for_document", extract_text
+    )
     response = client.post(
         reverse("project-upload-pdf", args=[project.pk]),
         {"title": "Standalone paper", "pdf_file": upload},
@@ -528,7 +543,7 @@ def test_pdf_upload_view_defers_text_extraction(
     assert response.status_code == 302
     doc = Document.objects.get(title="Standalone paper")
     assert doc.has_pdf
-    assert not doc.canonical_text
+    assert doc.canonical_text == "Extracted standalone text"
 
 
 @pytest.mark.django_db
