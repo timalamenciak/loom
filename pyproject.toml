@@ -25,7 +25,7 @@ dependencies = [
     "linkml>=1.7",
     "pronto>=2.5",
     "pyyaml>=6.0",
-    "rispy>=0.9",
+    "rispy>=0.10.0",
     "gunicorn>=22.0",
     "whitenoise>=6.7",
     # PDF extraction and Markdown generation: pdfplumber (MIT)
