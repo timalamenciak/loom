@@ -2133,9 +2133,10 @@ classes:
 
       study_ecosystem:
         description: >-
-          Ecosystem type, ideally mapped to IUCN GET typology.
-          E.g., "T4.4 Temperate woodlands" or ENVO:01000180.
-        range: string
+          Ecosystem type mapped to the IUCN Global Ecosystem Typology Level 3
+          ecosystem functional groups represented by ELMO ecosystem type terms.
+          E.g., "temperate_woodlands" for T4.4 Temperate woodlands.
+        range: EcosystemFunctionalGroupEnum
       study_taxa:
         description: "Focal taxa of the study."
         range: string

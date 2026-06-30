@@ -476,9 +476,9 @@ def test_project_search_falls_back_to_active_snapshot(client, project):
     response = client.get(url, {"q": "fallback"})
     assert response.status_code == 200
     results = response.json()["results"]
-    assert any(r["curie"] == "TEST:999" for r in results), (
-        "Expected fallback to active snapshot to surface TEST:999"
-    )
+    assert any(
+        r["curie"] == "TEST:999" for r in results
+    ), "Expected fallback to active snapshot to surface TEST:999"
 
 
 def test_ontology_search_live_and_project_permissions(client, project):

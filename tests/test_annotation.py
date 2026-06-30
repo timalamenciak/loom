@@ -146,6 +146,26 @@ def schema_version(db):
 
 
 @pytest.fixture
+def schema_version_042(db):
+    """Load CAMO 0.4.2 for SourceDocument enum-autocomplete coverage."""
+    from pathlib import Path
+
+    from apps.schemas.models import SchemaVersion
+
+    schema_path = (
+        Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.2.yaml"
+    )
+    if not schema_path.exists():
+        pytest.skip("CAMO 0.4.2 schema file not found")
+
+    return SchemaVersion.objects.create(
+        version="0.4.2",
+        linkml_yaml=schema_path.read_text(encoding="utf-8"),
+        is_active=True,
+    )
+
+
+@pytest.fixture
 def document(project_and_user):
     project, user = project_and_user
     from apps.projects.models import Document
@@ -575,6 +595,99 @@ class TestNodeCreate:
         assert not Edge.objects.filter(pk=edge.pk).exists()
         assert AuditEvent.objects.filter(action="edge.delete").exists()
         assert AuditEvent.objects.filter(action="node.delete").exists()
+
+
+class TestSourceDocumentForm:
+    def test_study_ecosystem_renders_enum_autocomplete(
+        self, project_and_user, document, assignment, schema_version_042
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document,
+            annotator=user,
+            schema_version=schema_version_042,
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        html = response.content.decode()
+        assert response.status_code == 200
+        assert 'id="id_study_ecosystem_display"' in html
+        assert "data-enum-autocomplete" in html
+        assert 'data-hidden-target="id_study_ecosystem"' in html
+        assert 'name="study_ecosystem"' in html
+        assert "temperate_subhumid_grasslands" in html
+        assert "T4.5 Temperate subhumid grasslands" in html
+
+    def test_study_ecosystem_saves_enum_value_from_autocomplete(
+        self, project_and_user, document, assignment, schema_version_042
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document,
+            annotator=user,
+            schema_version=schema_version_042,
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/save/",
+            {"study_ecosystem": "temperate_subhumid_grasslands"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        graph.refresh_from_db()
+        assert response.status_code == 200
+        assert graph.source_document["study_ecosystem"] == (
+            "temperate_subhumid_grasslands"
+        )
+
+    def test_study_ecosystem_rejects_display_label_without_hidden_enum_value(
+        self, project_and_user, document, assignment, schema_version_042
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document,
+            annotator=user,
+            schema_version=schema_version_042,
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/save/",
+            {"study_ecosystem": "T4.5 Temperate subhumid grasslands"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        graph.refresh_from_db()
+        assert response.status_code == 422
+        assert "study_ecosystem" not in graph.source_document
+        assert b"Select a value defined by the active schema." in response.content
 
 
 class TestEdgeCreate:

@@ -117,6 +117,21 @@ class TestEngineNoDB:
         assert eco["widget"] == "enum_autocomplete"
         assert len(eco["choices"]) == 110
 
+    def test_source_document_study_ecosystem_uses_large_enum_autocomplete(self):
+        """SourceDocument.study_ecosystem is driven by the 0.4.2 ecosystem enum."""
+        lsv = LoomSchemaView(_StubSchemaVersion(CAMO_042, "0.4.2"))
+        spec = lsv.form_spec("SourceDocument")
+        all_slots = [s for layer in spec for s in layer["slots"]]
+        eco = next((s for s in all_slots if s["name"] == "study_ecosystem"), None)
+        assert eco is not None, "study_ecosystem slot not found in SourceDocument spec"
+        assert eco["widget"] == "enum_autocomplete"
+        assert len(eco["choices"]) == 110
+        assert any(
+            choice["value"] == "temperate_subhumid_grasslands"
+            and choice["label"] == "T4.5 Temperate subhumid grasslands"
+            for choice in eco["choices"]
+        )
+
     def test_enum_autocomplete_choices_use_display_label(self):
         """Choices for EcosystemFunctionalGroupEnum should use schema display_label annotations."""
         lsv = LoomSchemaView(_StubSchemaVersion(CAMO_042, "0.4.2"))
@@ -125,9 +140,9 @@ class TestEngineNoDB:
         eco = next(s for s in all_slots if s["name"] == "ecosystem_context")
         first = eco["choices"][0]
         # display_label includes the IUCN GET code prefix, e.g. "T1.1 Tropical-..."
-        assert first["label"].startswith("T"), (
-            f"Expected label starting with IUCN code, got: {first['label']!r}"
-        )
+        assert first["label"].startswith(
+            "T"
+        ), f"Expected label starting with IUCN code, got: {first['label']!r}"
 
     def test_small_enum_stays_as_select(self):
         """ClaimStrengthEnum (4 values) stays as a plain select, not enum_autocomplete."""
