@@ -51,6 +51,29 @@ def test_inference_finds_registered_and_unresolved_prefixes(schema):
 
 
 @pytest.mark.django_db
+def test_inference_uses_loom_ontology_annotations():
+    schema = SchemaVersion.objects.create(
+        version="loom-ontologies",
+        linkml_yaml="""
+id: https://example.org/loom-ontologies
+name: loom-ontologies
+classes:
+  Example:
+    attributes:
+      term:
+        range: uriorcurie
+        annotations:
+          loom_ontologies: "PATO, NCBITaxon"
+""",
+    )
+
+    result = infer_ontologies(schema)
+    names = {item["name"] for item in result["matched"]}
+
+    assert {"pato", "ncbitaxon"} <= names
+
+
+@pytest.mark.django_db
 def test_owner_can_update_project_settings(client, owner, configured_project, schema):
     client.force_login(owner)
     response = client.post(

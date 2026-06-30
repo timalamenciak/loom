@@ -12,6 +12,7 @@ from django.http import QueryDict
 from django.test import RequestFactory
 from django.urls import reverse
 
+from apps.annotation.models import CausalGraph
 from apps.ontology import adhoc, loaders, wikidata_search
 from apps.ontology.models import (
     OntologyLoadRequest,
@@ -24,7 +25,8 @@ from apps.ontology.project_service import (
     process_load_request,
     request_project_ontologies,
 )
-from apps.projects.models import Project, ProjectMembership
+from apps.projects.models import Document, Project, ProjectMembership
+from apps.schemas.models import SchemaVersion
 
 MINI_OBO = b"""\
 format-version: 1.2
@@ -203,13 +205,53 @@ def test_wikidata_uncached_filters_and_limits_candidates():
     ]
     with (
         patch.object(wikidata_search, "_wbsearch", return_value=candidates),
-        patch.object(wikidata_search, "_sparql_filter", return_value={"Q2", "Q3"}),
+        patch.object(wikidata_search, "_claim_filter", return_value={"Q2", "Q3"}),
     ):
         assert wikidata_search._search_uncached("q", None, 1) == [
             {"curie": "WD:Q2", "label": "two", "description": "second"}
         ]
     with patch.object(wikidata_search, "_wbsearch", return_value=[]):
         assert wikidata_search._search_uncached("q", None, 10) == []
+
+
+def test_wikidata_taxon_search_uses_claim_filter_for_generic_taxon_root():
+    candidates = [
+        {"qid": "Q149892", "label": "Canis", "description": "genus of mammals"},
+        {"qid": "Q144", "label": "dog", "description": "domesticated species"},
+    ]
+    with (
+        patch.object(wikidata_search, "_wbsearch", return_value=candidates),
+        patch.object(wikidata_search, "_claim_filter", return_value={"Q149892"})
+        as claim_filter,
+        patch.object(wikidata_search, "_sparql_filter") as sparql_filter,
+    ):
+        assert wikidata_search._search_uncached("Canis", "Q16521", 10) == [
+            {
+                "curie": "WD:Q149892",
+                "label": "Canis",
+                "description": "genus of mammals",
+            }
+        ]
+    claim_filter.assert_called_once_with(["Q149892", "Q144"], "Q16521")
+    sparql_filter.assert_not_called()
+
+
+def test_claim_filter_accepts_taxon_rank_or_taxon_instance_and_fails_closed():
+    payload = json.dumps(
+        {
+            "entities": {
+                "Q149892": {"claims": {"P105": [{"mainsnak": {"datavalue": {"value": {"id": "Q34740"}}}}]}},
+                "Q18498": {"claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q16521"}}}}]}},
+                "Q144": {"claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q55983715"}}}}]}},
+            }
+        }
+    ).encode()
+    with patch("urllib.request.urlopen", return_value=Response(payload)):
+        assert wikidata_search._claim_filter(
+            ["Q149892", "Q18498", "Q144"], "Q16521"
+        ) == {"Q149892", "Q18498"}
+    with patch("urllib.request.urlopen", side_effect=URLError("offline")):
+        assert wikidata_search._claim_filter(["Q149892"], "Q16521") == set()
 
 
 def test_wbsearch_parses_results_and_fails_closed():
@@ -480,6 +522,57 @@ def test_project_search_falls_back_to_active_snapshot(client, project):
     assert any(
         r["curie"] == "TEST:999" for r in results
     ), "Expected fallback to active snapshot to surface TEST:999"
+
+
+def test_project_search_uses_project_snapshot_when_graph_snapshot_lacks_prefix(
+    client, project
+):
+    user = project.created_by
+    ProjectMembership.objects.create(
+        project=project, user=user, role=ProjectMembership.ROLE_ADMIN
+    )
+    client.force_login(user)
+
+    schema = SchemaVersion.objects.create(
+        version="ontology-test",
+        linkml_yaml="id: https://example.org/test\nname: test\nclasses: {CausalGraph: {}}\n",
+    )
+    document = Document.objects.create(
+        project=project,
+        source=Document.SOURCE_MANUAL,
+        title="Ontology search document",
+    )
+    old_snapshot = OntologySnapshot.objects.create(
+        name="old-graph-snapshot",
+        source_versions={"GO": {"name": "go"}},
+    )
+    project_snapshot = OntologySnapshot.objects.create(
+        name="current-project-snapshot",
+        source_versions={"PATO": {"name": "pato"}},
+    )
+    OntologyTerm.objects.create(
+        snapshot=project_snapshot,
+        prefix="PATO",
+        curie="PATO:0002019",
+        label="abundance",
+    )
+    project.ontology_snapshot = project_snapshot
+    project.ontology_names = ["pato"]
+    project.save(update_fields=["ontology_snapshot", "ontology_names"])
+    graph = CausalGraph.objects.create(
+        document=document,
+        annotator=user,
+        schema_version=schema,
+        ontology_snapshot=old_snapshot,
+    )
+
+    response = client.get(
+        reverse("project-ontology-search", args=[project.pk]),
+        {"q": "abundance", "prefixes": "GO,PATO", "graph": graph.pk},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["results"][0]["curie"] == "PATO:0002019"
 
 
 def test_ontology_search_live_and_project_permissions(client, project):

@@ -16,6 +16,7 @@ _MAPPING_KEYS = {
     "narrow_mappings",
     "id_prefixes",
 }
+_ONTOLOGY_PREFIX_KEYS = {"loom_ontologies"}
 _UI_CONFIG = Path(__file__).resolve().parents[2] / "config" / "loom_ui.yaml"
 
 
@@ -24,6 +25,23 @@ def _curie_prefix(value) -> str | None:
         return None
     prefix = value.split(":", 1)[0]
     return prefix if prefix and "/" not in prefix else None
+
+
+def _ontology_prefixes(value) -> list[str]:
+    if isinstance(value, list):
+        return [
+            prefix
+            for item in value
+            for prefix in _ontology_prefixes(item)
+        ]
+    if not isinstance(value, str):
+        return []
+    return [
+        item.strip()
+        for part in value.split(",")
+        for item in part.split()
+        if item.strip()
+    ]
 
 
 def _walk(value, evidence: dict[str, set[str]]):
@@ -35,6 +53,9 @@ def _walk(value, evidence: dict[str, set[str]]):
                     prefix = _curie_prefix(item)
                     if prefix:
                         evidence[prefix.lower()].add(key)
+            if key in _ONTOLOGY_PREFIX_KEYS:
+                for prefix in _ontology_prefixes(child):
+                    evidence[prefix.lower()].add(key)
             _walk(child, evidence)
     elif isinstance(value, list):
         for child in value:

@@ -14,6 +14,16 @@ from .services import search_terms
 from .wikidata_search import search as wikidata_search
 
 
+def _snapshot_prefixes(snapshot) -> set[str]:
+    if snapshot is None:
+        return set()
+    prefixes = set((snapshot.source_versions or {}).keys())
+    prefixes.update(snapshot.releases.values_list("prefix", flat=True))
+    if not prefixes:
+        prefixes.update(snapshot.terms.values_list("prefix", flat=True).distinct())
+    return prefixes
+
+
 def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[dict]:
     """Append Wikidata live results when the caller requests it.
 
@@ -61,7 +71,6 @@ class OntologySearchView(LoginRequiredMixin, View):
             limit = min(max(int(request.GET.get("limit", 20)), 1), 50)
         except (TypeError, ValueError):
             limit = 20
-
         if len(q) < 2:
             return JsonResponse({"results": []})
 
@@ -93,14 +102,17 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
         ):
             raise PermissionDenied
 
-        snapshot = project.ontology_snapshot
+        project_snapshot = project.ontology_snapshot
+        snapshot = project_snapshot
         graph_pk = request.GET.get("graph")
         graph = None
+        graph_snapshot = None
         if graph_pk:
             graph = get_object_or_404(
                 CausalGraph, pk=graph_pk, document__project=project
             )
-            snapshot = graph.ontology_snapshot or snapshot
+            graph_snapshot = graph.ontology_snapshot
+            snapshot = graph_snapshot or snapshot
         # Fall back to the site-wide active snapshot so search works out of
         # the box when no per-project snapshot has been pinned yet.
         if snapshot is None:
@@ -115,16 +127,24 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
             limit = min(max(int(request.GET.get("limit", 20)), 1), 50)
         except ValueError:
             limit = 20
+        requested = {
+            prefix.strip()
+            for prefix in request.GET.get("prefixes", "").split(",")
+            if prefix.strip()
+        }
+
+        if requested and graph_snapshot and project_snapshot:
+            graph_prefixes = _snapshot_prefixes(graph_snapshot)
+            project_prefixes = _snapshot_prefixes(project_snapshot)
+            missing_from_graph = requested - graph_prefixes
+            if missing_from_graph & project_prefixes:
+                snapshot = project_snapshot
 
         # Local DB search — only possible when a snapshot exists.
         results: list[dict] = []
         if snapshot is not None:
             if graph and snapshot:
-                allowed_prefixes = set((snapshot.source_versions or {}).keys())
-                if not allowed_prefixes:
-                    allowed_prefixes = set(
-                        snapshot.releases.values_list("prefix", flat=True)
-                    )
+                allowed_prefixes = _snapshot_prefixes(snapshot)
             else:
                 selected_names = set(project.ontology_names or [])
                 allowed_prefixes = {
@@ -132,11 +152,6 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
                     for entry in ontology_entries()
                     if entry["name"] in selected_names
                 }
-            requested = {
-                prefix.strip()
-                for prefix in request.GET.get("prefixes", "").split(",")
-                if prefix.strip()
-            }
             prefixes = (
                 sorted(allowed_prefixes & requested)
                 if requested

@@ -1,12 +1,12 @@
 """Wikidata live term search for the ontology autocomplete.
 
-Two-step protocol:
-  1. wbsearchentities → candidate QIDs ordered by relevance.
-  2. Batched SPARQL VALUES query → keep only taxa (wdt:P105) and,
-     when root_qid is supplied, only descendants via wdt:P171*.
+The lookup first asks wbsearchentities for candidate QIDs, then filters them
+before returning WD: CURIEs. Generic taxon searches use wbgetentities claims to
+avoid high-frequency WDQS/SPARQL calls; narrower roots still use SPARQL for
+transitive hierarchy checks.
 
 Results are cached in-process for 60 s per (query, root_qid) pair to absorb
-repeated keystrokes without hammering both APIs.
+repeated keystrokes without hammering the remote APIs.
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ def search(
     Each result is ``{"curie": "WD:Q<n>", "label": str, "description": str}``.
     Returns [] on any network or parse failure.
 
-    When *root_qid* is given (e.g. ``"Q16521"`` for *taxon*) only items that
-    are the root itself or a descendant via ``wdt:P171*`` are returned.
+    When *root_qid* is given, results are restricted to that ontology branch
+    where Loom can check the relationship cheaply enough for typeahead.
     """
     cache_key = (query.lower(), root_qid, limit)
     with _cache_lock:
@@ -67,7 +67,7 @@ def search(
     return results
 
 
-# ── internals ─────────────────────────────────────────────────────────────────
+# Internals
 
 
 def _search_uncached(
@@ -75,14 +75,17 @@ def _search_uncached(
     root_qid: str | None,
     limit: int,
 ) -> list[dict]:
-    # Over-fetch so SPARQL filtering still yields enough results.
+    # Over-fetch so filtering still yields enough results.
     overfetch = min(limit * 2, 20)
     candidates = _wbsearch(query, overfetch)
     if not candidates:
         return []
 
     qids = [c["qid"] for c in candidates]
-    valid = _sparql_filter(qids, root_qid)
+    if root_qid in {None, "Q16521"}:
+        valid = _claim_filter(qids, root_qid)
+    else:
+        valid = _sparql_filter(qids, root_qid)
 
     results: list[dict] = []
     for c in candidates:
@@ -98,6 +101,54 @@ def _search_uncached(
             break
 
     return results
+
+
+def _claim_filter(qids: list[str], root_qid: str | None) -> set[str]:
+    """Filter candidates using wbgetentities claims.
+
+    Generic taxon lookup is on the high-frequency typing path.  Use the
+    standard Wikidata API instead of WDQS/SPARQL so ordinary searches like
+    "Canis" do not get blanked out by SPARQL rate limiting.
+    """
+    if not qids:
+        return set()
+    params = urllib.parse.urlencode(
+        {
+            "action": "wbgetentities",
+            "ids": "|".join(qids),
+            "props": "claims",
+            "format": "json",
+        }
+    )
+    req = urllib.request.Request(
+        f"{_WIKIDATA_API}?{params}",
+        headers={"User-Agent": _USER_AGENT},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+    except (URLError, OSError, ValueError):
+        return set()
+
+    valid: set[str] = set()
+    for qid, entity in (data.get("entities") or {}).items():
+        claims = entity.get("claims") or {}
+        if _has_claim(claims, "P105"):
+            valid.add(qid)
+            continue
+        if root_qid == "Q16521" and _has_claim(claims, "P31", root_qid):
+            valid.add(qid)
+    return valid
+
+
+def _has_claim(claims: dict, prop: str, target_qid: str | None = None) -> bool:
+    for claim in claims.get(prop, []):
+        value = claim.get("mainsnak", {}).get("datavalue", {}).get("value")
+        if target_qid is None and value:
+            return True
+        if isinstance(value, dict) and value.get("id") == target_qid:
+            return True
+    return False
 
 
 def _wbsearch(query: str, limit: int) -> list[dict]:
