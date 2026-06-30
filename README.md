@@ -87,10 +87,10 @@ All variables live in `.env` (copied from `.env.example`). Never commit `.env`.
 | `ALLOWED_HOSTS` | Prod | — | Comma-separated hostnames, e.g. `loom.example.com` |
 | `CSRF_TRUSTED_ORIGINS` | Prod proxy | — | Comma-separated HTTPS origins |
 | `DB_CONN_MAX_AGE` | No | `60` | Persistent database connection lifetime in seconds |
-| `LOOM_MAX_PDF_UPLOAD_MB` | No | `100` | Per-PDF upload limit |
+| `LOOM_MAX_PDF_UPLOAD_MB` | No | `2048` | Per-PDF upload limit |
 | `LOOM_MAX_RIS_UPLOAD_MB` | No | `10` | RIS upload limit |
-| `LOOM_MAX_BUNDLE_UPLOAD_MB` | No | `500` | Compressed RIS/PDF bundle limit |
-| `LOOM_MAX_BUNDLE_UNCOMPRESSED_MB` | No | `1000` | Expanded bundle safety limit |
+| `LOOM_MAX_BUNDLE_UPLOAD_MB` | No | `2048` | Compressed RIS/PDF bundle limit |
+| `LOOM_MAX_BUNDLE_UNCOMPRESSED_MB` | No | `2048` | Expanded bundle safety limit |
 
 ## Running without Docker
 

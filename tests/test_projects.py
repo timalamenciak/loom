@@ -17,7 +17,11 @@ from apps.projects.services import (
     import_ris_file,
     import_zipped_ris_bundle,
 )
-from apps.projects.upload_validation import UploadValidationError
+from apps.projects.upload_validation import (
+    UploadValidationError,
+    validate_bundle_upload,
+    validate_pdf_upload,
+)
 
 User = get_user_model()
 
@@ -76,6 +80,23 @@ def test_bundle_form_enforces_size_limit():
 
     assert not form.is_valid()
     assert "may not exceed" in form.errors["bundle_file"][0]
+
+
+def test_bundle_upload_default_limit_is_two_gb(settings):
+    assert settings.MAX_BUNDLE_UPLOAD_BYTES == 2048 * 1024 * 1024
+    assert settings.MAX_BUNDLE_UNCOMPRESSED_BYTES == 2048 * 1024 * 1024
+
+    upload = type("SizedUpload", (), {"size": settings.MAX_BUNDLE_UPLOAD_BYTES + 1})()
+    with pytest.raises(UploadValidationError, match="2048 MB"):
+        validate_bundle_upload(upload)
+
+
+def test_pdf_upload_default_limit_is_two_gb(settings):
+    assert settings.MAX_PDF_UPLOAD_BYTES == 2048 * 1024 * 1024
+
+    upload = type("SizedUpload", (), {"size": settings.MAX_PDF_UPLOAD_BYTES + 1})()
+    with pytest.raises(UploadValidationError, match="2048 MB"):
+        validate_pdf_upload(upload)
 
 
 @pytest.fixture
@@ -484,3 +505,54 @@ def test_ris_bundle_import_view(client, project, admin_user, settings, tmp_path)
     assert response.status_code == 302
     assert project.documents.count() == 2
     assert Document.objects.get(doi="10.1234/test.2021").has_pdf
+
+
+@pytest.mark.django_db
+def test_pdf_upload_view_defers_text_extraction(
+    client, project, admin_user, settings, tmp_path
+):
+    settings.MEDIA_ROOT = tmp_path
+    client.force_login(admin_user)
+    upload = SimpleUploadedFile(
+        "paper.pdf",
+        b"%PDF-1.4 standalone",
+        content_type="application/pdf",
+    )
+
+    response = client.post(
+        reverse("project-upload-pdf", args=[project.pk]),
+        {"title": "Standalone paper", "pdf_file": upload},
+        format="multipart",
+    )
+
+    assert response.status_code == 302
+    doc = Document.objects.get(title="Standalone paper")
+    assert doc.has_pdf
+    assert not doc.canonical_text
+
+
+@pytest.mark.django_db
+def test_pdf_upload_view_reports_attach_error_without_orphan_document(
+    client, project, admin_user, monkeypatch
+):
+    client.force_login(admin_user)
+
+    def fail_attach(*args, **kwargs):
+        raise ValueError("PDF files may not exceed 2048 MB.")
+
+    monkeypatch.setattr("apps.projects.views.attach_pdf_to_document", fail_attach)
+    upload = SimpleUploadedFile(
+        "paper.pdf",
+        b"%PDF-1.4 standalone",
+        content_type="application/pdf",
+    )
+
+    response = client.post(
+        reverse("project-upload-pdf", args=[project.pk]),
+        {"title": "Standalone paper", "pdf_file": upload},
+        format="multipart",
+    )
+
+    assert response.status_code == 200
+    assert "may not exceed 2048 MB" in response.context["form"].errors["pdf_file"][0]
+    assert Document.objects.filter(title="Standalone paper").count() == 0

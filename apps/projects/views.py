@@ -4,6 +4,7 @@ import re
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Count, Prefetch, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +12,6 @@ from django.views import View
 from django.views.generic import ListView
 
 from apps.audit.models import AuditEvent
-from apps.documents.services import extract_text_from_pdf
 from apps.ontology.models import OntologySnapshot
 from apps.ontology.project_service import request_project_ontologies
 from apps.schemas.models import SchemaVersion
@@ -539,14 +539,27 @@ class PDFUploadView(LoginRequiredMixin, View):
         upload = request.FILES["pdf_file"]
         title = form.cleaned_data["title"] or upload.name.removesuffix(".pdf")
 
-        doc = Document.objects.create(
-            project=project,
-            source=Document.SOURCE_PDF_UPLOAD,
-            title=title,
-        )
-        doc = attach_pdf_to_document(doc, upload, upload.name)
-        extract_text_from_pdf(doc)
+        try:
+            with transaction.atomic():
+                doc = Document.objects.create(
+                    project=project,
+                    source=Document.SOURCE_PDF_UPLOAD,
+                    title=title,
+                )
+                doc = attach_pdf_to_document(doc, upload, upload.name)
+        except ValueError as exc:
+            form.add_error("pdf_file", str(exc))
+            return render(
+                request,
+                "projects/pdf_upload.html",
+                {"project": project, "form": form},
+            )
+
         messages.success(request, f'Uploaded "{doc.title}".')
+        messages.info(
+            request,
+            "Text extraction was deferred. Run the extract_text command before full-text annotation.",
+        )
         return redirect("document-detail", pk=project.pk, doc_pk=doc.pk)
 
 
@@ -589,9 +602,21 @@ class AttachPDFView(LoginRequiredMixin, View):
                 {"project": project, "document": doc, "form": form},
             )
         upload = request.FILES["pdf_file"]
-        attach_pdf_to_document(doc, upload, upload.name)
-        extract_text_from_pdf(doc)
+        try:
+            attach_pdf_to_document(doc, upload, upload.name)
+        except ValueError as exc:
+            form.add_error("pdf_file", str(exc))
+            return render(
+                request,
+                "projects/attach_pdf.html",
+                {"project": project, "document": doc, "form": form},
+            )
+
         messages.success(request, f'PDF attached to "{doc.title[:60]}".')
+        messages.info(
+            request,
+            "Text extraction was deferred. Run the extract_text command before full-text annotation.",
+        )
         return redirect("document-detail", pk=project.pk, doc_pk=doc.pk)
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import rispy
 from django.conf import settings
-from django.core.files.base import ContentFile
+from django.core.files.base import File
 from django.db import transaction
 
 from apps.annotation.models import Edge
@@ -302,16 +302,29 @@ def attach_pdf_to_document(
     """Store *file_obj* as the Document's PDF; compute SHA-256. Returns the updated doc."""
     validate_pdf_upload(file_obj)
     file_obj.seek(0)
-    content = file_obj.read(settings.MAX_PDF_UPLOAD_BYTES + 1)
-    if len(content) > settings.MAX_PDF_UPLOAD_BYTES:
-        limit_mb = settings.MAX_PDF_UPLOAD_BYTES // (1024 * 1024)
-        raise ValueError(f"PDF files may not exceed {limit_mb} MB.")
-    sha256 = hashlib.sha256(content).hexdigest()
+    sha256 = _hash_limited_upload(file_obj, settings.MAX_PDF_UPLOAD_BYTES, "PDF files")
+    file_obj.seek(0)
     safe_name = Path(filename).name or "document.pdf"
-    doc.pdf_file.save(safe_name, ContentFile(content), save=False)
+    doc.pdf_file.save(safe_name, File(file_obj), save=False)
     doc.sha256 = sha256
     doc.save(update_fields=["pdf_file", "sha256"])
     return doc
+
+
+def _hash_limited_upload(file_obj, maximum: int, label: str) -> str:
+    hasher = hashlib.sha256()
+    total = 0
+    if hasattr(file_obj, "chunks"):
+        chunks = file_obj.chunks()
+    else:
+        chunks = iter(lambda: file_obj.read(1024 * 1024), b"")
+    for chunk in chunks:
+        total += len(chunk)
+        if total > maximum:
+            limit_mb = maximum // (1024 * 1024)
+            raise ValueError(f"{label} may not exceed {limit_mb} MB.")
+        hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 # ---------------------------------------------------------------------------

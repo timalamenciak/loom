@@ -112,13 +112,13 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # Upload limits are configurable for institutional deployments, but are also
 # enforced in the service layer so management commands cannot bypass them.
-MAX_PDF_UPLOAD_BYTES = _positive_env_int("LOOM_MAX_PDF_UPLOAD_MB", 100) * 1024 * 1024
+MAX_PDF_UPLOAD_BYTES = _positive_env_int("LOOM_MAX_PDF_UPLOAD_MB", 2048) * 1024 * 1024
 MAX_RIS_UPLOAD_BYTES = _positive_env_int("LOOM_MAX_RIS_UPLOAD_MB", 10) * 1024 * 1024
 MAX_BUNDLE_UPLOAD_BYTES = (
-    _positive_env_int("LOOM_MAX_BUNDLE_UPLOAD_MB", 500) * 1024 * 1024
+    _positive_env_int("LOOM_MAX_BUNDLE_UPLOAD_MB", 2048) * 1024 * 1024
 )
 MAX_BUNDLE_UNCOMPRESSED_BYTES = (
-    _positive_env_int("LOOM_MAX_BUNDLE_UNCOMPRESSED_MB", 1000) * 1024 * 1024
+    _positive_env_int("LOOM_MAX_BUNDLE_UNCOMPRESSED_MB", 2048) * 1024 * 1024
 )
 MAX_BUNDLE_FILES = _positive_env_int("LOOM_MAX_BUNDLE_FILES", 1000)
 MAX_ZIP_COMPRESSION_RATIO = _positive_env_int("LOOM_MAX_ZIP_COMPRESSION_RATIO", 200)
