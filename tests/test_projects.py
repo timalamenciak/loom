@@ -556,3 +556,33 @@ def test_pdf_upload_view_reports_attach_error_without_orphan_document(
     assert response.status_code == 200
     assert "may not exceed 2048 MB" in response.context["form"].errors["pdf_file"][0]
     assert Document.objects.filter(title="Standalone paper").count() == 0
+
+
+@pytest.mark.django_db
+def test_pdf_upload_view_reports_storage_error_without_orphan_document(
+    client, project, admin_user, monkeypatch
+):
+    client.force_login(admin_user)
+
+    def fail_attach(*args, **kwargs):
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr("apps.projects.views.attach_pdf_to_document", fail_attach)
+    upload = SimpleUploadedFile(
+        "paper.pdf",
+        b"%PDF-1.4 standalone",
+        content_type="application/pdf",
+    )
+
+    response = client.post(
+        reverse("project-upload-pdf", args=[project.pk]),
+        {"title": "Standalone paper", "pdf_file": upload},
+        format="multipart",
+    )
+
+    assert response.status_code == 200
+    assert (
+        "could not be saved. Check media storage permissions"
+        in response.context["form"].errors["pdf_file"][0]
+    )
+    assert Document.objects.filter(title="Standalone paper").count() == 0

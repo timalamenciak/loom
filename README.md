@@ -176,6 +176,11 @@ the PostgreSQL-backed automated test suite.
 5. Run with gunicorn: `gunicorn loom.wsgi:application --bind 0.0.0.0:8000`
 6. Put Nginx or Caddy in front for TLS termination.
 
+The container uses `/opt/loom` as its application directory. Compose deployments
+that keep uploaded PDFs in a volume should mount media at `/opt/loom/media`.
+For live code editing on a server, bind-mount `/opt/loom:/opt/loom` and keep
+`/opt/loom/media` on a separate named volume.
+
 `prod.py` enforces `SECURE_SSL_REDIRECT`, secure cookies, and HSTS. Ensure your
 proxy passes the `X-Forwarded-Proto` header accurately. See the
 [operations runbook](docs/operations.md) for health probes, backups, restore

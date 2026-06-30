@@ -20,12 +20,14 @@ services:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - .:/app
+      - .:/opt/loom
+      - loom_media:/opt/loom/media
+      - loom_staticfiles:/opt/loom/staticfiles
     ports:
       - "8000:8000"
     environment:
       PYSTOW_HOME: /tmp/pystow
-      APP_DIR: /app
+      APP_DIR: /opt/loom
     env_file:
       - .env
     depends_on:
@@ -48,10 +50,11 @@ services:
     build: .
     command: python manage.py process_ontology_loads --watch
     volumes:
-      - .:/app
+      - .:/opt/loom
+      - loom_media:/opt/loom/media
     environment:
       PYSTOW_HOME: /tmp/pystow
-      APP_DIR: /app
+      APP_DIR: /opt/loom
     env_file:
       - .env
     depends_on:
@@ -60,3 +63,5 @@ services:
 
 volumes:
   postgres_data:
+  loom_media:
+  loom_staticfiles:

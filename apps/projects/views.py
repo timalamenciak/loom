@@ -73,6 +73,12 @@ def _is_admin(request, membership):
     )
 
 
+def _pdf_upload_error_message(exc: Exception) -> str:
+    if isinstance(exc, OSError):
+        return "The PDF could not be saved. Check media storage permissions."
+    return str(exc)
+
+
 def _require_owner(request, project):
     """Project configuration and deletion belong to the creator, not all admins."""
     if request.user.is_superuser or project.created_by_id == request.user.pk:
@@ -547,8 +553,8 @@ class PDFUploadView(LoginRequiredMixin, View):
                     title=title,
                 )
                 doc = attach_pdf_to_document(doc, upload, upload.name)
-        except ValueError as exc:
-            form.add_error("pdf_file", str(exc))
+        except (OSError, ValueError) as exc:
+            form.add_error("pdf_file", _pdf_upload_error_message(exc))
             return render(
                 request,
                 "projects/pdf_upload.html",
@@ -604,8 +610,8 @@ class AttachPDFView(LoginRequiredMixin, View):
         upload = request.FILES["pdf_file"]
         try:
             attach_pdf_to_document(doc, upload, upload.name)
-        except ValueError as exc:
-            form.add_error("pdf_file", str(exc))
+        except (OSError, ValueError) as exc:
+            form.add_error("pdf_file", _pdf_upload_error_message(exc))
             return render(
                 request,
                 "projects/attach_pdf.html",

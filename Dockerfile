@@ -27,14 +27,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     PYSTOW_HOME=/tmp/pystow \
-    APP_DIR=/app \
-    PYTHONPATH=/app
+    APP_DIR=/opt/loom \
+    PYTHONPATH=/opt/loom
 
-WORKDIR /app
+WORKDIR /opt/loom
 
 COPY --from=builder /wheels /wheels
-# Install third-party deps; uninstall the stub loom wheel — real source goes to /app.
-RUN python -m pip install /wheels/*.whl \
+# Install third-party deps; uninstall the stub loom wheel. Real source goes to /opt/loom.
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install /wheels/*.whl \
     && python -m pip uninstall -y loom \
     && rm -rf /wheels \
     && addgroup --system loom \
@@ -42,6 +44,7 @@ RUN python -m pip install /wheels/*.whl \
     && mkdir -p /home/loom \
     && chown loom:loom /home/loom
 
+COPY docker/entrypoint.sh /usr/local/bin/loom-entrypoint
 COPY manage.py ./
 COPY apps ./apps
 COPY loom ./loom
@@ -50,15 +53,15 @@ COPY docs ./docs
 COPY static ./static
 COPY templates ./templates
 
-RUN mkdir -p /app/media /app/staticfiles \
+RUN chmod +x /usr/local/bin/loom-entrypoint \
+    && mkdir -p /opt/loom/media /opt/loom/staticfiles \
     && SECRET_KEY=collectstatic-only ALLOWED_HOSTS=localhost \
        DJANGO_SETTINGS_MODULE=loom.settings.prod \
        python manage.py collectstatic --noinput \
-    && chown -R loom:loom /app/media /app/staticfiles
-
-USER loom
+    && chown -R loom:loom /opt/loom/media /opt/loom/staticfiles
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready/', timeout=3)" || exit 1
+ENTRYPOINT ["loom-entrypoint"]
 CMD ["gunicorn", "loom.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-"]
