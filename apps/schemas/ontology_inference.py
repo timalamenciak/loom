@@ -29,11 +29,7 @@ def _curie_prefix(value) -> str | None:
 
 def _ontology_prefixes(value) -> list[str]:
     if isinstance(value, list):
-        return [
-            prefix
-            for item in value
-            for prefix in _ontology_prefixes(item)
-        ]
+        return [prefix for item in value for prefix in _ontology_prefixes(item)]
     if not isinstance(value, str):
         return []
     return [

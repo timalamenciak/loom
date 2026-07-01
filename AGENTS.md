@@ -184,7 +184,7 @@ python manage.py export_graph <graph_id> --format yaml --validate -o out.yaml
 python manage.py migrate_graph <graph_id> --to-version 0.5.0 --report
 
 # Quality
-ruff check . && black --check . && pytest
+ruff check . && black . && pytest
 ```
 
 ---

@@ -98,16 +98,13 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
     config: dict = {}
     env_overrides: dict[str, str] = {}
 
-    if (
-        getattr(_django_settings, "MARKER_LLM_ENABLED", False)
-        and getattr(_django_settings, "MARKER_LLM_BASE_URL", "")
+    if getattr(_django_settings, "MARKER_LLM_ENABLED", False) and getattr(
+        _django_settings, "MARKER_LLM_BASE_URL", ""
     ):
         config["use_llm"] = True
         config["llm_service"] = "marker.services.openai.OpenAIService"
         env_overrides["OPENAI_BASE_URL"] = _django_settings.MARKER_LLM_BASE_URL
-        env_overrides["OPENAI_API_KEY"] = (
-            _django_settings.MARKER_LLM_API_KEY or "nokey"
-        )
+        env_overrides["OPENAI_API_KEY"] = _django_settings.MARKER_LLM_API_KEY or "nokey"
         if model := getattr(_django_settings, "MARKER_LLM_MODEL", ""):
             config["openai_model"] = model
 

@@ -70,9 +70,7 @@ class Command(BaseCommand):
                 target = target or matches[0]
 
                 if options["activate"]:
-                    SchemaVersion.objects.exclude(pk=target.pk).update(
-                        is_active=False
-                    )
+                    SchemaVersion.objects.exclude(pk=target.pk).update(is_active=False)
 
                 for schema in matches:
                     schema.linkml_yaml = content
