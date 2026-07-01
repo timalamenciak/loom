@@ -137,7 +137,9 @@ LLM_PROPOSALS_ENABLED = False
 # Enable Marker instead of pdfplumber for extract_markdown management command.
 MARKER_ENABLED = os.environ.get("LOOM_MARKER_ENABLED", "false").lower() == "true"
 # Add an LLM boost via any OpenAI-compatible endpoint (e.g. a local Qwen server).
-MARKER_LLM_ENABLED = os.environ.get("LOOM_MARKER_LLM_ENABLED", "false").lower() == "true"
+MARKER_LLM_ENABLED = (
+    os.environ.get("LOOM_MARKER_LLM_ENABLED", "false").lower() == "true"
+)
 # Base URL of the OpenAI-compatible API, e.g. http://localhost:8080/v1
 MARKER_LLM_BASE_URL = os.environ.get("LOOM_MARKER_LLM_BASE_URL", "")
 # Model name to request, e.g. "qwen2.5-72b-instruct"

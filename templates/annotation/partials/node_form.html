@@ -5,6 +5,9 @@
   {% endwith %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
     <h3 style="margin:0;font-size:1rem">{% if node %}Edit Node{% else %}Add Node{% endif %}</h3>
+    <div style="font-size:.8rem;color:#6b7280">
+      <span data-save-indicator>Saving…</span>
+    </div>
     <button type="button"
             onclick="document.getElementById('form-panel').innerHTML='<p class=\'empty muted\' style=\'padding:1rem;text-align:center\'>Select an action above to annotate.</p>'"
             style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#6b7280"
@@ -12,6 +15,10 @@
   </div>
 
   <form method="post"
+        data-graph-id="{{ graph.id }}"
+        data-annotation-type="node"
+        data-annotation-id="{{ node.id|default:'' }}"
+        data-doc-id="{{ document.id }}"
         action="{% if node %}{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}{% else %}{% url 'node-create' pk=project.pk doc_pk=document.pk %}{% endif %}"
         hx-post="{% if node %}{% url 'node-edit' pk=project.pk doc_pk=document.pk node_pk=node.pk %}{% else %}{% url 'node-create' pk=project.pk doc_pk=document.pk %}{% endif %}"
         hx-target="#graph-panel"

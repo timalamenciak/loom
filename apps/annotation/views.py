@@ -31,6 +31,7 @@ from .policies import (
     require_editable_assignment,
 )
 from .services import (
+    _preprocess_source_document,
     adjudicate_edge,
     advance_edge_status,
     close_session,
@@ -847,7 +848,8 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
                 },
             )
 
-        update_graph_source_document(graph, bound.data, actor=request.user)
+        data = _preprocess_source_document(bound.data)
+        update_graph_source_document(graph, data, actor=request.user)
 
         if _is_htmx(request):
             ctx = _graph_panel_ctx(project, document, graph, assignment)

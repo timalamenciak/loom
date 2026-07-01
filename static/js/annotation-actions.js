@@ -35,6 +35,79 @@
     function initFormEnhancements() {
         window.OntologyAutocomplete?.init(window.loomOntologySearchUrl || '/ontology/search/');
         window.EnumAutocomplete?.init();
+        initAutoSaveForms();
+    }
+
+    // Auto-save with debounce and save indicator
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    function updateSaveIndicator(timestamp) {
+        const indicator = document.querySelector('[data-save-indicator]');
+        if (indicator && timestamp) {
+            const time = new Date(timestamp).toLocaleTimeString();
+            indicator.innerHTML = `✓ Saved ${time}`;
+            indicator.setAttribute('title', `Last saved: ${timestamp}`);
+        }
+    }
+
+    async function autoSaveField(field, csrfToken, baseUrl) {
+        if (!field.name || !field.closest('form')) return;
+        
+        const form = field.closest('form');
+        const graphId = form.dataset.graphId;
+        const annotationType = form.dataset.annotationType;
+        const annotationId = form.dataset.annotationId;
+
+        if (!graphId || !annotationType || !annotationId) return;
+
+        const fieldData = { [field.name]: field.value };
+        
+        try {
+            const response = await fetch(`${baseUrl}/${graphId}/documents/${field.dataset.docId}/autosave/${annotationType}/${annotationId}/`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken(form)
+                },
+                body: JSON.stringify(fieldData)
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                updateSaveIndicator(data.last_saved);
+            }
+        } catch (err) {
+            console.error('Auto-save failed:', err);
+        }
+    }
+
+    function initAutoSaveForms() {
+        const saveIndicatorBase = window.loomAutoSaveUrl || '/annotation/';
+        const csrfTokens = new WeakMap();
+
+        document.querySelectorAll('.form-panel-inner form').forEach(form => {
+            const fields = form.querySelectorAll('input, select, textarea');
+            const docId = form.dataset.docId;
+            
+            fields.forEach(field => {
+                const debouncedSave = debounce(async () => {
+                    if (!csrfTokens.has(form)) {
+                        csrfTokens.set(form, csrfToken(form));
+                    }
+                    await autoSaveField(field, csrfTokens.get(form), saveIndicatorBase);
+                    field.dataset.lastSave = Date.now().toString();
+                }, 500);
+
+                field.addEventListener('input', debouncedSave);
+                field.dataset.docId = docId;
+            });
+        });
     }
 
     function swapHtml(target, html) {

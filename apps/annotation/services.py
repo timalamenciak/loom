@@ -406,3 +406,18 @@ def _unflatten_post(post_dict: dict) -> dict:
         else:
             result[key] = value
     return result
+
+
+def _preprocess_source_document(data: dict) -> dict:
+    """Preprocess source document data, calculating derived fields."""
+    result = data.copy()
+    start = data.get("study_period_start", "")
+    end = data.get("study_period_end", "")
+    duration = data.get("study_duration_months")
+
+    if start and end and not duration:
+        from apps.annotation.utils import calculate_study_duration_months
+
+        result["study_duration_months"] = calculate_study_duration_months(start, end)
+
+    return result
