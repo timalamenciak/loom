@@ -89,9 +89,9 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
     Marker 1.x passes these to its internal litellm-backed OpenAI service.
     """
     try:
+        from marker.config.parser import ConfigParser
         from marker.converters.pdf import PdfConverter
         from marker.models import create_model_dict
-        from marker.config.parser import ConfigParser
     except ImportError:
         return None
 
