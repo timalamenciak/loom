@@ -1,8 +1,9 @@
 from django.urls import path
 
-from .views import (
+from apps.annotation.views import (
     AdjudicateEdgeView,
     AnnotationView,
+    AutoSaveView,
     EdgeAdvanceView,
     EdgeCreateView,
     EdgeEditView,
@@ -31,6 +32,12 @@ urlpatterns = [
         "sessions/<int:session_pk>/heartbeat/",
         HeartbeatView.as_view(),
         name="heartbeat",
+    ),
+    # Auto-save endpoint
+    path(
+        "<int:pk>/documents/<int:doc_pk>/autosave/<str:annotation_type>/<int:annotation_id>/",
+        AutoSaveView.as_view(),
+        name="autosave",
     ),
     # Main annotation surface
     path(

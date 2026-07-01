@@ -145,6 +145,9 @@ MARKER_LLM_MODEL = os.environ.get("LOOM_MARKER_LLM_MODEL", "")
 # API key; use any non-empty string for endpoints that don't enforce auth.
 MARKER_LLM_API_KEY = os.environ.get("LOOM_MARKER_LLM_API_KEY", "nokey")
 
+# GeoNames API (optional; for geographic lookups from StudyCoordinates)
+GEONAMES_USERNAME = os.environ.get("LOOM_GEONAMES_USERNAME", "")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

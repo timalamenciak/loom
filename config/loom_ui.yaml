@@ -78,14 +78,13 @@ ontology_routing:
     prefixes: [NCBITaxon, ENVO]
     wikidata_live:
       root_qid: "Q16521"   # taxon — any organism or taxonomic group
-  variable_attribute: [PATO]
+  measured_attribute: [PATO]
   ecosystem_context:
     prefixes: [ENVO]
     wikidata_live:
       root_qid: "Q87167"   # ecosystem
   process_context:
     prefixes: [ENVO, GO]
-  conditioned_by: [ENVO, PATO]
 
 # slot_name: widget_type  (overrides schema_engine widget detection)
 widget_overrides:
@@ -104,7 +103,6 @@ globally_hidden_slots:
   - fcm_weight_source
   - annotator
   - annotation_timestamp
-  - causal_connective    # inlined TextSpan — not yet supported in annotation UI
   - source_document      # managed at graph level via SourceDocument form, not per-edge
 
 # Per-slot help text shown as placeholder / hint in the annotation form.

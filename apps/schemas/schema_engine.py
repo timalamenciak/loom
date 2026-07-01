@@ -114,12 +114,14 @@ class LoomSchemaView:
         hidden = frozenset(globally_hidden_slots or [])
 
         slot_names = [n for n in self._all_slot_names(class_name) if n not in hidden]
-        slot_specs = {
-            name: self._slot_spec(
+        slot_specs = {}
+        for name in slot_names:
+            spec = self._slot_spec(
                 name, class_name, ontology_routing, widget_overrides, slot_help_texts
-            )
-            for name in slot_names
-        }
+                )
+        # Skip slots marked as hidden by loom_role
+        if spec is not None:
+            slot_specs[name] = spec
 
         if not ui_layers:
             return [
@@ -238,6 +240,8 @@ class LoomSchemaView:
             wikidata_live = routing.get("wikidata_live") or None
         ontology_prefixes = schema_ontology_prefixes or sidecar_ontology_prefixes
 
+        slot_loom_role = _ann_value(slot.annotations, "loom_role")
+
         spec: dict = {
             "name": slot_name,
             "label": (slot.title or slot_name).replace("_", " ").title(),
@@ -273,6 +277,11 @@ class LoomSchemaView:
                     widget_overrides=widget_overrides,
                     slot_help_texts=slot_help_texts,
                 )
+        # Apply loom_role overrides
+        if slot_loom_role == "hidden":
+            return None  # Signal to exclude this slot
+        if slot_loom_role == "collapse":
+            spec["collapsed_by_default"] = True
 
         return spec
 

@@ -1,5 +1,13 @@
 # Proposed CAMO schema changes
 
+## Tim proposed changes
+- Remove all mention of NCBITaxon because it is server-breakingly huge. Wikidata should be preferred for taxa.
+- Add annotation property loom_note: with values:
+    - hidden
+    - collapsed
+
+
+
 These are review notes only. No CAMO schema file has been changed as part of the excerpt-bin interface work.
 
 ## 1. Represent plural evidence explicitly

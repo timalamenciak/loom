@@ -88,6 +88,7 @@ def create_node(
     pin_graph_ontology_snapshot(graph, actor)
     name = data.get("name", "").strip() or _derive_name(data)
     category = data.get("entity_type", "")
+    data = _annotate_with_orcid(data, actor or graph.annotator)
     node = Node.objects.create(
         graph=graph,
         name=name,
@@ -105,6 +106,7 @@ def update_node(node: Node, data: dict, actor=None) -> Node:
     pin_graph_ontology_snapshot(node.graph, actor)
     node.name = data.get("name", "").strip() or _derive_name(data)
     node.category = data.get("entity_type", node.category)
+    data = _annotate_with_orcid(data, actor or node.graph.annotator)
     node.data = data
     node.save(update_fields=["name", "category", "data"])
     emit_audit(actor or node.graph.annotator, "node.update", "Node", node.pk, data)
@@ -147,6 +149,15 @@ def set_node_source_spans(node: Node, spans, actor) -> None:
 # ── Edges ─────────────────────────────────────────────────────────────────────
 
 
+def _annotate_with_orcid(data: dict, user) -> dict:
+    """Add ORCID to annotation data if available."""
+    if hasattr(user, "orcid") and user.orcid:
+        data["annotator"] = user.orcid
+    elif hasattr(user, "username"):
+        data["annotator"] = f"user:{user.username}"
+    return data
+
+
 @transaction.atomic
 def create_edge(
     graph: CausalGraph,
@@ -159,6 +170,7 @@ def create_edge(
     pin_graph_ontology_snapshot(graph, actor)
     if subject.graph_id != graph.pk or object_node.graph_id != graph.pk:
         raise ValueError("Edge endpoints must belong to the edge graph.")
+    data = _annotate_with_orcid(data, actor or graph.annotator)
     edge = Edge.objects.create(
         graph=graph,
         subject=subject,
@@ -192,6 +204,7 @@ def update_edge(
         edge.object = object_node
     edge.predicate = data.get("predicate", edge.predicate)
     edge.claim_strength = data.get("claim_strength", edge.claim_strength)
+    data = _annotate_with_orcid(data, actor or edge.graph.annotator)
     edge.data = data
     edge.save()
     emit_audit(actor or edge.graph.annotator, "edge.update", "Edge", edge.pk, data)
@@ -371,7 +384,7 @@ def _derive_name(data: dict) -> str:
     parts = [
         data.get("entity_type", ""),
         data.get("entity_term", ""),
-        data.get("variable_attribute", ""),
+        data.get("measured_attribute", ""),
     ]
     name = " — ".join(p for p in parts if p)
     return name or "Unnamed node"

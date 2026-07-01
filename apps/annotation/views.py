@@ -1439,3 +1439,44 @@ class GraphView(LoginRequiredMixin, View):
 
     def post(self, request, pk, doc_pk):
         return redirect("annotate", pk=pk, doc_pk=doc_pk)
+
+
+# ── Auto-save endpoint ─────────────────────────────────────────────────────────
+
+
+class AutoSaveView(LoginRequiredMixin, View):
+    """Auto-save annotation form data via PATCH requests."""
+
+    def patch(self, request, pk, doc_pk, annotation_type, annotation_id=None):
+        """Save a single field update without reloading the full form."""
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_editable_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+
+        if not _is_htmx(request):
+            return JsonResponse({"error": "Only HTMX requests allowed"}, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+        if not isinstance(data, dict):
+            return JsonResponse(
+                {"error": "Request body must be a JSON object"}, status=400
+            )
+
+        if annotation_type == "node":
+            node = get_object_or_404(Node, pk=annotation_id, graph=graph)
+            node.data = {**node.data, **data}
+            node.save(update_fields=["data"])
+            return JsonResponse({"ok": True, "last_saved": node.updated_at.isoformat()})
+
+        elif annotation_type == "edge":
+            edge = get_object_or_404(Edge, pk=annotation_id, graph=graph)
+            edge.data = {**edge.data, **data}
+            edge.save(update_fields=["data"])
+            return JsonResponse({"ok": True, "last_saved": edge.updated_at.isoformat()})
+
+        return JsonResponse({"error": "Invalid annotation type"}, status=400)
