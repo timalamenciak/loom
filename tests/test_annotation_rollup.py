@@ -1,7 +1,5 @@
 """Tests for apps/annotation/rollup.py"""
 
-import pytest
-
 
 class TestRollUpSourceDocument:
     """Test the roll_up_source_document function."""
@@ -77,7 +75,11 @@ class TestRollUpSourceDocument:
 
         nodes_data = [{"mediation": {"has_mediator": "true"}}]
         rules = [
-            {"slot": "mediators", "source": "node", "attribute": "mediation.has_mediator"}
+            {
+                "slot": "mediators",
+                "source": "node",
+                "attribute": "mediation.has_mediator",
+            }
         ]
         result = roll_up_source_document(nodes_data, [], rules)
         assert result == {"mediators": ["true"]}
@@ -216,7 +218,12 @@ class TestValidateRollupRules:
         from apps.annotation.rollup import validate_rollup_rules
 
         rules = [
-            {"slot": "slot1", "source": "node", "attribute": "field", "operation": "invalid"}
+            {
+                "slot": "slot1",
+                "source": "node",
+                "attribute": "field",
+                "operation": "invalid",
+            }
         ]
         errors = validate_rollup_rules(rules)
         assert len(errors) == 1
