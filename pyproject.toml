@@ -76,4 +76,4 @@ warn_unused_ignores = true
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "loom.settings.dev"
 testpaths = ["tests"]
-addopts = "--no-migrations"
+addopts = ""

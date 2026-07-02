@@ -119,9 +119,9 @@ class LoomSchemaView:
             spec = self._slot_spec(
                 name, class_name, ontology_routing, widget_overrides, slot_help_texts
             )
-        # Skip slots marked as hidden by loom_role
-        if spec is not None:
-            slot_specs[name] = spec
+            # Skip slots marked as hidden by loom_role
+            if spec is not None:
+                slot_specs[name] = spec
 
         if not ui_layers:
             return [
