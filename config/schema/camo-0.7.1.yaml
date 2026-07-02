@@ -769,16 +769,6 @@ enums:
         annotations: 
           rosetta_prefix: "aborted" 
           fcm_sign: negative 
-      introduced:
-        description: "The entity has been introduced to the system (e.g., invasion, reintroduction)."
-        annotations: 
-          rosetta_prefix: "introduction of"
-          fcm_sign: positive 
-      removed:
-        description: "The entity has been removed from the system (e.g., culling, removal)."
-        annotations: 
-          rosetta_prefix: "removal of" 
-          fcm_sign: negative 
 
   EntityTypeEnum:
     description: >-
