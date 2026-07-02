@@ -73,6 +73,13 @@ python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
 
+[tool.coverage.run]
+source = ["apps", "loom"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "loom.settings.dev"
 testpaths = ["tests"]
