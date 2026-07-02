@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.files.base import File
 from django.db import transaction
 
-from apps.annotation.models import Edge
+from apps.annotation.models import Edge, Node
 from apps.audit.models import AuditEvent
 
 from .models import Assignment, Document, Project
@@ -397,12 +397,12 @@ def delete_project(project: Project, actor) -> dict:
         )
         # Edges protect endpoint nodes, so remove them before graph/node cascades.
         Edge.objects.filter(graph__document__project=project).delete()
+        Node.objects.filter(graph__document__project=project).delete()
         project.delete()
 
-        def remove_files():
-            for storage, name in files:
-                if name:
-                    storage.delete(name)
+        # Delete files immediately after project deletion
+        for storage, name in files:
+            if name:
+                storage.delete(name)
 
-        transaction.on_commit(remove_files)
     return summary

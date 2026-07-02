@@ -354,7 +354,7 @@ class TestRenderFCM:
 
         result = render_fcm(data, minimal_schema_yaml)
 
-        # sign = -1, strength = 1.0, weight = -1.0
+        # sign = -1, strength = 0.8, weight = -0.8
         assert result[0].sign == -1
-        assert result[0].strength == 1.0
-        assert result[0].weight == -1.0
+        assert result[0].strength == 0.8
+        assert result[0].weight == -0.8

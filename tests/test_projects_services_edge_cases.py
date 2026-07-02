@@ -26,7 +26,12 @@ def project_with_file(db, tmp_path, settings):
     # Override MEDIA_ROOT for test isolation
     settings.MEDIA_ROOT = str(tmp_path / "media")
 
-    project = Project.objects.create(name="Test Project")
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    user = User.objects.create(username="project_owner")
+
+    project = Project.objects.create(name="Test Project", created_by=user)
 
     # Create a document with a PDF
     doc = Document.objects.create(
@@ -36,11 +41,7 @@ def project_with_file(db, tmp_path, settings):
         canonical_text="Test abstract",
     )
 
-    # Create a fake PDF file
-    pdf_path = tmp_path / "test.pdf"
-    pdf_path.write_text("%PDF-1.4 fake PDF content for testing")
-
-    # Manually set the file to avoid storage complexity
+    # Use save() to store the file
     doc.pdf_file.save("test.pdf", ContentFile(b"%PDF-1.4 fake content"), save=True)
 
     return project
@@ -49,7 +50,12 @@ def project_with_file(db, tmp_path, settings):
 @pytest.fixture
 def project_with_graph(db):
     """Create a project with a graph containing nodes and edges."""
-    project = Project.objects.create(name="Test Project")
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    user = User.objects.create(username="project_owner")
+
+    project = Project.objects.create(name="Test Project", created_by=user)
 
     # Create a simple schema version
     from apps.schemas.models import SchemaVersion
@@ -116,16 +122,27 @@ class TestDeleteProject:
 
     def test_deletes_project(self, db):
         """Project is deleted from database."""
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
 
-        delete_project(project, Mock(username="admin"))
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+        actor = User.objects.create(username="admin")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
+        delete_project(project, actor)
 
         assert not Project.objects.filter(pk=project.pk).exists()
 
     def test_generates_audit_event(self, db):
         """Audit event is created for deletion."""
-        project = Project.objects.create(name="Test Project")
-        actor = Mock(username="admin")
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+        actor = User.objects.create(username="admin")
 
         delete_project(project, actor)
 
@@ -140,15 +157,21 @@ class TestDeleteProject:
 
     def test_cascades_to_graphs(self, db):
         """Graphs are deleted with project."""
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
         from apps.schemas.models import SchemaVersion
 
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
         schema = SchemaVersion.objects.create(
-            name="Schema",
             version="0.4.0",
             linkml_yaml="id: test\nimports: [linkml:types]",
             sha256="a" * 64,
         )
+        annotator = User.objects.create(username="annotator")
         graph = CausalGraph.objects.create(
             document=Document.objects.create(
                 project=project,
@@ -156,25 +179,33 @@ class TestDeleteProject:
                 source=Document.SOURCE_RIS_IMPORT,
                 canonical_text="Abstract",
             ),
+            annotator=annotator,
             schema_version=schema,
             source_document={},
         )
 
-        delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         assert not CausalGraph.objects.filter(pk=graph.pk).exists()
 
     def test_cascades_to_nodes(self, db):
         """Nodes are deleted with project."""
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
         from apps.schemas.models import SchemaVersion
 
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
         schema = SchemaVersion.objects.create(
-            name="Schema",
             version="0.4.0",
             linkml_yaml="id: test\nimports: [linkml:types]",
             sha256="a" * 64,
         )
+        annotator = User.objects.create(username="annotator")
         graph = CausalGraph.objects.create(
             document=Document.objects.create(
                 project=project,
@@ -182,32 +213,41 @@ class TestDeleteProject:
                 source=Document.SOURCE_RIS_IMPORT,
                 canonical_text="Abstract",
             ),
+            annotator=annotator,
             schema_version=schema,
             source_document={},
         )
         node = Node.objects.create(
             graph=graph,
+            node_id="node-1",
             name="Node",
             category="entity",
             data={"name": "Node"},
             schema_version=schema,
         )
 
-        delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         assert not Node.objects.filter(pk=node.pk).exists()
 
     def test_cascades_to_edges(self, db):
         """Edges are deleted with project."""
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
         from apps.schemas.models import SchemaVersion
 
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
         schema = SchemaVersion.objects.create(
-            name="Schema",
             version="0.4.0",
             linkml_yaml="id: test\nimports: [linkml:types]",
             sha256="a" * 64,
         )
+        annotator = User.objects.create(username="annotator")
         graph = CausalGraph.objects.create(
             document=Document.objects.create(
                 project=project,
@@ -215,11 +255,13 @@ class TestDeleteProject:
                 source=Document.SOURCE_RIS_IMPORT,
                 canonical_text="Abstract",
             ),
+            annotator=annotator,
             schema_version=schema,
             source_document={},
         )
         node1 = Node.objects.create(
             graph=graph,
+            node_id="node-1",
             name="Node1",
             category="entity",
             data={"name": "Node1"},
@@ -227,6 +269,7 @@ class TestDeleteProject:
         )
         node2 = Node.objects.create(
             graph=graph,
+            node_id="node-2",
             name="Node2",
             category="entity",
             data={"name": "Node2"},
@@ -234,6 +277,7 @@ class TestDeleteProject:
         )
         edge = Edge.objects.create(
             graph=graph,
+            edge_id="edge-1",
             subject=node1,
             object=node2,
             predicate="causal",
@@ -241,31 +285,39 @@ class TestDeleteProject:
             schema_version=schema,
         )
 
-        delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         assert not Edge.objects.filter(pk=edge.pk).exists()
 
     def test_cascades_to_memberships(self, db):
         """Project memberships are deleted with project."""
-        project = Project.objects.create(name="Test Project")
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
         user = User.objects.create(username="member")
 
         ProjectMembership.objects.create(project=project, user=user)
 
-        delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         assert not ProjectMembership.objects.filter(project=project).exists()
 
     def test_cascades_to_assignments(self, db):
         """Assignments are deleted with project."""
-        project = Project.objects.create(name="Test Project")
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
-        user = User.objects.create(username="annotator")
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
+        annotator = User.objects.create(username="annotator")
 
         doc = Document.objects.create(
             project=project,
@@ -276,25 +328,33 @@ class TestDeleteProject:
         Assignment.objects.create(
             document=doc,
             project=project,
-            annotator=user,
+            annotator=annotator,
+            assigned_by=user,
             status=Assignment.STATUS_ASSIGNED,
         )
 
-        delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         assert not Assignment.objects.filter(project=project).exists()
 
     def test_eda_graphs_before_nodes(self, db):
         """Edges are deleted before nodes (foreign key order)."""
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
         from apps.schemas.models import SchemaVersion
 
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
         schema = SchemaVersion.objects.create(
-            name="Schema",
             version="0.4.0",
             linkml_yaml="id: test\nimports: [linkml:types]",
             sha256="a" * 64,
         )
+        annotator = User.objects.create(username="annotator")
         graph = CausalGraph.objects.create(
             document=Document.objects.create(
                 project=project,
@@ -302,11 +362,13 @@ class TestDeleteProject:
                 source=Document.SOURCE_RIS_IMPORT,
                 canonical_text="Abstract",
             ),
+            annotator=annotator,
             schema_version=schema,
             source_document={},
         )
         node1 = Node.objects.create(
             graph=graph,
+            node_id="node-1",
             name="Node1",
             category="entity",
             data={"name": "Node1"},
@@ -314,6 +376,7 @@ class TestDeleteProject:
         )
         node2 = Node.objects.create(
             graph=graph,
+            node_id="node-2",
             name="Node2",
             category="entity",
             data={"name": "Node2"},
@@ -321,6 +384,7 @@ class TestDeleteProject:
         )
         edge = Edge.objects.create(
             graph=graph,
+            edge_id="edge-1",
             subject=node1,
             object=node2,
             predicate="causal",
@@ -328,23 +392,27 @@ class TestDeleteProject:
             schema_version=schema,
         )
 
-        # Delete should not raise foreign key error
-        delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         assert not Edge.objects.filter(pk=edge.pk).exists()
         assert not Node.objects.filter(pk__in=[node1.pk, node2.pk]).exists()
 
     def test_summary_returned(self, db):
         """Delete returns summary dict."""
-        project = Project.objects.create(name="Test Project")
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
+
         user = User.objects.create(username="member")
 
         ProjectMembership.objects.create(project=project, user=user)
 
-        result = delete_project(project, Mock(username="admin"))
+        actor = User.objects.create(username="admin")
+        result = delete_project(project, actor)
 
         assert "name" in result
         assert "documents" in result
@@ -357,7 +425,12 @@ class TestDeleteProjectTransactional:
 
     def test_rollback_on_error(self, db, monkeypatch):
         """Project not deleted if audit event fails."""
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
 
         # Mock audit to fail
         def mock_create(*args, **kwargs):
@@ -365,8 +438,10 @@ class TestDeleteProjectTransactional:
 
         monkeypatch.setattr(AuditEvent, "objects", Mock(create=mock_create))
 
+        actor = User.objects.create(username="admin")
+
         with pytest.raises(Exception):
-            delete_project(project, Mock(username="admin"))
+            delete_project(project, actor)
 
         # Project should still exist (transaction rolled back)
         assert Project.objects.filter(pk=project.pk).exists()
@@ -375,7 +450,12 @@ class TestDeleteProjectTransactional:
         """PDF files are deleted after database commit."""
         settings.MEDIA_ROOT = str(tmp_path / "media")
 
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
 
         doc = Document.objects.create(
             project=project,
@@ -384,13 +464,14 @@ class TestDeleteProjectTransactional:
             canonical_text="Abstract",
         )
 
-        pdf_path = tmp_path / "media" / "test.pdf"
-        pdf_path.parent.mkdir(parents=True, exist_ok=True)
-        pdf_path.write_text("fake pdf")
-
+        # Use save() to store the file (Django adds suffix to avoid collision)
         doc.pdf_file.save("test.pdf", ContentFile(b"fake"), save=True)
 
-        delete_project(project, Mock(username="admin"))
+        # Get the actual stored path
+        pdf_path = tmp_path / "media" / doc.pdf_file.name
+
+        actor = User.objects.create(username="admin")
+        delete_project(project, actor)
 
         # File should be deleted
         assert not pdf_path.exists()
@@ -399,7 +480,12 @@ class TestDeleteProjectTransactional:
         """Files not deleted if transaction rolls back."""
         settings.MEDIA_ROOT = str(tmp_path / "media")
 
-        project = Project.objects.create(name="Test Project")
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create(username="project_owner")
+
+        project = Project.objects.create(name="Test Project", created_by=user)
 
         doc = Document.objects.create(
             project=project,
@@ -408,11 +494,11 @@ class TestDeleteProjectTransactional:
             canonical_text="Abstract",
         )
 
-        pdf_path = tmp_path / "media" / "test.pdf"
-        pdf_path.parent.mkdir(parents=True, exist_ok=True)
-        pdf_path.write_text("fake pdf")
-
+        # Use save() to store the file
         doc.pdf_file.save("test.pdf", ContentFile(b"fake"), save=True)
+
+        # Get the actual stored path
+        pdf_path = tmp_path / "media" / doc.pdf_file.name
 
         def fail_on_delete(*args, **kwargs):
             raise Exception("Simulated failure on delete_project")

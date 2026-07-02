@@ -36,10 +36,10 @@ def _has_value(data: dict, slot: str) -> bool:
         nested = data.get(parent)
         if isinstance(nested, dict):
             v = nested.get(child)
-            return v is not None and v != "" and v != []
+            return v is not None and v != "" and v != [] and v != {}
         return False
     v = data.get(slot)
-    return v is not None and v != "" and v != []
+    return v is not None and v != "" and v != [] and v != {}
 
 
 class Command(BaseCommand):

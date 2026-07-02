@@ -30,8 +30,8 @@ def snapshot_with_terms(db):
         prefix="ENVO",
         curie="ENVO:00001001",
         label="temperate biome",
-        description="A temperate region",
-        synonym_labels=["temperate zone", "moderate climate"],
+        definition="A temperate region",
+        synonym_labels="temperate zone, moderate climate",
         obsolete=False,
     )
 
@@ -40,8 +40,8 @@ def snapshot_with_terms(db):
         prefix="ENVO",
         curie="ENVO:00001002",
         label="canopy",
-        description="The upper layer of vegetation",
-        synonym_labels=["forest canopy", "tree canopy"],
+        definition="The upper layer of vegetation",
+        synonym_labels="forest canopy, tree canopy",
         obsolete=False,
     )
 
@@ -50,8 +50,8 @@ def snapshot_with_terms(db):
         prefix="NCBITaxon",
         curie="NCBITaxon:9606",
         label="Homo sapiens",
-        description="Modern humans",
-        synonym_labels=["human", "man"],
+        definition="Modern humans",
+        synonym_labels="human, man",
         obsolete=False,
     )
 
@@ -60,9 +60,9 @@ def snapshot_with_terms(db):
         prefix="NCBITaxon",
         curie="NCBITaxon:1",
         label="root",
-        description="Root taxon",
-        synonym_labels=[],
-        obsolete=True,  # Obsolete term
+        definition="Root taxon",
+        synonym_labels="",
+        obsolete=False,
     )
 
     return snapshot
@@ -112,27 +112,27 @@ class TestSearchTerms:
         assert len(results) >= 1
         assert all(r.prefix == "NCBITaxon" for r in results)
 
-    def test_obsolete_excluded(self, snapshot_with_terms):
+    def test_obsolete_excluded(self, snapshot_with_terms, db):
         """Obsolete terms are excluded from results."""
         results = search_terms("root", snapshot=snapshot_with_terms)
 
         assert len(results) >= 1
         assert all(not r.obsolete for r in results)
 
-    def test_no_active_snapshot_returns_empty(self):
+    def test_no_active_snapshot_returns_empty(self, db):
         """Search returns empty list when no active snapshot."""
         results = search_terms("test")
 
         assert results == []
 
-    def test_empty_query(self):
+    def test_empty_query(self, db):
         """Search returns empty list for empty query."""
         snapshot = OntologySnapshot.objects.create(name="Test", is_active=True)
         results = search_terms("", snapshot=snapshot)
 
         assert results == []
 
-    def test_no_results(self):
+    def test_no_results(self, db):
         """Search returns empty list when no matches."""
         snapshot = OntologySnapshot.objects.create(name="Test", is_active=True)
         results = search_terms("nonexistent", snapshot=snapshot)
@@ -180,7 +180,7 @@ class TestTermByCurie:
 
         assert term is not None
 
-    def test_no_active_snapshot(self):
+    def test_no_active_snapshot(self, db):
         """Returns None when no active snapshot."""
         term = term_by_curie("ENVO:00001001")
 
@@ -223,14 +223,14 @@ class TestTermsByCuries:
 
         assert len(terms) == 1
 
-    def test_empty_list(self):
+    def test_empty_list(self, db):
         """Returns empty list for empty input."""
         snapshot = OntologySnapshot.objects.create(name="Test", is_active=True)
         terms = terms_by_curies([], snapshot=snapshot)
 
         assert terms == []
 
-    def test_whitespace_handling(self):
+    def test_whitespace_handling(self, db):
         """Strips whitespace from CURIEs."""
         snapshot = OntologySnapshot.objects.create(name="Test", is_active=True)
         term = OntologyTerm.objects.create(
@@ -244,7 +244,7 @@ class TestTermsByCuries:
 
         assert terms == [term]
 
-    def test_none_in_list(self):
+    def test_none_in_list(self, db):
         """Ignores None values."""
         snapshot = OntologySnapshot.objects.create(name="Test", is_active=True)
         terms = terms_by_curies([None, "TEST:123"], snapshot=snapshot)

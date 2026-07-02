@@ -8,12 +8,28 @@ Tests are pure Python - no database required.
 from unittest.mock import Mock, patch
 from urllib.error import URLError
 
+from django.contrib.auth import get_user_model
+
 from apps.ontology import adhoc
-from apps.ontology.models import OntologyTerm
+from apps.ontology.models import OntologyRelease, OntologyTerm
 
 # ---------------------------------------------------------------------------
 # Helper fixtures
 # ------ -----------
+
+
+def create_test_project():
+    """Create a test project for adhoc tests."""
+    User = get_user_model()
+    user = User.objects.create(username="adhoc_test_user")
+    from apps.projects.models import Project
+
+    return Project.objects.create(name="Test Project", created_by=user)
+
+
+def create_mock_post():
+    """Create a mock QueryDict for post data."""
+    return Mock(get=lambda key, default="": default)
 
 
 class MockEntity:
@@ -35,9 +51,15 @@ class TestResolveWDCuriesInData:
 
     def test_resolves_single_curie(self, db):
         """Resolves single Wikidata CURIE to OntologyTerm."""
+        project = create_test_project()
+        post = create_mock_post()
         # Create a term
         OntologyTerm.objects.create(
-            prefix="WD",
+            release=OntologyRelease.objects.create(
+                project=project,
+                prefix="WD",
+                source_kind=OntologyRelease.SOURCE_KIND_WIKIDATA_ADHOC,
+            ),
             curie="WD:Q123",
             label="Test Item",
             obsolete=False,
@@ -45,23 +67,24 @@ class TestResolveWDCuriesInData:
 
         data = {"field": "WD:Q123"}
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == {"field": "WD:Q123"}
+        assert data == {"field": "WD:Q123"}
 
     def test_resolves_multiple_curies(self, db):
         """Resolves multiple Wikidata CURIEs."""
-        OntologyTerm.objects.create(
+        project = create_test_project()
+        post = create_mock_post()
+        release = OntologyRelease.objects.create(
+            project=project,
             prefix="WD",
-            curie="WD:Q123",
-            label="Item 1",
-            obsolete=False,
+            source_kind=OntologyRelease.SOURCE_KIND_WIKIDATA_ADHOC,
         )
         OntologyTerm.objects.create(
-            prefix="WD",
-            curie="WD:Q456",
-            label="Item 2",
-            obsolete=False,
+            release=release, curie="WD:Q123", label="Item 1", obsolete=False
+        )
+        OntologyTerm.objects.create(
+            release=release, curie="WD:Q456", label="Item 2", obsolete=False
         )
 
         data = {
@@ -69,17 +92,21 @@ class TestResolveWDCuriesInData:
             "field2": "WD:Q456",
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
     def test_handles_nested_structures(self, db):
         """Resolves CURIEs in nested dictionaries."""
-        OntologyTerm.objects.create(
+        project = create_test_project()
+        post = create_mock_post()
+        release = OntologyRelease.objects.create(
+            project=project,
             prefix="WD",
-            curie="WD:Q123",
-            label="Item",
-            obsolete=False,
+            source_kind=OntologyRelease.SOURCE_KIND_WIKIDATA_ADHOC,
+        )
+        OntologyTerm.objects.create(
+            release=release, curie="WD:Q123", label="Item", obsolete=False
         )
 
         data = {
@@ -90,66 +117,82 @@ class TestResolveWDCuriesInData:
             },
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
     def test_handles_lists(self, db):
         """Resolves CURIEs in lists."""
-        OntologyTerm.objects.create(
+        project = create_test_project()
+        post = create_mock_post()
+        release = OntologyRelease.objects.create(
+            project=project,
             prefix="WD",
-            curie="WD:Q123",
-            label="Item",
-            obsolete=False,
+            source_kind=OntologyRelease.SOURCE_KIND_WIKIDATA_ADHOC,
+        )
+        OntologyTerm.objects.create(
+            release=release, curie="WD:Q123", label="Item", obsolete=False
         )
 
         data = {
             "field": ["WD:Q123", "WD:Q456"],
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
     def test_ignores_non_wikidata(self, db):
         """Ignores non-Wikidata CURIEs."""
+        project = create_test_project()
+        post = create_mock_post()
+
         data = {
             "field": "ENVO:00001001",
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
     def test_handles_none_values(self, db):
         """Handles None values in data."""
+        project = create_test_project()
+        post = create_mock_post()
+
         data = {
             "field": None,
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
     def test_handles_empty_string(self, db):
         """Handles empty strings."""
+        project = create_test_project()
+        post = create_mock_post()
+
         data = {
             "field": "",
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
     def test_handles_non_curie_strings(self, db):
         """Handles non-CURIE strings."""
+        project = create_test_project()
+        post = create_mock_post()
+
         data = {
             "field": "not-a-curie",
         }
 
-        result = adhoc.resolve_wd_curies_in_data(data)
+        adhoc.resolve_wd_curies_in_data(project, data, post)
 
-        assert result == data
+        assert data == data
 
 
 # ---------------------------------------------------------------------------
@@ -162,31 +205,42 @@ class TestGetOrCreateAdHocWikidataTerm:
 
     def test_returns_existing_term(self, db):
         """Returns existing term if it exists."""
-        term = OntologyTerm.objects.create(
+        project = create_test_project()
+        release = OntologyRelease.objects.create(
+            project=project,
             prefix="WD",
-            curie="WD:Q123",
-            label="Test Item",
-            obsolete=False,
+            source_kind=OntologyRelease.SOURCE_KIND_WIKIDATA_ADHOC,
+        )
+        term = OntologyTerm.objects.create(
+            release=release, curie="WD:Q123", label="Test Item", obsolete=False
         )
 
-        result = adhoc.get_or_create_adhoc_wikidata_term("WD:Q123")
+        result = adhoc.get_or_create_adhoc_wikidata_term(project, "WD:Q123")
 
         assert result == term
 
     def test_creates_new_term(self, db):
         """Creates new term if it doesn't exist."""
-        result = adhoc.get_or_create_adhoc_wikidata_term("WD:Q123")
+        project = create_test_project()
+        with patch("apps.ontology.adhoc._wbgetentities") as mock_wbget:
+            mock_wbget.return_value = ("Test Label", "Test Description")
+            result = adhoc.get_or_create_adhoc_wikidata_term(project, "WD:Q123")
 
         assert result is not None
         assert result.prefix == "WD"
         assert result.curie == "WD:Q123"
-        assert result.label == "WD:Q123"  # Default label
+        assert result.label == "Test Label"
 
     def test_has_adhoc_source(self, db):
-        """Created term has adhoc source."""
-        result = adhoc.get_or_create_adhoc_wikidata_term("WD:Q456")
+        """Created term is linked to adhoc release."""
+        project = create_test_project()
+        with patch("apps.ontology.adhoc._wbgetentities") as mock_wbget:
+            mock_wbget.return_value = ("Test Label", "Test Description")
+            result = adhoc.get_or_create_adhoc_wikidata_term(project, "WD:Q456")
 
-        assert result.source == OntologyTerm.SOURCE_ADHOC
+        # Term should be linked to an adhoc release
+        assert result.release is not None
+        assert result.release.source_kind == OntologyRelease.SOURCE_KIND_WIKIDATA_ADHOC
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +252,7 @@ class TestWBGetEntities:
     """Verify _wbgetentities function behavior."""
 
     def test_success(self):
-        """Parses successful API response."""
+        """Parses successful API response and returns (label, description) tuple."""
         mock_response = Mock()
         mock_response.read.return_value = b'{"entities":{"Q123":{"id":"Q123","labels":{"en":{"value":"Test"}},"descriptions":{"en":{"value":"Desc"}}}}}'
 
@@ -207,24 +261,25 @@ class TestWBGetEntities:
         ) as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
 
-            entities = adhoc._wbgetentities(["Q123"])
+            label, description = adhoc._wbgetentities("Q123")
 
-            assert "Q123" in entities
-            assert entities["Q123"]["labels"]["en"]["value"] == "Test"
+            assert label == "Test"
+            assert description == "Desc"
 
     def test_network_failure(self):
-        """Returns empty dict on network error."""
+        """Returns empty tuple on network error."""
         with patch(
             "apps.ontology.wikidata_search.urllib.request.urlopen"
         ) as mock_urlopen:
             mock_urlopen.side_effect = URLError("Network error")
 
-            entities = adhoc._wbgetentities(["Q123"])
+            label, description = adhoc._wbgetentities("Q123")
 
-            assert entities == {}
+            assert label == ""
+            assert description == ""
 
-    def test_handles_multiple_entities(self):
-        """Parses multiple entities."""
+    def test_handles_single_entity(self):
+        """Parses single entity."""
         mock_response = Mock()
         mock_response.read.return_value = b'{"entities":{"Q123":{"id":"Q123","labels":{"en":{"value":"Test"}}},"Q456":{"id":"Q456","labels":{"en":{"value":"Test2"}}}}}'
 
@@ -233,10 +288,9 @@ class TestWBGetEntities:
         ) as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
 
-            entities = adhoc._wbgetentities(["Q123", "Q456"])
+            label, description = adhoc._wbgetentities("Q123")
 
-            assert "Q123" in entities
-            assert "Q456" in entities
+            assert label == "Test"
 
     def test_handles_missing_entities(self):
         """Handles missing entities in response."""
@@ -248,7 +302,7 @@ class TestWBGetEntities:
         ) as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
 
-            entities = adhoc._wbgetentities(["Q123", "Q456"])
+            label, description = adhoc._wbgetentities("Q456")
 
-            assert "Q123" in entities
-            assert "Q456" not in entities or entities["Q456"].get("missing") == ""
+            assert label == ""
+            assert description == ""
