@@ -231,3 +231,53 @@ ruff check . && black . && pytest
 - Ask before: changing the storage model (JSONB → columns), adding a new
   ontology source format, or altering the span offset model. These are
   load-bearing decisions documented above.
+
+# EcoWeaver AI development layer
+
+Before making changes:
+1. Read `.ecoweaver/index.md`.
+2. Read the relevant `.ecoweaver/` file for the task.
+3. Summarize the intended change before editing.
+4. Prefer small, reviewable changes.
+5. Run focused checks before broad checks.
+
+Before finishing any task:
+- Always run `ruff check --fix .` and `black .`.
+- Always run `mypy .` if mypy is configured in the project.
+- Always run `bandit -r src/` if bandit is configured.
+- Always run `python manage.py check` for Django projects.
+- If `pre-commit` is configured, run `pre-commit run --all-files` instead.
+- Do not report a task complete with outstanding lint or format errors.
+- If a lint tool is not installed, say so and provide the install command; do not skip silently.
+
+Always preserve:
+- provenance
+- schema validity
+- human reviewability
+- research reproducibility
+- compatibility with existing data unless explicitly asked otherwise
+- input validation at system boundaries
+- authentication and authorization at the correct layer
+
+Never:
+- invent ontology terms
+- modify generated files directly unless the source generator is also updated
+- change database migrations casually
+- remove provenance, evidence, or citation fields
+- weaken validation merely to make tests pass
+- introduce new dependencies without explaining why
+- store secrets in source code, log output, or HTTP responses
+- use `shell=True` with user-derived input
+- remove accessibility attributes or suppress focus indicators
+- use `# noqa`, `# type: ignore`, or inline lint suppressions without a documented reason
+- disable lint rules globally to make a task pass
+- skip linting because the change is "small"
+
+For LinkML/schema work, read `.ecoweaver/linkml.md`.
+For ontology or controlled-vocabulary work, read `.ecoweaver/ontology.md`.
+For tests, read `.ecoweaver/testing.md`.
+For linting commands and workflow, read the `lint` skill or `.ecoweaver/style.md`.
+For security, read `.ecoweaver/security.md`.
+For web UI work, read `.ecoweaver/accessibility.md`.
+For publication-quality cleanup, read `.ecoweaver/publication.md`.
+For pre-merge review, read `.ecoweaver/review.md`.
