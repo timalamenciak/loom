@@ -417,8 +417,6 @@ class TestDeleteProjectTransactional:
         def fail_on_delete(*args, **kwargs):
             raise Exception("Simulated failure on delete_project")
 
-        monkeypatch.setattr(AuditEvent.objects, "create", mock_create)
-
         def mock_create(*args, **kwargs):
             raise Exception("Simulated failure")
 

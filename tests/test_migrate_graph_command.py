@@ -259,7 +259,7 @@ classes:
             schema_version=old_schema,
         )
 
-        edge = Edge.objects.create(
+        Edge.objects.create(
             graph=graph,
             subject=node,
             object=node,
