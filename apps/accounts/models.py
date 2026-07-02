@@ -8,6 +8,7 @@ class User(AbstractUser):
 
     orcid = models.CharField(
         max_length=19,
+        null=True,  # Changed from blank=True to null=True to avoid unique constraint issues
         blank=True,
         unique=True,
         validators=[
