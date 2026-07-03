@@ -73,6 +73,67 @@ class TestEngineNoDB:
         slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
         assert slots["original_sentence"]["widget"] == "textarea"
 
+    def test_coordinate_list_embeds_country_state_and_drops_top_level_duplicates(
+        self, latest_schema_yaml
+    ):
+        """study_coordinates (range StudyCoordinates, multivalued, inlined_as_list)
+        uses the coordinate_list widget, which renders study_country /
+        study_state_or_province inline (coordinates > country > state > Save
+        location — see form_field.html and loom_ui.yaml's geonames_autofill).
+        Those two slots must not also appear as their own top-level fields."""
+        import yaml as _yaml
+        from pathlib import Path
+
+        ui = _yaml.safe_load(Path("config/loom_ui.yaml").read_text())
+        lsv = LoomSchemaView(_StubSchemaVersion(latest_schema_yaml))
+        spec = lsv.form_spec(
+            "SourceDocument",
+            widget_overrides=ui.get("widget_overrides", {}),
+            geonames_autofill=ui.get("geonames_autofill", {}),
+        )
+        all_slots = [s for layer in spec for s in layer["slots"]]
+        names = [s["name"] for s in all_slots]
+        assert "study_country" not in names
+        assert "study_state_or_province" not in names
+
+        coord = next(s for s in all_slots if s["name"] == "study_coordinates")
+        assert coord["widget"] == "coordinate_list"
+        assert coord["geonames_country_field"]["name"] == "study_country"
+        assert coord["geonames_state_field"]["name"] == "study_state_or_province"
+
+    def test_geonames_autofill_sibling_stays_top_level_without_coordinate_list_widget(
+        self,
+    ):
+        """Guards the dedup logic in form_spec(): if geonames_autofill names a
+        coordinate_list slot that doesn't exist on this schema version (e.g. an
+        older CAMO release before study_coordinates existed), the sibling
+        country/state field must NOT be silently dropped — there's no widget
+        embedding it, so it has to stay a normal top-level field."""
+        schema = """
+id: https://example.org/no-coordinate-widget
+name: no-coordinate-widget
+imports: [linkml:types]
+classes:
+  SourceDocument:
+    attributes:
+      study_country:
+        range: string
+"""
+        stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
+        lsv = LoomSchemaView(stub)
+
+        spec = lsv.form_spec(
+            "SourceDocument",
+            geonames_autofill={
+                "study_coordinates": {
+                    "country_slot": "study_country",
+                    "state_slot": "study_state_or_province",
+                }
+            },
+        )
+        names = [s["name"] for layer in spec for s in layer["slots"]]
+        assert names == ["study_country"]
+
     def test_ontology_prefixes_come_from_schema_annotations(self):
         schema = """
 id: https://example.org/ontology-routing

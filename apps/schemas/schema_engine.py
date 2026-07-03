@@ -138,6 +138,23 @@ class LoomSchemaView:
             if spec is not None:
                 slot_specs[name] = spec
 
+        # A coordinate_list widget that successfully embeds its sibling
+        # country/state fields (see _slot_spec) renders them itself; drop the
+        # bare top-level copies so they don't render a second time via the
+        # normal per-slot loop. Only drop them when embedding actually
+        # succeeded (geonames_*_field present) so schema versions without a
+        # matching coordinate_list slot keep rendering these as plain fields.
+        for embedded in list(slot_specs.values()):
+            if embedded.get("widget") != "coordinate_list":
+                continue
+            for slot_key, field_key in (
+                ("geonames_country_slot", "geonames_country_field"),
+                ("geonames_state_slot", "geonames_state_field"),
+            ):
+                sibling_name = embedded.get(slot_key)
+                if sibling_name and embedded.get(field_key):
+                    slot_specs.pop(sibling_name, None)
+
         if not ui_layers:
             return [
                 {
@@ -334,10 +351,29 @@ class LoomSchemaView:
 
         if widget == "coordinate_list":
             autofill = (geonames_autofill or {}).get(slot_name) or {}
-            if autofill.get("country_slot"):
-                spec["geonames_country_slot"] = autofill["country_slot"]
-            if autofill.get("state_slot"):
-                spec["geonames_state_slot"] = autofill["state_slot"]
+            sibling_names = set(self._all_slot_names(class_name))
+            for slot_key, field_key, autofill_key in (
+                ("geonames_country_slot", "geonames_country_field", "country_slot"),
+                ("geonames_state_slot", "geonames_state_field", "state_slot"),
+            ):
+                sibling = autofill.get(autofill_key)
+                if not sibling or sibling not in sibling_names:
+                    continue
+                # Render the sibling field's own spec inline in the widget
+                # (see form_field.html) instead of a second time at the
+                # slot's normal top-level position — form_spec() drops the
+                # top-level copy once it sees this embedded field present.
+                sibling_spec = self._slot_spec(
+                    sibling,
+                    class_name,
+                    ontology_routing,
+                    widget_overrides,
+                    slot_help_texts,
+                    geonames_autofill,
+                )
+                if sibling_spec is not None:
+                    spec[slot_key] = sibling
+                    spec[field_key] = sibling_spec
 
         # Apply loom_role overrides
         if slot_loom_role == "hidden":

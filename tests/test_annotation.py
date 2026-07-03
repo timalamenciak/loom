@@ -733,6 +733,49 @@ class TestStudyCoordinatesWidget:
         assert "Save location" in html
         assert '<textarea name="study_coordinates"' not in html
 
+    def test_country_and_state_render_once_inline_in_widget_order(
+        self, project_and_user, document, assignment, latest_schema
+    ):
+        """study_country / study_state_or_province must be embedded inside the
+        coordinate_list widget (coordinates > country > state > Save location),
+        not also rendered a second time at their normal top-level schema
+        position — otherwise the annotator sees (and could fill in) the field
+        twice."""
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document, annotator=user, schema_version=latest_schema
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/",
+            HTTP_HX_REQUEST="true",
+        )
+        html = response.content.decode()
+
+        assert response.status_code == 200
+        # `name="..."` (not `id="..."`) is unambiguous here: the widget's own
+        # data-country-field-id="id_study_country" attribute also contains the
+        # substring `id="id_study_country"`, which would make an `id=` count a
+        # false positive.
+        assert html.count('name="study_country"') == 1
+        assert html.count('name="study_state_or_province"') == 1
+
+        widget_start = html.index("data-coordinate-list")
+        widget_end = html.index("data-coordinate-listbox")
+        entry_pos = html.index("id_study_coordinates_entry", widget_start)
+        country_pos = html.index('name="study_country"', widget_start)
+        state_pos = html.index('name="study_state_or_province"', widget_start)
+        save_pos = html.index("data-coordinate-save", widget_start)
+        assert entry_pos < country_pos < state_pos < save_pos < widget_end
+
     def test_saves_nested_coordinates_without_binder_error(
         self, project_and_user, document, assignment, latest_schema
     ):
@@ -1124,5 +1167,7 @@ class TestSubmitAnnotation:
         assert b"read-only" in workspace.content
         assert mutation.status_code == 403
         assert not Node.objects.filter(graph=graph).exists()
+
+
 
 
