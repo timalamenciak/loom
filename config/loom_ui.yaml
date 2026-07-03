@@ -23,15 +23,12 @@ layers:
     collapsed_by_default: false
     slots:
       - ecosystem_context
-      - process_context
-      - conditioned_by
 
   - id: layer2
     label: "Layer 2: Philosophical Account"
     collapsed_by_default: false
     slots:
       - philosophical_accounts
-      - account_families
 
   - id: layer3
     label: "Layer 3: Causal Features"
@@ -108,14 +105,12 @@ ontology_routing:
     prefixes: [ENVO]
     wikidata_live:
       root_qid: "Q87167"   # ecosystem
-  process_context:
-    prefixes: [ENVO, GO]
 
 # slot_name: widget_type  (overrides schema_engine widget detection)
 widget_overrides:
   original_sentence: textarea
   annotation_notes: textarea
-  mechanism_description: textarea
+  pathway_description: textarea
   study_temporal_note: textarea
   study_sample_size: textarea
   study_coordinates: textarea

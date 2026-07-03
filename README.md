@@ -168,6 +168,31 @@ $env:DJANGO_SETTINGS_MODULE="loom.settings.test_sqlite"; pytest
 CI runs Ruff, Black, migration-drift and production-deployment checks before
 the PostgreSQL-backed automated test suite.
 
+### Upgrading a development or self-hosted instance
+
+After `git pull` and rebuilding the image, the database still needs to catch
+up with any new migrations — rebuilding the container alone does not apply
+them:
+
+```bash
+make build
+docker compose up -d
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py check_ui_config
+docker compose exec web python manage.py makemigrations --check --dry-run
+```
+
+`check_ui_config` warns if `config/loom_ui.yaml` has drifted from the active
+CAMO schema; the `makemigrations --check` run confirms no model change shipped
+without a migration. Loading a newer CAMO schema is a separate, deliberate step
+(see `load_schema` under Management commands) and never happens automatically
+as part of a code upgrade — the active schema per project only changes when an
+admin chooses to activate one.
+
+For a production deployment, follow the full backup-then-upgrade runbook in
+[docs/operations.md](docs/operations.md#upgrades-and-rollback) instead, which
+also covers the deploy checks and `collectstatic`.
+
 ## Production deployment
 
 1. Set `DEBUG=False` and `ALLOWED_HOSTS` in `.env`.
