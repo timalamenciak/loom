@@ -21,7 +21,7 @@ ontologies:
 
   - name: elmo
     prefix: ELMO
-    url: https://raw.githubusercontent.com/timalamenciak/elmo/e3ec16b/elmo.obo
+    url: https://raw.githubusercontent.com/timalamenciak/elmo/2026-07-03/elmo.obo
     description: "Ecolink Model Ontology (ecosystem management processes, ecosystem types)"
     # Loom only autocompletes ELMO for entity_type=management_intervention,
     # which is exactly ELMO's active-ecosystem-management-process and
