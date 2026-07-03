@@ -32,7 +32,7 @@ is captured per document so the labour cost of human annotation can be measured.
   and round-trips into the structure of the existing sample data.
 - Loading `camo-0.5.0.yaml` and re-activating it changes the forms with **zero
   code changes** and **no database migration**.
-- Ontology fields autocomplete against a locally loaded ENVO/NCBITaxon/PATO/
+- Ontology fields autocomplete against a locally loaded ENVO/ELMO/PATO/
   GO/CHEBI index while offline.
 - `LLM_PROPOSALS_ENABLED = False`: no suggestion UI appears; the seam is inert.
 
@@ -157,10 +157,11 @@ widget:
   the current graph (with "create node from selection" inline).
 - **`uriorcurie` entity slots** (`entity_term`, `variable_attribute`,
   `process_context`, `ecosystem_context`, `conditioned_by`, `part_qualifiers`)
-  → ontology autocomplete, routed by `loom_ui.yaml` (e.g. `entity_term` for taxa
-  prefers NCBITaxon; `variable_attribute` prefers PATO; contexts prefer
-  ENVO/GO). Routing comes from the slot descriptions in CAMO, encoded once in
-  the sidecar.
+  → ontology autocomplete, routed by `loom_ui.yaml` (e.g. `entity_term`
+  prefers Wikidata for taxa, ELMO for management interventions, ENVO for
+  environmental processes, depending on `entity_type`; `measured_attribute`
+  prefers PATO; contexts prefer ENVO/GO). Routing comes from the slot
+  descriptions in CAMO, encoded once in the sidecar.
 - **string / integer / float / boolean** → text / number / checkbox; honor
   `minimum_value` / `maximum_value` and `ifabsent` defaults (many features
   default to `not_addressed`, which keeps the form short).
@@ -201,7 +202,7 @@ guided remapping. The durable fix for the v0.3.1→v0.4 drift in the sample grap
 ## 7. Ontology service
 
 - **Load** OBO/OWL via `pronto` into `OntologyTerm` under an `OntologySnapshot`;
-  preload the set CAMO uses: ENVO, NCBITaxon, PATO, CHEBI, GO, BFO, RO, ECO
+  preload the set CAMO uses: ENVO, ELMO, PATO, CHEBI, GO, BFO, RO, ECO
   (SEPIO/OBI as needed). Sources declared in `config/ontologies.yaml`.
 - **Search:** trigram fuzzy match on label/synonyms + exact curie lookup;
   return `label — curie — short definition`. Recent/favourite terms per
@@ -362,7 +363,7 @@ Each phase ends shippable. MVP = Phases 0–6.
   annotatable.
 
 - **Phase 4 — Ontology service.** Loaders, snapshot, trigram search, autocomplete
-  widget; preload ENVO/NCBITaxon/PATO/GO/CHEBI.
+  widget; preload ENVO/ELMO/PATO/GO/CHEBI.
   *Accept:* typing "buckthorn" / "canopy" / "abundance" returns correct curies
   offline; selections write to the right slots.
 

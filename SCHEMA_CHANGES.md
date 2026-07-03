@@ -1,7 +1,9 @@
 # Proposed CAMO schema changes
 
 ## Tim proposed changes
-- Remove all mention of NCBITaxon because it is server-breakingly huge. Wikidata should be preferred for taxa.
+- [Done] Remove all mention of NCBITaxon because it is server-breakingly huge. Wikidata should be preferred for taxa.
+  Implemented in the ontology-routing overhaul: `config/ontologies.yaml` no longer declares ncbitaxon; `entity_term`
+  routes to Wikidata live search for `entity_type: taxon` (see ARCHITECTURE_NOTES.md's "Conditional routing" section).
 - Add annotation property loom_note: with values:
     - hidden
     - collapsed

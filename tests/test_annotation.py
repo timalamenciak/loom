@@ -452,7 +452,7 @@ class TestNodeCreate:
             url,
             {
                 "entity_type": "biotic",
-                "entity_term": "NCBITaxon:712036",
+                "entity_term": "WD:Q712036",
                 "direction": "increases",
             },
             HTTP_HX_REQUEST="true",

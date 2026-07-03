@@ -55,7 +55,7 @@ Local ontology term index with OLS fallback.
 
 **Key modules:**
 - `models.py` - OntologyTerm, OntologyRelease, OntologySnapshot
-- `loaders.py` - Term loaders (ENVO, PATO, NCBITaxon, etc.)
+- `loaders.py` - Term loaders (ENVO, PATO, ELMO, etc.)
 - `validation.py` - adds_ontology_errors() for form validation
 
 ### `apps/projects`
@@ -171,8 +171,8 @@ UI sidecar that augments the schema without editing it:
 ### `config/ontologies.yaml`
 
 Ontology sources:
-- Local term loading (ENVO, PATO, NCBITaxon)
-- Live OLS fallback
+- Local term loading (ENVO, PATO, ELMO, etc.), optionally scoped to a branch via `root_terms`/`include_descendants`
+- Taxa resolve live against Wikidata (`ontology_routing`'s `wikidata_live`), not cached locally
 - Preload commands
 
 ## Development

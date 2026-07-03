@@ -82,7 +82,7 @@ A point-in-time copy of ontology terms.
 A single ontology term.
 
 **Fields:**
-- `ontology`: ENVO, PATO, NCBITaxon, etc.
+- `ontology`: ENVO, PATO, ELMO, etc. (taxa resolve live against Wikidata, not cached locally)
 - `term_id`: e.g., "PATO:0000070"
 - `label`, `synonyms`, `definition`
 

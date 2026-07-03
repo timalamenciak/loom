@@ -74,7 +74,7 @@ def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[di
 
 
 class OntologySearchView(LoginRequiredMixin, View):
-    """GET /ontology/search/?q=<term>&prefixes=NCBITaxon,ENVO&limit=20"""
+    """GET /ontology/search/?q=<term>&prefixes=ELMO,ENVO&limit=20"""
 
     def get(self, request):
         q = request.GET.get("q", "").strip()

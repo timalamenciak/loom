@@ -44,9 +44,9 @@ class Node(models.Model):
 ```
 
 **CAMO fields stored in `data`:**
-- `entity_term` (required): Ontology term (NCBITaxon, ENVO, etc.)
-- `measured_attribute` (required): Attribute (PATO, GO, etc.)
-- `entity_type` (deprecated, replaced by internal categorization)
+- `entity_term` (required): Ontology term, or free text if uncached (Wikidata for taxa, ELMO/ENVO for processes, ENVO for environments)
+- `measured_attribute` (required): Attribute, or free text if uncached (PATO, GO, etc.)
+- `entity_type`: routes entity_term to the right ontology (taxon -> Wikidata, management_intervention -> ELMO, environmental_process -> ENVO, environmental_variable -> ELMO+ENVO)
 
 ### Edge
 

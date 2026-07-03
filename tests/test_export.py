@@ -420,7 +420,7 @@ def populated_graph(export_user, schema_version):
         name="Buckthorn",
         data={
             "entity_type": "biotic",
-            "entity_term": "NCBITaxon:712036",
+            "entity_term": "WD:Q712036",
             "direction": "increases",
         },
         schema_version=schema_version,

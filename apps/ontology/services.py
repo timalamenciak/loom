@@ -28,7 +28,7 @@ def search_terms(
     Args:
         query: Free text or CURIE string.
         prefixes: Optional list of ontology prefixes to restrict results
-                  (e.g. ["NCBITaxon", "ENVO"]).
+                  (e.g. ["ELMO", "ENVO"]).
         snapshot: Which snapshot to search; defaults to the active one.
         limit: Maximum results.
     """

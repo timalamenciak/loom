@@ -27,7 +27,7 @@ fallback used in contexts outside the annotation page (e.g. admin utilities).
 | Param | Source | Description |
 |-------|--------|-------------|
 | `q` | user keypress | Free-text search string; must be ≥ 2 chars or the view returns `{"results": []}` immediately |
-| `prefixes` | `data-ontology-prefixes` attribute (comma-separated string) | Bare ontology prefix tokens, e.g. `NCBITaxon,ENVO` |
+| `prefixes` | `data-ontology-prefixes` attribute (comma-separated string) | Bare ontology prefix tokens, e.g. `ELMO,ENVO` |
 | `limit` | optional, default 20 | Clamped to 1–50 |
 | `graph` | injected by template | PK of the `CausalGraph`; used to resolve the pinned ontology snapshot |
 
@@ -45,7 +45,7 @@ data-ontology-prefixes="{{ slot.ontology_prefixes|join:',' }}"
 ```
 
 `slot.ontology_prefixes` is the list from `loom_ui.yaml → ontology_routing` for
-that slot, e.g. `["NCBITaxon", "ENVO"]` → attribute value `"NCBITaxon,ENVO"`.
+that slot, e.g. `["ELMO", "ENVO"]` → attribute value `"ELMO,ENVO"`.
 
 ---
 
@@ -118,20 +118,20 @@ the local-DB strategies return empty — guarded by a feature flag in settings.
 ```
 config/loom_ui.yaml
   ontology_routing:
-    entity_term: [NCBITaxon, ENVO]   # list of bare prefix strings
+    entity_term: [ELMO, ENVO]   # list of bare prefix strings
                 ↓
-schema engine builds slot.ontology_prefixes = ["NCBITaxon", "ENVO"]
+schema engine builds slot.ontology_prefixes = ["ELMO", "ENVO"]
                 ↓
-form_field.html renders data-ontology-prefixes="NCBITaxon,ENVO"
+form_field.html renders data-ontology-prefixes="ELMO,ENVO"
                 ↓
-JS sends ?prefixes=NCBITaxon%2CENVO
+JS sends ?prefixes=ELMO%2CENVO
                 ↓
-ProjectOntologySearchView splits on ',' → {"NCBITaxon", "ENVO"}
+ProjectOntologySearchView splits on ',' → {"ELMO", "ENVO"}
   intersects with allowed_prefixes from the project's snapshot
                 ↓
-search_terms(prefixes=["ENVO", "NCBITaxon"], ...)
+search_terms(prefixes=["ENVO", "ELMO"], ...)
                 ↓
-OntologyTerm.objects.filter(prefix__in=["ENVO", "NCBITaxon"], ...)
+OntologyTerm.objects.filter(prefix__in=["ENVO", "ELMO"], ...)
 ```
 
 The intersection step in `ProjectOntologySearchView` (`views.py:87–98`) is the
@@ -139,6 +139,62 @@ security/correctness gate: even if a caller sends arbitrary prefixes, only
 prefixes present in the project's pinned snapshot can match. If the intersection
 is empty the view short-circuits with `{"results": []}` rather than falling back
 to an unrestricted query.
+
+---
+
+### Conditional routing: prefixes that depend on a sibling field
+
+The flat `ontology_routing.<slot>: [PREFIX, ...]` shape above is one of two
+shapes. The other lets a slot's routing depend on the current value of a
+sibling slot on the same class — CAMO's `entity_term` needs a different
+ontology depending on `entity_type` (`taxon` → Wikidata only,
+`management_intervention` → ELMO, `environmental_process` → ENVO,
+`environmental_variable` → ELMO + ENVO):
+
+```yaml
+ontology_routing:
+  entity_term:
+    condition_slot: entity_type
+    allow_free_text: true
+    routes:
+      taxon:
+        wikidata_live: {root_qid: "Q16521"}
+      management_intervention:
+        prefixes: [ELMO]
+      environmental_process:
+        prefixes: [ENVO]
+      environmental_variable:
+        prefixes: [ELMO, ENVO]
+    default:
+      prefixes: [ENVO]
+```
+
+`schema_engine._slot_spec()` (`apps/schemas/schema_engine.py`) flattens the
+`default` route into `slot.ontology_prefixes`/`slot.wikidata_live` as before
+(for any renderer that isn't sibling-aware), and additionally emits
+`slot.ontology_condition_slot` and `slot.ontology_routes` (the full per-value
+table). `form_field.html` writes these as `data-ontology-condition-slot`
+(the sibling field's DOM id) and `data-ontology-routes` (JSON). At runtime,
+`ontology-autocomplete.js`'s `_wireConditionalRouting()` reads the sibling's
+current value, looks up the matching route, and overwrites
+`input.dataset.ontologyPrefixes`/`wikidataLive`/`wikidataRootQid` before each
+search — so the request/response contract described above is unchanged, only
+which prefixes get sent depends on `entity_type` at query time. Changing
+`entity_type` after a term was already picked clears the stale pick rather
+than silently keeping a term grounded in the wrong ontology.
+
+`allow_free_text: true` additionally makes the widget accept typed text that
+matched nothing (schema permitting — see the CAMO `any_of: [uriorcurie,
+string]` note below) and offers to log an `OntologyTermSuggestion`
+(`apps/ontology/models.py`) for a curator to review and submit upstream.
+
+**Widget-selection pitfall:** LinkML reports the base `range` of an
+`any_of: [{range: uriorcurie}, {range: string}]` slot as plain `"string"`,
+which would otherwise fall through to a bare text widget and silently lose
+ontology autocomplete entirely (this was a real, pre-existing bug —
+`measured_attribute` had this exact `any_of` shape and had never actually
+rendered as `ontology_autocomplete`). `_slot_spec()` now checks `slot.any_of`
+and prefers the `uriorcurie`/`curie` member for widget selection when present.
 
 ---
 
@@ -175,7 +231,7 @@ loom_ui.yaml (ontology_routing)
 ```yaml
 ontology_routing:
   entity_term:
-    prefixes: [NCBITaxon, ENVO]   # local prefixes — still searched first
+    prefixes: [ELMO, ENVO]   # local prefixes — still searched first
     wikidata_live:
       root_qid: "Q16521"          # optional; omit to allow any taxon
 ```
