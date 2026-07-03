@@ -247,9 +247,7 @@ def load_ontology_release(
         with transaction.atomic():
             with _pronto_assume_utf8():
                 ont = pronto.Ontology(io.BytesIO(content))
-            allowed_ids = (
-                _descendant_closure(ont, root_terms) if scope else None
-            )
+            allowed_ids = _descendant_closure(ont, root_terms) if scope else None
             batch = []
             for term in ont.terms():
                 curie = str(term.id)

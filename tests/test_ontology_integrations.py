@@ -171,7 +171,7 @@ def test_load_release_forces_utf8_over_chardet_misdetection(db):
     padding = ("x" * 4000).encode()  # push the curly quote past a small peek
     curly_obo = (
         b"format-version: 1.2\nontology: test\n\n"
-        b"[Term]\nid: TEST:1\nname: term\ndef: \"padding " + padding + b'" []\n\n'
+        b'[Term]\nid: TEST:1\nname: term\ndef: "padding ' + padding + b'" []\n\n'
         b'[Term]\nid: TEST:2\nname: quoted\ndef: "the \xe2\x80\x9canthrome\xe2\x80\x9d." []\n'
     )
     config = {"name": "test", "prefix": "TEST", "url": "unused"}
@@ -785,7 +785,9 @@ def test_project_ontology_suggest_term_logs_and_enforces_membership(client, proj
     assert suggestion.status == OntologyTermSuggestion.STATUS_PENDING
 
     # Missing required fields -> 400, nothing logged twice
-    bad = client.post(url, data=json.dumps({"label": ""}), content_type="application/json")
+    bad = client.post(
+        url, data=json.dumps({"label": ""}), content_type="application/json"
+    )
     assert bad.status_code == 400
     assert OntologyTermSuggestion.objects.count() == 1
 
