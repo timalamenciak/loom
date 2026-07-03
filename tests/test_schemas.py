@@ -690,12 +690,16 @@ classes:
         assert any("conditioned_by" in w for w in warnings)
 
     def test_current_loom_ui_yaml_against_current_schema(self, latest_schema_yaml):
-        """Regression guard: this currently reports one known drift —
-        `conditioned_by` was subsumed into ContextAnnotation.scope_conditions
-        (see causalmosaic CHANGELOG 0.6.0->0.7.0) but loom_ui.yaml's
-        layer_context still lists it. If this test's drift set ever shrinks
-        to empty, tighten the assertion; if it grows, loom_ui.yaml needs
-        attention (or a genuinely new slot was renamed away)."""
+        """Regression guard: loom_ui.yaml should have zero drift against the
+        latest bundled schema. `process_context`, `conditioned_by`, and
+        `account_families` were dropped from CausalEdge between 0.4.x and
+        0.7.x (conditioned_by was subsumed into
+        ContextAnnotation.scope_conditions, see causalmosaic CHANGELOG
+        0.6.0->0.7.0), and `mechanism_description` was renamed to
+        `pathway_description` on MediationAnnotation; loom_ui.yaml has been
+        updated to match. If this ever fails again, either loom_ui.yaml has
+        fallen behind a schema change (fix the sidecar) or a slot was
+        genuinely renamed away (update this test with the new known drift)."""
         import yaml
 
         with open("config/loom_ui.yaml") as f:
@@ -705,10 +709,7 @@ classes:
         from apps.schemas.ui_config import check_ui_config_drift
 
         warnings = check_ui_config_drift(lsv, ui_config)
-        assert any("conditioned_by" in w for w in warnings), (
-            "expected the known conditioned_by drift to still be flagged — "
-            "update this test if loom_ui.yaml has since been fixed"
-        )
+        assert warnings == [], f"unexpected loom_ui.yaml drift: {warnings}"
 
 
 # ── Annotation models + service layer ────────────────────────────────────────
