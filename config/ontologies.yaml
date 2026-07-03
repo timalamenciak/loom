@@ -4,6 +4,14 @@
 # All sources are OBO-format URLs. The loader (apps/ontology) fetches,
 # parses with pronto, and indexes terms into OntologyTerm under a new
 # OntologySnapshot. Declare the full set here; preload a subset on boot.
+#
+# Optional per-entry branch scoping (root_terms + include_descendants):
+# instead of indexing every term with a matching prefix, index only the
+# named root CURIEs and their OBO subclasses. `source_sha256` still
+# content-addresses the full downloaded file for reproducibility; only the
+# *indexed* subset shrinks. Mirrors the seed-list/MIREOT pattern ELMO's own
+# build uses to pull a slice of ENVO into itself (see
+# https://github.com/timalamenciak/elmo/blob/main/src/ontology/imports/envo_terms.txt).
 
 ontologies:
   - name: envo
@@ -11,10 +19,20 @@ ontologies:
     url: http://purl.obolibrary.org/obo/envo.obo
     description: "Environment Ontology"
 
-  - name: ncbitaxon
-    prefix: NCBITaxon
-    url: http://purl.obolibrary.org/obo/ncbitaxon.obo
-    description: "NCBI Taxonomy"
+  - name: elmo
+    prefix: ELMO
+    url: https://raw.githubusercontent.com/timalamenciak/elmo/e3ec16b/elmo.obo
+    description: "Ecolink Model Ontology (ecosystem management processes, ecosystem types)"
+    # Loom only autocompletes ELMO for entity_type=management_intervention,
+    # which is exactly ELMO's active-ecosystem-management-process and
+    # planned-environmental-usage-process branches. ELMO's ecosystem
+    # functional group terms (used by CAMO's EcosystemFunctionalGroupEnum)
+    # are baked into the schema enum directly, not looked up here, so they
+    # don't need to be indexed.
+    root_terms:
+      - "ENVO:01001170"   # active ecosystem management process
+      - "ENVO:01001436"   # planned environmental usage process
+    include_descendants: true
 
   - name: pato
     prefix: PATO
@@ -47,8 +65,10 @@ ontologies:
     description: "Evidence & Conclusion Ontology"
 
 # Preload on first boot (fast subset — full ontologies load on demand).
-# NCBITaxon is large; omit from default preload on Nibi if network is slow.
+# Taxa are resolved live against Wikidata (see loom_ui.yaml wikidata_live),
+# not cached locally, so no taxon ontology is preloaded here.
 preload:
   - envo
+  - elmo
   - pato
   - ro

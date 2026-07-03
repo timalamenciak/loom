@@ -11,19 +11,33 @@
  *     stores the CURIE that the CAMO slot actually requires.
  *   - If no hidden input is found the visible input stores the CURIE itself.
  *
+ * Conditional routing: an input carrying [data-ontology-condition-slot] (the
+ * DOM id of a sibling field, e.g. entity_type) and [data-ontology-routes]
+ * (a JSON map of that field's value -> {prefixes, wikidata_live}) re-queries
+ * with the matching route whenever the sibling field changes. See
+ * config/loom_ui.yaml's ontology_routing `condition_slot` shape.
+ *
+ * Free text: an input carrying [data-ontology-allow-free-text="true"] gets a
+ * "Propose new term" row in its dropdown. Picking it stores the typed text
+ * as the slot's value (schema must allow a string alternative to uriorcurie)
+ * and opens a small form to log an OntologyTermSuggestion for a curator to
+ * process upstream, via the suggestUrl passed to init().
+ *
  * Initialization (called once on DOMContentLoaded):
- *   OntologyAutocomplete.init('/ontology/search/');
+ *   OntologyAutocomplete.init('/ontology/search/', '/ontology/suggest/');
  *
  * Or attach to a single input:
- *   OntologyAutocomplete.attach(inputEl, '/ontology/search/');
+ *   OntologyAutocomplete.attach(inputEl);
  */
 
 const OntologyAutocomplete = {
     _searchUrl: '/ontology/search/',
+    _suggestUrl: '',
     _activeDropdown: null,
 
-    init(searchUrl = '/ontology/search/') {
+    init(searchUrl = '/ontology/search/', suggestUrl = '') {
         this._searchUrl = searchUrl;
+        this._suggestUrl = suggestUrl;
         document.querySelectorAll('[data-ontology-prefixes]').forEach((el) => {
             this.attach(el);
         });
@@ -42,6 +56,7 @@ const OntologyAutocomplete = {
             this._renderSelected(input);
         }
         this._hydrate(input);
+        this._wireConditionalRouting(input);
 
         input.addEventListener('input', () => {
             clearTimeout(debounceTimer);
@@ -167,6 +182,10 @@ const OntologyAutocomplete = {
             empty.textContent = 'No terms found.';
             Object.assign(empty.style, { padding: '8px 12px', color: '#888', fontSize: '13px' });
             dropdown.appendChild(empty);
+            if (input.dataset.ontologyAllowFreeText === 'true') {
+                _ensureOaStyles();
+                dropdown.appendChild(this._buildFreeTextItem(input, q));
+            }
             dropdown.style.display = 'block';
             const unavailable = data.meta?.unavailable_prefixes || [];
             this._setStatus(
@@ -183,6 +202,9 @@ const OntologyAutocomplete = {
         data.results.forEach((term, idx) => {
             dropdown.appendChild(this._buildItem(input, term, idx === 0));
         });
+        if (input.dataset.ontologyAllowFreeText === 'true') {
+            dropdown.appendChild(this._buildFreeTextItem(input, q));
+        }
 
         const unavailable = data.meta?.unavailable_prefixes || [];
         this._setStatus(
@@ -382,6 +404,174 @@ const OntologyAutocomplete = {
         if (!status) return;
         status.textContent = message;
         status.style.color = isError ? '#b91c1c' : '';
+    },
+
+    // ── Conditional (sibling-field-aware) routing ──────────────────────────
+
+    _wireConditionalRouting(input) {
+        const conditionId = input.dataset.ontologyConditionSlot;
+        if (!conditionId) return;
+        let routes = {};
+        try {
+            routes = JSON.parse(input.dataset.ontologyRoutes || '{}');
+        } catch (_) {
+            return;
+        }
+        const conditionEl = document.getElementById(conditionId);
+        if (!conditionEl) return;
+
+        const applyRoute = (isChange) => {
+            const route = routes[conditionEl.value];
+            if (!route) return; // no match — keep the server-rendered default route
+            input.dataset.ontologyPrefixes = (route.prefixes || []).join(',');
+            if (route.wikidata_live) {
+                input.dataset.wikidataLive = 'true';
+                if (route.wikidata_live.root_qid) {
+                    input.dataset.wikidataRootQid = route.wikidata_live.root_qid;
+                } else {
+                    delete input.dataset.wikidataRootQid;
+                }
+            } else {
+                delete input.dataset.wikidataLive;
+                delete input.dataset.wikidataRootQid;
+            }
+            if (isChange) {
+                // The entity type changed after a term was already picked for
+                // the old type — that pick is very likely wrong for the new
+                // type, so clear it rather than silently keep a mismatched CURIE.
+                input.value = '';
+                input._oaSelectedLabel = '';
+                const hidden = this._hiddenInput(input);
+                if (hidden) {
+                    hidden.value = '';
+                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                this._clearWikidataHints(input);
+            }
+        };
+
+        applyRoute(false);
+        conditionEl.addEventListener('change', () => applyRoute(true));
+    },
+
+    // ── Free text + "propose new term" ──────────────────────────────────────
+
+    _buildFreeTextItem(input, query) {
+        const item = document.createElement('div');
+        item.className = 'oa-item oa-freetext-item';
+        item.innerHTML = `<span class="oa-label">+ Propose new term: "${_esc(query)}"</span>`;
+        Object.assign(item.style, {
+            padding: '6px 12px',
+            cursor: 'pointer',
+            borderTop: '1px dashed var(--border, #ddd)',
+            fontSize: '13px',
+            color: 'var(--accent, #1558d6)',
+        });
+        item.addEventListener('mouseenter', () => {
+            item.closest('.oa-dropdown').querySelectorAll('.oa-item')
+                .forEach((i) => i.classList.remove('active'));
+            item.classList.add('active');
+        });
+        item.addEventListener('click', () => {
+            this._selectFreeText(input, query);
+            item.closest('.oa-dropdown').style.display = 'none';
+        });
+        return item;
+    },
+
+    _selectFreeText(input, query) {
+        if (!query) return;
+        if (input.dataset.ontologyMultivalue === 'true') {
+            this._addMultivalueTerm(input, { curie: query, label: query });
+        } else {
+            input.value = query;
+            input._oaSelectedLabel = query;
+            input.setCustomValidity('');
+            const hidden = this._hiddenInput(input);
+            if (hidden) {
+                hidden.value = query;
+                hidden.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            this._clearWikidataHints(input);
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        this._openSuggestForm(input, query);
+    },
+
+    _openSuggestForm(input, query) {
+        if (!this._suggestUrl) return; // free text is still saved; logging is just unavailable
+        const field = input.closest('.field');
+        if (!field) return;
+        const existing = field.querySelector('[data-ontology-suggest-panel]');
+        if (existing) existing.remove();
+
+        _ensureOaStyles();
+        const prefixes = (input.dataset.ontologyPrefixes || '')
+            .split(',').map((p) => p.trim()).filter(Boolean);
+        const options = [...prefixes];
+        if (input.dataset.wikidataLive === 'true') options.push('Wikidata');
+
+        const panel = document.createElement('div');
+        panel.dataset.ontologySuggestPanel = 'true';
+        panel.className = 'oa-suggest-panel';
+        panel.innerHTML = `
+            <div class="oa-suggest-title">"${_esc(query)}" isn't in the cached ontology yet. Propose it?</div>
+            <label class="oa-suggest-label">Target ontology
+                <select class="oa-suggest-target">
+                    ${options.map((o) => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('')}
+                    <option value="other">Other / not sure</option>
+                </select>
+            </label>
+            <label class="oa-suggest-label">Suggested parent term (optional)
+                <input type="text" class="oa-suggest-parent" placeholder="Broader existing term…">
+            </label>
+            <label class="oa-suggest-label">Definition (optional)
+                <textarea class="oa-suggest-definition" rows="2" placeholder="Plain-language definition…"></textarea>
+            </label>
+            <div class="oa-suggest-actions">
+                <button type="button" class="oa-suggest-submit">Log suggestion</button>
+                <button type="button" class="oa-suggest-dismiss">Not now</button>
+            </div>
+            <div class="oa-suggest-status" aria-live="polite"></div>
+        `;
+        panel.querySelector('.oa-suggest-dismiss').addEventListener('click', () => panel.remove());
+        panel.querySelector('.oa-suggest-submit').addEventListener('click', () => {
+            this._submitSuggestion(input, query, panel);
+        });
+        field.appendChild(panel);
+    },
+
+    async _submitSuggestion(input, query, panel) {
+        const status = panel.querySelector('.oa-suggest-status');
+        const target = panel.querySelector('.oa-suggest-target').value;
+        const parent = panel.querySelector('.oa-suggest-parent').value.trim();
+        const definition = panel.querySelector('.oa-suggest-definition').value.trim();
+        const hidden = this._hiddenInput(input);
+        status.textContent = 'Logging…';
+        status.style.color = '';
+        try {
+            const resp = await fetch(this._suggestUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': _csrfToken(),
+                },
+                body: JSON.stringify({
+                    slot: hidden ? hidden.name : '',
+                    label: query,
+                    target_ontology: target,
+                    suggested_parent: parent,
+                    definition,
+                }),
+            });
+            if (!resp.ok) throw new Error(`Failed (${resp.status})`);
+            status.textContent = 'Logged for review — thank you.';
+            setTimeout(() => panel.remove(), 2500);
+        } catch (error) {
+            status.textContent = 'Could not log the suggestion right now; your annotation is still saved.';
+            status.style.color = '#b91c1c';
+        }
     },
 };
 
@@ -611,8 +801,39 @@ function _ensureOaStyles() {
             line-height: 1;
             padding: 0 3px;
         }
+        .oa-suggest-panel {
+            margin-top: 6px;
+            padding: 8px 10px;
+            border: 1px solid var(--border, #d1d5db);
+            border-radius: 6px;
+            background: var(--surface, #f9fafb);
+            font-size: 12px;
+        }
+        .oa-suggest-title { margin-bottom: 6px; font-weight: 500; }
+        .oa-suggest-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 11px;
+            color: var(--muted, #666);
+        }
+        .oa-suggest-label select,
+        .oa-suggest-label input,
+        .oa-suggest-label textarea {
+            display: block;
+            width: 100%;
+            margin-top: 2px;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+        .oa-suggest-actions { display: flex; gap: 6px; margin-top: 4px; }
+        .oa-suggest-status { margin-top: 4px; font-size: 11px; color: var(--muted, #666); }
     `;
     document.head.appendChild(s);
+}
+
+function _csrfToken() {
+    const match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+    return match ? decodeURIComponent(match[1]) : '';
 }
 
 function _prefixFromCurie(curie) {

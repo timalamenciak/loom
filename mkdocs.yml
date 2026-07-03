@@ -1,0 +1,42 @@
+site_name: Loom Documentation
+site_description: User and technical documentation for the Loom causal annotation workbench
+
+docs_dir: docs
+
+theme:
+  name: readthedocs
+
+nav:
+  - Home: index.md
+  - Annotator guide:
+      - Start here: user-guide/index.md
+      - Receive an assignment: user-guide/assignments.md
+      - Use the workspace: user-guide/workspace.md
+      - Find causal claims: user-guide/finding-causal-claims.md
+      - Record article context: user-guide/source-document.md
+      - Create nodes: user-guide/creating-nodes.md
+      - Create edges: user-guide/creating-edges.md
+      - Save and resume: user-guide/saving-and-resuming.md
+      - Complete and submit: user-guide/completing-and-submitting.md
+      - After submission: user-guide/after-submission.md
+      - Troubleshooting: user-guide/troubleshooting.md
+      - Glossary: user-guide/glossary.md
+  - Technical reference:
+      - Architecture: architecture.md
+      - Data model: data-model.md
+      - Core functions: core-functions.md
+      - Operations: operations.md
+      - LLM proposals: llm-proposals.md
+
+exclude_docs: |
+  README.md
+  annotating-your-first-paper.html
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+
+strict: true

@@ -341,9 +341,10 @@
 {# ── Autocomplete init — ontology (server-side AJAX) + enum (client-side filter) ── #}
 <script>
   window.loomOntologySearchUrl = "{% url 'project-ontology-search' project.pk %}?graph={{ graph.pk }}";
+  window.loomOntologySuggestUrl = "{% url 'project-ontology-suggest-term' project.pk %}";
 
   function _initAutocomplete() {
-    window.OntologyAutocomplete?.init(window.loomOntologySearchUrl);
+    window.OntologyAutocomplete?.init(window.loomOntologySearchUrl, window.loomOntologySuggestUrl);
     window.EnumAutocomplete?.init();
   }
 

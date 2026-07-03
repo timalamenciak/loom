@@ -84,7 +84,7 @@ classes:
       term:
         range: uriorcurie
         annotations:
-          loom_ontologies: "NCBITaxon, ENVO"
+          loom_ontologies: "ELMO, ENVO"
 """
         stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
         lsv = LoomSchemaView(stub)
@@ -93,7 +93,7 @@ classes:
         slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
 
         assert slots["term"]["widget"] == "ontology_autocomplete"
-        assert slots["term"]["ontology_prefixes"] == ["NCBITaxon", "ENVO"]
+        assert slots["term"]["ontology_prefixes"] == ["ELMO", "ENVO"]
 
     def test_ontology_prefixes_fall_back_to_sidecar_routing(self):
         schema = """
@@ -113,6 +113,78 @@ classes:
         slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
 
         assert slots["term"]["ontology_prefixes"] == ["PATO"]
+
+    def test_any_of_uriorcurie_string_still_gets_ontology_widget(self):
+        """A slot declared `any_of: [uriorcurie, string]` (CAMO's "ontology
+        term or free text" pattern) must still resolve to the ontology
+        autocomplete widget, not fall through to plain text. Regression test
+        for the bug where entity_term/measured_attribute silently lost their
+        autocomplete widget the moment any_of was added."""
+        schema = """
+id: https://example.org/any-of-ontology
+name: any-of-ontology
+imports: [linkml:types]
+classes:
+  Example:
+    attributes:
+      term:
+        any_of:
+          - range: uriorcurie
+          - range: string
+"""
+        stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
+        lsv = LoomSchemaView(stub)
+
+        spec = lsv.form_spec("Example", ontology_routing={"term": ["PATO"]})
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+
+        assert slots["term"]["widget"] == "ontology_autocomplete"
+        assert slots["term"]["ontology_prefixes"] == ["PATO"]
+
+    def test_conditional_routing_emits_full_routes_table(self):
+        """A condition_slot routing entry (config/loom_ui.yaml's entity_type
+        -> entity_term shape) should emit the default route as the flattened
+        ontology_prefixes/wikidata_live, plus the full per-value table and
+        the condition slot name for the client-side widget to react to."""
+        schema = """
+id: https://example.org/conditional-routing
+name: conditional-routing
+imports: [linkml:types]
+classes:
+  Example:
+    attributes:
+      entity_type:
+        range: string
+      term:
+        range: uriorcurie
+"""
+        stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
+        lsv = LoomSchemaView(stub)
+
+        routing = {
+            "term": {
+                "condition_slot": "entity_type",
+                "allow_free_text": True,
+                "routes": {
+                    "taxon": {"wikidata_live": {"root_qid": "Q16521"}},
+                    "management_intervention": {"prefixes": ["ELMO"]},
+                },
+                "default": {"prefixes": ["ENVO"]},
+            }
+        }
+        spec = lsv.form_spec("Example", ontology_routing=routing)
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+        term = slots["term"]
+
+        assert term["ontology_condition_slot"] == "entity_type"
+        assert term["allow_free_text"] is True
+        assert term["ontology_prefixes"] == ["ENVO"]  # flattened default
+        assert term["ontology_routes"]["management_intervention"]["prefixes"] == [
+            "ELMO"
+        ]
+        assert term["ontology_routes"]["taxon"]["wikidata_live"] == {
+            "root_qid": "Q16521"
+        }
 
     def test_camo_042_entity_term_uses_schema_ontology_annotations(self):
         """Pinned to 0.4.2 deliberately.

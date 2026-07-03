@@ -47,20 +47,20 @@ def snapshot_with_terms(db):
 
     OntologyTerm.objects.create(
         snapshot=snapshot,
-        prefix="NCBITaxon",
-        curie="NCBITaxon:9606",
-        label="Homo sapiens",
-        definition="Modern humans",
-        synonym_labels="human, man",
+        prefix="ELMO",
+        curie="ELMO:3620020",
+        label="mechanical ecosystem management process",
+        definition="A human employs machines or tools to directly impact an ecosystem",
+        synonym_labels="mechanical management, machine-based intervention",
         obsolete=False,
     )
 
     OntologyTerm.objects.create(
         snapshot=snapshot,
-        prefix="NCBITaxon",
-        curie="NCBITaxon:1",
+        prefix="ELMO",
+        curie="ELMO:0000000",
         label="root",
-        definition="Root taxon",
+        definition="Root node",
         synonym_labels="",
         obsolete=False,
     )
@@ -92,10 +92,10 @@ class TestSearchTerms:
 
     def test_synonym_search(self, snapshot_with_terms):
         """Search matches synonym labels."""
-        results = search_terms("human", snapshot=snapshot_with_terms)
+        results = search_terms("machine-based", snapshot=snapshot_with_terms)
 
         assert len(results) >= 1
-        assert any("Homo sapiens" in r.label for r in results)
+        assert any("mechanical ecosystem management" in r.label for r in results)
 
     def test_limit_results(self, snapshot_with_terms):
         """Search respects limit parameter."""
@@ -106,11 +106,11 @@ class TestSearchTerms:
     def test_prefix_filter(self, snapshot_with_terms):
         """Search filters by prefix."""
         results = search_terms(
-            "human", prefixes=["NCBITaxon"], snapshot=snapshot_with_terms
+            "mechanical", prefixes=["ELMO"], snapshot=snapshot_with_terms
         )
 
         assert len(results) >= 1
-        assert all(r.prefix == "NCBITaxon" for r in results)
+        assert all(r.prefix == "ELMO" for r in results)
 
     def test_obsolete_excluded(self, snapshot_with_terms, db):
         """Obsolete terms are excluded from results."""
@@ -145,11 +145,11 @@ class TestSearchTermsFallback:
 
     def test_icontains_fallback(self, snapshot_with_terms):
         """Search falls back to icontains when trigram unavailable."""
-        results = search_terms("homo", snapshot=snapshot_with_terms)
+        results = search_terms("mechan", snapshot=snapshot_with_terms)
 
-        # Should find Homo sapiens even with partial match
+        # Should find the mechanical management term even with partial match
         assert len(results) >= 1
-        assert any("Homo" in r.label for r in results)
+        assert any("mechanical" in r.label for r in results)
 
     def test_case_insensitive(self, snapshot_with_terms):
         """Search is case-insensitive."""

@@ -53,8 +53,11 @@ def test_inference_finds_registered_and_unresolved_prefixes(schema):
     result = infer_ontologies(schema)
     names = {item["name"] for item in result["matched"]}
     unresolved = {item["prefix"] for item in result["unresolved"]}
-    assert {"envo", "ncbitaxon", "pato", "eco", "bfo"} <= names
-    assert {"obi", "sepio"} <= unresolved
+    assert {"envo", "elmo", "pato", "eco", "bfo"} <= names
+    # ncbitaxon is no longer a registered ontology (Wikidata is now canonical
+    # for taxa) — it still declares a namespace in this frozen 0.4.1 schema,
+    # so it correctly falls into unresolved rather than matched.
+    assert {"obi", "sepio", "ncbitaxon"} <= unresolved
 
 
 @pytest.mark.django_db
@@ -70,14 +73,14 @@ classes:
       term:
         range: uriorcurie
         annotations:
-          loom_ontologies: "PATO, NCBITaxon"
+          loom_ontologies: "PATO, ELMO"
 """,
     )
 
     result = infer_ontologies(schema)
     names = {item["name"] for item in result["matched"]}
 
-    assert {"pato", "ncbitaxon"} <= names
+    assert {"pato", "elmo"} <= names
 
 
 @pytest.mark.django_db

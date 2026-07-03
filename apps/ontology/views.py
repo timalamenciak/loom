@@ -1,5 +1,7 @@
 """Ontology search API — JSON endpoint consumed by ontology-autocomplete.js."""
 
+import json
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
@@ -10,6 +12,7 @@ from apps.annotation.models import CausalGraph
 from apps.projects.models import Project, ProjectMembership
 
 from .loaders import ontology_entries
+from .models import OntologyTermSuggestion
 from .services import search_terms, terms_by_curies
 from .wikidata_search import search as wikidata_search
 
@@ -182,3 +185,54 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
         # even when the local snapshot is absent or yields nothing.
         results = _merge_wikidata(request, results, q, limit)
         return JsonResponse({"results": results, "meta": meta})
+
+
+class ProjectOntologyTermSuggestionView(LoginRequiredMixin, View):
+    """POST /projects/<pk>/ontology/suggest/
+
+    Logs a free-text term an annotator typed because nothing cached matched,
+    for a curator to later batch and file upstream. Never blocks or mutates
+    the annotation itself — the free-text value the annotator picked is
+    already stored in the node/edge JSONB independently of this endpoint.
+    """
+
+    def post(self, request, pk):
+        project = get_object_or_404(Project, pk=pk)
+        if (
+            not request.user.is_superuser
+            and not ProjectMembership.objects.filter(
+                project=project, user=request.user
+            ).exists()
+        ):
+            raise PermissionDenied
+
+        try:
+            payload = json.loads(request.body or b"{}")
+        except ValueError:
+            return JsonResponse({"error": "Invalid JSON body."}, status=400)
+
+        label = str(payload.get("label", "")).strip()
+        target_ontology = str(payload.get("target_ontology", "")).strip()
+        if not label or not target_ontology:
+            return JsonResponse(
+                {"error": "label and target_ontology are required."}, status=400
+            )
+
+        graph = None
+        graph_pk = payload.get("graph") or request.GET.get("graph")
+        if graph_pk:
+            graph = CausalGraph.objects.filter(
+                pk=graph_pk, document__project=project
+            ).first()
+
+        suggestion = OntologyTermSuggestion.objects.create(
+            project=project,
+            graph=graph,
+            created_by=request.user,
+            slot_name=str(payload.get("slot", ""))[:200],
+            label=label[:1000],
+            suggested_parent=str(payload.get("suggested_parent", ""))[:500],
+            definition=str(payload.get("definition", "")),
+            target_ontology=target_ontology[:100],
+        )
+        return JsonResponse({"ok": True, "id": suggestion.pk})

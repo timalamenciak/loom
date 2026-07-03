@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import urllib.request
@@ -15,6 +16,38 @@ from django.utils import timezone
 from .models import OntologyRelease, OntologySnapshot, OntologyTerm
 
 _CONFIG_PATH = Path(settings.BASE_DIR) / "config" / "ontologies.yaml"
+
+
+@contextlib.contextmanager
+def _pronto_assume_utf8():
+    """Make pronto decode OBO/OWL content as UTF-8 instead of guessing.
+
+    OBO 1.4 mandates UTF-8. pronto otherwise runs chardet on a small peeked
+    prefix and can misdetect a genuinely UTF-8 file as Windows-1252 from a
+    low-confidence sample, then crash decoding a later multi-byte sequence
+    (observed with ELMO's OBO release, which uses curly quotes in a
+    definition — plain ASCII-only sources like ENVO's core file never hit
+    this). Scoped to the parse call and restored immediately after.
+    """
+    import pronto.ontology
+    import pronto.utils.io as pronto_io
+
+    original = pronto_io.decompress
+
+    def _decompress_utf8(reader, path=None, encoding=None):
+        return original(reader, path=path, encoding=encoding or "utf-8")
+
+    # `pronto.ontology` did `from .utils.io import decompress`, which binds
+    # its own name in that module's namespace — patching pronto.utils.io
+    # alone does not affect the reference pronto.ontology.Ontology() actually
+    # calls, so both bindings need patching.
+    pronto_io.decompress = _decompress_utf8
+    pronto.ontology.decompress = _decompress_utf8
+    try:
+        yield
+    finally:
+        pronto_io.decompress = original
+        pronto.ontology.decompress = original
 
 
 def _load_config() -> dict:
@@ -145,6 +178,24 @@ def _read_source(source: str) -> bytes:
     return Path(source).read_bytes()
 
 
+def _descendant_closure(ont, root_terms: list[str]) -> set[str]:
+    """Return the lowercased id set of *root_terms* plus all their OBO subclasses.
+
+    Unknown root CURIEs (typo, or absent from this particular release) are
+    skipped rather than raised — a config change to root_terms should never
+    turn into a load failure for the whole ontology.
+    """
+    by_id = {str(term.id).lower(): term for term in ont.terms()}
+    allowed: set[str] = set()
+    for root in root_terms:
+        term = by_id.get(root.lower())
+        if term is None:
+            continue
+        for sub in term.subclasses(with_self=True):
+            allowed.add(str(sub.id).lower())
+    return allowed
+
+
 def load_ontology_release(
     name: str,
     source: str | None = None,
@@ -165,9 +216,20 @@ def load_ontology_release(
 
     content = _read_source(str(url))
     digest = hashlib.sha256(content).hexdigest()
+
+    # Optional branch scoping: index only root_terms and their descendants
+    # instead of every term with a matching prefix. Mirrors the same
+    # seed-list/MIREOT pattern ELMO's own build uses against ENVO (see
+    # src/ontology/imports/envo_terms.txt upstream) — a huge source ontology
+    # doesn't need to be cached in full when only one branch is ever routed to.
+    root_terms = sorted({str(r) for r in (cfg.get("root_terms") or [])})
+    include_descendants = bool(cfg.get("include_descendants"))
+    scope = root_terms if include_descendants else []
+
     existing = OntologyRelease.objects.filter(
         prefix=prefix,
         source_sha256=digest,
+        scope_root_curies=scope,
         status=OntologyRelease.STATUS_READY,
     ).first()
     if existing:
@@ -178,17 +240,29 @@ def load_ontology_release(
         prefix=prefix,
         source_url=str(url),
         source_sha256=digest,
+        scope_root_curies=scope,
         status=OntologyRelease.STATUS_LOADING,
     )
     try:
         with transaction.atomic():
-            ont = pronto.Ontology(io.BytesIO(content))
+            with _pronto_assume_utf8():
+                ont = pronto.Ontology(io.BytesIO(content))
+            allowed_ids = (
+                _descendant_closure(ont, root_terms) if scope else None
+            )
             batch = []
             for term in ont.terms():
                 curie = str(term.id)
                 term_prefix = curie.split(":")[0] if ":" in curie else prefix
-                if term_prefix != prefix:
+                # Case-insensitive: some sources (e.g. ELMO's own OBO release)
+                # emit lowercase CURIEs (`elmo:3620020`) while Loom/CAMO use
+                # the uppercase prefix (`ELMO:`) everywhere else. Without this,
+                # every term from such a source is silently dropped.
+                if term_prefix.lower() != prefix.lower():
                     continue
+                if allowed_ids is not None and curie.lower() not in allowed_ids:
+                    continue
+                curie = f"{prefix}:{curie.split(':', 1)[1]}" if ":" in curie else curie
                 synonyms = [syn.description for syn in (term.synonyms or [])]
                 batch.append(
                     OntologyTerm(

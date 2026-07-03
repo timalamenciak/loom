@@ -88,6 +88,11 @@
          {% if slot.multivalued %}data-ontology-multivalue="true"{% endif %}
          {% if slot.wikidata_live %}data-wikidata-live="true"{% endif %}
          {% if slot.wikidata_live.root_qid %}data-wikidata-root-qid="{{ slot.wikidata_live.root_qid }}"{% endif %}
+         {% if slot.ontology_condition_slot %}
+         data-ontology-condition-slot="id_{{ prefix|default:"" }}{{ slot.ontology_condition_slot }}"
+         data-ontology-routes="{{ slot.ontology_routes|to_json }}"
+         {% endif %}
+         {% if slot.allow_free_text %}data-ontology-allow-free-text="true"{% endif %}
          data-curie-target="id_{{ field_name }}"
          value="{% if not slot.multivalued %}{{ current_data|dict_get:field_name }}{% endif %}"
          placeholder="Search ontology…"

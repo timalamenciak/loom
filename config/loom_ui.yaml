@@ -63,22 +63,47 @@ layers:
       - annotation_confidence
       - annotation_notes
 
-# slot_name routing can be one of two shapes:
+# slot_name routing can be one of three shapes:
 #   - list of bare prefix strings: uses only local OntologyTerm rows
 #   - dict with optional "prefixes" list and/or "wikidata_live" object:
-#       prefixes: [NCBITaxon, ENVO]   # local prefixes (omit if local-only isn't wanted)
+#       prefixes: [ENVO]             # local prefixes (omit if local-only isn't wanted)
 #       wikidata_live:
 #         root_qid: "Q16521"          # optional — restrict to descendants of this taxon
 #                                     # omit root_qid to allow any Wikidata entity
 #     "wikidata_live" is distinct from adding "WD" as a regular prefix.  A "WD"
 #     prefix would imply a pre-loaded local OntologyTerm set; wikidata_live triggers
 #     a live two-step API call (wbsearchentities → SPARQL filter).
+#   - dict keyed on a sibling slot's enum value (conditional routing):
+#       condition_slot: entity_type   # sibling slot on the same class
+#       routes:
+#         <permissible_value>: <one of the two shapes above>
+#       default: <one of the two shapes above>   # used when the sibling is unset/unmatched
+#     The widget reads the current value of condition_slot client-side and
+#     re-queries with that route's prefixes/wikidata_live whenever it changes.
+#     "allow_free_text: true" lets the annotator submit typed text that matched
+#     no term; the UI then prompts them to name which ontology it should be
+#     proposed to (see apps/ontology's OntologyTermSuggestion).
 ontology_routing:
   entity_term:
-    prefixes: [NCBITaxon, ENVO]
-    wikidata_live:
-      root_qid: "Q16521"   # taxon — any organism or taxonomic group
-  measured_attribute: [PATO]
+    condition_slot: entity_type
+    allow_free_text: true
+    routes:
+      taxon:
+        wikidata_live:
+          root_qid: "Q16521"   # taxon — any organism or taxonomic group
+      management_intervention:
+        prefixes: [ELMO]
+      environmental_process:
+        prefixes: [ENVO]
+      environmental_variable:
+        prefixes: [ELMO, ENVO]
+    default:
+      prefixes: [ENVO]
+      wikidata_live:
+        root_qid: "Q16521"
+  measured_attribute:
+    prefixes: [PATO]
+    allow_free_text: true
   ecosystem_context:
     prefixes: [ENVO]
     wikidata_live:

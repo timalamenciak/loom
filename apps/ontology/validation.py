@@ -24,13 +24,21 @@ def add_ontology_errors(binding, form_spec: list[dict], snapshot) -> None:
     known = {
         term.curie: term for term in terms_by_curies(local_curies, snapshot=snapshot)
     }
-    for field_name, values, prefixes in fields:
+    for field_name, values, prefixes, allow_free_text in fields:
         if not prefixes:
             continue
         for value in values:
             if value.startswith("WD:"):
                 continue
             prefix = value.split(":", 1)[0] if ":" in value else ""
+            # A slot with allow_free_text (e.g. entity_term, measured_attribute)
+            # accepts a plain string when nothing cached matches yet — an
+            # OntologyTermSuggestion is logged separately for curator review.
+            # Only enforce membership when the value actually looks like a
+            # CURIE for one of this slot's routed prefixes; anything else is
+            # deliberate free text, not a malformed ontology reference.
+            if allow_free_text and (not prefix or prefix not in prefixes):
+                continue
             if not prefix or value not in known:
                 binding.add_error(
                     field_name,
@@ -57,6 +65,7 @@ def _ontology_fields(data: dict, form_spec: list[dict], prefix: str = "") -> lis
                         field_name,
                         [str(item).strip() for item in values if str(item).strip()],
                         list(slot.get("ontology_prefixes") or []),
+                        bool(slot.get("allow_free_text")),
                     )
                 )
             nested = slot.get("nested_spec")

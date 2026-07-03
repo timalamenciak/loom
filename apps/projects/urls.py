@@ -1,6 +1,9 @@
 from django.urls import path
 
-from apps.ontology.views import ProjectOntologySearchView
+from apps.ontology.views import (
+    ProjectOntologySearchView,
+    ProjectOntologyTermSuggestionView,
+)
 
 from . import views
 
@@ -62,6 +65,11 @@ urlpatterns = [
         "<int:pk>/ontology/search/",
         ProjectOntologySearchView.as_view(),
         name="project-ontology-search",
+    ),
+    path(
+        "<int:pk>/ontology/suggest/",
+        ProjectOntologyTermSuggestionView.as_view(),
+        name="project-ontology-suggest-term",
     ),
     path(
         "<int:pk>/members/", views.ProjectMembersView.as_view(), name="project-members"

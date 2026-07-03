@@ -25,7 +25,7 @@ class TestCuriePrefix:
 
     def test_extract_curie_prefix(self):
         assert _curie_prefix("ENVO:00001001") == "ENVO"
-        assert _curie_prefix("NCBITaxon:9606") == "NCBITaxon"
+        assert _curie_prefix("ELMO:9606") == "ELMO"
         assert _curie_prefix("http://example.org/resource") == "http"
 
     def test_returns_none_for_non_curie(self):
@@ -46,16 +46,16 @@ class TestOntologyPrefixes:
         assert _ontology_prefixes("  ENVO  ") == ["ENVO"]
 
     def test_multiple_prefixes(self):
-        assert _ontology_prefixes("ENVO, NCBITaxon") == ["ENVO", "NCBITaxon"]
-        assert _ontology_prefixes("ENVO , NCBITaxon , PATO") == [
+        assert _ontology_prefixes("ENVO, ELMO") == ["ENVO", "ELMO"]
+        assert _ontology_prefixes("ENVO , ELMO , PATO") == [
             "ENVO",
-            "NCBITaxon",
+            "ELMO",
             "PATO",
         ]
 
     def test_list_input(self):
-        result = _ontology_prefixes(["ENVO", "NCBITaxon"])
-        assert result == ["ENVO", "NCBITaxon"]
+        result = _ontology_prefixes(["ENVO", "ELMO"])
+        assert result == ["ENVO", "ELMO"]
 
     def test_empty_or_none(self):
         assert _ontology_prefixes("") == []
@@ -63,8 +63,8 @@ class TestOntologyPrefixes:
         assert _ontology_prefixes(None) == []
 
     def test_nested_lists(self):
-        result = _ontology_prefixes(["ENVO", "NCBITaxon, PATO"])
-        assert result == ["ENVO", "NCBITaxon", "PATO"]
+        result = _ontology_prefixes(["ENVO", "ELMO, PATO"])
+        assert result == ["ENVO", "ELMO", "PATO"]
 
 
 class TestWalk:
@@ -89,9 +89,9 @@ class TestWalk:
         from collections import defaultdict
 
         evidence = defaultdict(set)
-        _walk({"loom_ontologies": "ENVO, NCBITaxon"}, evidence)
+        _walk({"loom_ontologies": "ENVO, ELMO"}, evidence)
         assert "envo" in evidence
-        assert "ncbitaxon" in evidence
+        assert "elmo" in evidence
 
     def test_nested_dict(self):
         from collections import defaultdict
@@ -107,12 +107,12 @@ class TestWalk:
         _walk(
             [
                 {"exact_mappings": ["ENVO:00001001"]},
-                {"close_mappings": ["NCBITaxon:9606"]},
+                {"close_mappings": ["ELMO:9606"]},
             ],
             evidence,
         )
         assert "envo" in evidence
-        assert "ncbitaxon" in evidence
+        assert "elmo" in evidence
 
     def test_non_dict_non_list_ignored(self):
         from collections import defaultdict
@@ -180,7 +180,7 @@ classes:
       term:
         range: uriorcurie
         annotations:
-          loom_ontologies: "ENVO, NCBITaxon"
+          loom_ontologies: "ENVO, ELMO"
 """
 
         result = infer_ontologies(schema_version)

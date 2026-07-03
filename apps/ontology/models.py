@@ -40,6 +40,13 @@ class OntologyRelease(models.Model):
     prefix = models.CharField(max_length=50, db_index=True)
     source_url = models.TextField()
     source_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
+    # Sorted root CURIEs this release was scoped to at load time (see
+    # ontologies.yaml's `root_terms`/`include_descendants`), or [] for an
+    # unscoped full-file load. `source_sha256` alone content-addresses the
+    # raw upstream file; this field distinguishes releases loaded from the
+    # *same* file bytes but indexed to a different branch, so reloading with
+    # a new scope doesn't silently reuse a differently-scoped release.
+    scope_root_curies = models.JSONField(default=list, blank=True)
     loaded_at = models.DateTimeField(auto_now_add=True)
     term_count = models.PositiveIntegerField(default=0)
     status = models.CharField(
@@ -207,6 +214,63 @@ class AdHocOntologySource(models.Model):
 
     def __str__(self):
         return f"{self.prefix} ({self.name})"
+
+
+class OntologyTermSuggestion(models.Model):
+    """A term an annotator typed as free text because no cached term matched.
+
+    Logged for a curator to periodically batch and file upstream (e.g. as an
+    ELMO GitHub issue, an OBO Foundry tracker issue, or a new Wikidata item).
+    This is Loom-side curation workflow metadata — it is never exported as
+    part of a CAMO instance graph.
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_SUBMITTED = "submitted_upstream"
+    STATUS_REJECTED = "rejected"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_SUBMITTED, "Submitted upstream"),
+        (STATUS_REJECTED, "Rejected"),
+        (STATUS_RESOLVED, "Resolved"),
+    ]
+
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.CASCADE,
+        related_name="ontology_term_suggestions",
+    )
+    graph = models.ForeignKey(
+        "annotation.CausalGraph",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ontology_term_suggestions",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ontology_term_suggestions",
+    )
+    slot_name = models.CharField(max_length=200, blank=True)
+    label = models.CharField(max_length=1000)
+    suggested_parent = models.CharField(max_length=500, blank=True)
+    definition = models.TextField(blank=True)
+    target_ontology = models.CharField(max_length=100)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True
+    )
+    upstream_issue_url = models.URLField(max_length=500, blank=True)
+    reviewer_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.label} -> {self.target_ontology} [{self.status}]"
 
 
 class OntologyLoadRequest(models.Model):

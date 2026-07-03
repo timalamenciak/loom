@@ -138,6 +138,102 @@ def test_load_release_rejects_missing_configuration(db, config):
             loaders.load_ontology_release("test")
 
 
+def test_load_release_matches_prefix_case_insensitively(db):
+    """A source that emits lowercase CURIEs (e.g. ELMO's own OBO release uses
+    `elmo:` while Loom/CAMO use `ELMO:` everywhere else) must not be silently
+    dropped in full."""
+    config = {"name": "test", "prefix": "ELMO", "url": "unused"}
+    lowercase_obo = b"""\
+format-version: 1.2
+ontology: test
+
+[Term]
+id: elmo:1
+name: lowercase id term
+"""
+    with (
+        patch.object(loaders, "ontology_config", return_value=config),
+        patch.object(loaders, "_read_source", return_value=lowercase_obo),
+    ):
+        release, count = loaders.load_ontology_release("test")
+    assert count == 1
+    term = release.terms.get()
+    assert term.curie == "ELMO:1"  # normalized to the configured prefix's case
+    assert term.prefix == "ELMO"
+
+
+def test_load_release_forces_utf8_over_chardet_misdetection(db):
+    """A genuinely UTF-8 OBO file with curly quotes can be misdetected as
+    Windows-1252 by pronto's chardet-based sniff from a low-confidence peek,
+    then crash decoding the multi-byte sequence later in the file (observed
+    with ELMO's real release). Loom must force UTF-8 rather than trust that
+    guess, since OBO 1.4 mandates UTF-8."""
+    padding = ("x" * 4000).encode()  # push the curly quote past a small peek
+    curly_obo = (
+        b"format-version: 1.2\nontology: test\n\n"
+        b"[Term]\nid: TEST:1\nname: term\ndef: \"padding " + padding + b'" []\n\n'
+        b'[Term]\nid: TEST:2\nname: quoted\ndef: "the \xe2\x80\x9canthrome\xe2\x80\x9d." []\n'
+    )
+    config = {"name": "test", "prefix": "TEST", "url": "unused"}
+    with (
+        patch.object(loaders, "ontology_config", return_value=config),
+        patch.object(loaders, "_read_source", return_value=curly_obo),
+    ):
+        release, count = loaders.load_ontology_release("test")
+    assert count == 2
+    assert release.status == OntologyRelease.STATUS_READY
+
+
+def test_load_release_scopes_to_root_terms_and_descendants(db):
+    """root_terms + include_descendants indexes only the descendant closure
+    of the named roots, mirroring ELMO's own seed-list pattern against ENVO —
+    a differently-scoped reload of the same file must not reuse a release
+    scoped (or not) differently."""
+    scoped_obo = b"""\
+format-version: 1.2
+ontology: test
+
+[Term]
+id: ROOT:1
+name: root term
+
+[Term]
+id: TEST:1
+name: in scope
+is_a: ROOT:1
+
+[Term]
+id: TEST:2
+name: out of scope
+"""
+    config = {
+        "name": "test",
+        "prefix": "TEST",
+        "url": "unused",
+        "root_terms": ["ROOT:1"],
+        "include_descendants": True,
+    }
+    with (
+        patch.object(loaders, "ontology_config", return_value=config),
+        patch.object(loaders, "_read_source", return_value=scoped_obo),
+    ):
+        release, count = loaders.load_ontology_release("test")
+    assert count == 1
+    assert release.terms.get().curie == "TEST:1"
+    assert release.scope_root_curies == ["ROOT:1"]
+
+    # Reloading the identical bytes unscoped must build a distinct release,
+    # not silently reuse the scoped one from the same content hash.
+    unscoped_config = {"name": "test", "prefix": "TEST", "url": "unused"}
+    with (
+        patch.object(loaders, "ontology_config", return_value=unscoped_config),
+        patch.object(loaders, "_read_source", return_value=scoped_obo),
+    ):
+        unscoped_release, unscoped_count = loaders.load_ontology_release("test")
+    assert unscoped_count == 2
+    assert unscoped_release != release
+
+
 def test_load_ontology_builds_successor_for_pinned_snapshot(db):
     old_release = OntologyRelease.objects.create(
         name="old",
@@ -652,6 +748,55 @@ def test_ontology_search_live_and_project_permissions(client, project):
     stranger = get_user_model().objects.create_user("ontology-stranger")
     client.force_login(stranger)
     assert client.get(project_url, {"q": "oak"}).status_code == 403
+
+
+def test_project_ontology_suggest_term_logs_and_enforces_membership(client, project):
+    from apps.ontology.models import OntologyTermSuggestion
+
+    ProjectMembership.objects.create(
+        project=project,
+        user=project.created_by,
+        role=ProjectMembership.ROLE_ADMIN,
+    )
+    client.force_login(project.created_by)
+    url = reverse("project-ontology-suggest-term", args=[project.pk])
+
+    response = client.post(
+        url,
+        data=json.dumps(
+            {
+                "slot": "entity_term",
+                "label": "a newly observed process",
+                "target_ontology": "ELMO",
+                "suggested_parent": "ELMO:3620020",
+                "definition": "A process not yet in the cache.",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    suggestion = OntologyTermSuggestion.objects.get()
+    assert suggestion.project == project
+    assert suggestion.created_by == project.created_by
+    assert suggestion.label == "a newly observed process"
+    assert suggestion.target_ontology == "ELMO"
+    assert suggestion.status == OntologyTermSuggestion.STATUS_PENDING
+
+    # Missing required fields -> 400, nothing logged twice
+    bad = client.post(url, data=json.dumps({"label": ""}), content_type="application/json")
+    assert bad.status_code == 400
+    assert OntologyTermSuggestion.objects.count() == 1
+
+    stranger = get_user_model().objects.create_user("suggest-stranger")
+    client.force_login(stranger)
+    denied = client.post(
+        url,
+        data=json.dumps({"label": "x", "target_ontology": "ELMO"}),
+        content_type="application/json",
+    )
+    assert denied.status_code == 403
 
 
 def test_project_load_to_annotation_autocomplete_journey(client, project):

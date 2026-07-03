@@ -6,6 +6,7 @@ from .models import (
     OntologyRelease,
     OntologySnapshot,
     OntologyTerm,
+    OntologyTermSuggestion,
 )
 
 
@@ -55,3 +56,31 @@ class OntologyLoadItemAdmin(admin.ModelAdmin):
     list_display = ["request", "name", "prefix", "status", "term_count"]
     list_filter = ["status", "prefix"]
     search_fields = ["name", "prefix", "error"]
+
+
+@admin.register(OntologyTermSuggestion)
+class OntologyTermSuggestionAdmin(admin.ModelAdmin):
+    list_display = [
+        "label",
+        "target_ontology",
+        "project",
+        "created_by",
+        "status",
+        "created_at",
+    ]
+    list_filter = ["status", "target_ontology"]
+    search_fields = ["label", "suggested_parent", "definition"]
+    readonly_fields = ["project", "graph", "created_by", "slot_name", "created_at"]
+    actions = ["mark_submitted_upstream", "mark_resolved"]
+
+    @admin.action(description="Mark as submitted upstream")
+    def mark_submitted_upstream(self, request, queryset):
+        queryset.update(status=OntologyTermSuggestion.STATUS_SUBMITTED)
+
+    @admin.action(description="Mark as resolved")
+    def mark_resolved(self, request, queryset):
+        from django.utils import timezone
+
+        queryset.update(
+            status=OntologyTermSuggestion.STATUS_RESOLVED, resolved_at=timezone.now()
+        )

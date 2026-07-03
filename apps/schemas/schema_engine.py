@@ -211,6 +211,19 @@ class LoomSchemaView:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
 
+        # A slot declared as `any_of: [{range: uriorcurie}, {range: string}]`
+        # (e.g. entity_term, measured_attribute — CAMO's "ontology term or
+        # free text" pattern) reports a base range of "string" from LinkML,
+        # which would otherwise fall through to a plain text widget and lose
+        # ontology autocomplete entirely. Prefer the uriorcurie/curie member
+        # for widget selection; the any_of still permits a plain string value
+        # at validation time regardless of which widget renders it.
+        any_of_ranges = {
+            str(expr.range).lower() for expr in (slot.any_of or []) if expr.range
+        }
+        if any_of_ranges & {"uriorcurie", "curie"}:
+            slot_range = "uriorcurie"
+
         # Pre-compute enum choices so we can use the count for widget selection.
         _enum_choices: list[dict] = []
         if self._sv.get_enum(slot.range or ""):
@@ -236,12 +249,33 @@ class LoomSchemaView:
 
         schema_ontology_prefixes = _ann_list(slot.annotations, "loom_ontologies")
         routing = ontology_routing.get(slot_name, [])
+
+        ontology_condition_slot: str | None = None
+        ontology_routes: dict[str, dict] = {}
+        allow_free_text = False
+
         if isinstance(routing, list):
             sidecar_ontology_prefixes: list[str] = routing
             wikidata_live: dict | None = None
+        elif "condition_slot" in routing:
+            # Conditional routing: the widget re-queries with the route
+            # matching the current value of a sibling slot (e.g. entity_term's
+            # routing depends on entity_type). The "default" route is used as
+            # the flattened ontology_prefixes/wikidata_live fallback for any
+            # renderer that isn't sibling-aware.
+            ontology_condition_slot = routing.get("condition_slot")
+            allow_free_text = bool(routing.get("allow_free_text"))
+            ontology_routes = {
+                str(value): _normalize_route(route)
+                for value, route in (routing.get("routes") or {}).items()
+            }
+            default_route = _normalize_route(routing.get("default") or {})
+            sidecar_ontology_prefixes = default_route["prefixes"]
+            wikidata_live = default_route["wikidata_live"]
         else:
             sidecar_ontology_prefixes = routing.get("prefixes", [])
             wikidata_live = routing.get("wikidata_live") or None
+            allow_free_text = bool(routing.get("allow_free_text"))
         ontology_prefixes = schema_ontology_prefixes or sidecar_ontology_prefixes
 
         slot_loom_role = _ann_value(slot.annotations, "loom_role")
@@ -257,6 +291,9 @@ class LoomSchemaView:
             "ifabsent": slot.ifabsent,
             "ontology_prefixes": ontology_prefixes,
             "wikidata_live": wikidata_live,
+            "ontology_condition_slot": ontology_condition_slot,
+            "ontology_routes": ontology_routes,
+            "allow_free_text": allow_free_text,
             "minimum_value": slot.minimum_value,
             "maximum_value": slot.maximum_value,
             "has_minimum_value": slot.minimum_value is not None,
@@ -319,6 +356,16 @@ class LoomSchemaView:
                 }
             )
         return choices
+
+
+def _normalize_route(route) -> dict:
+    """Normalize one ontology_routing route to {"prefixes": [...], "wikidata_live": {...}|None}."""
+    if isinstance(route, list):
+        return {"prefixes": route, "wikidata_live": None}
+    return {
+        "prefixes": route.get("prefixes", []),
+        "wikidata_live": route.get("wikidata_live") or None,
+    }
 
 
 def _ann_value(annotations: dict, key: str) -> str:

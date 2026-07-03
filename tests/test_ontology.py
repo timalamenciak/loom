@@ -36,14 +36,14 @@ def: "A quality of being plentiful or available in large quantities." []
 synonym: "prevalence" EXACT []
 
 [Term]
-id: NCBITaxon:712036
+id: ELMO:712036
 name: Rhamnus cathartica
 def: "European buckthorn. A shrub species in family Rhamnaceae." []
 synonym: "buckthorn" EXACT []
 synonym: "common buckthorn" EXACT []
 
 [Term]
-id: NCBITaxon:1
+id: ELMO:1
 name: root
 is_obsolete: true
 """
@@ -63,13 +63,13 @@ class TestOboParser:
         ont = pronto.Ontology(io.BytesIO(_MINI_OBO.encode()))
         ids = {str(t.id) for t in ont.terms()}
         assert "ENVO:00001001" in ids
-        assert "NCBITaxon:712036" in ids
+        assert "ELMO:712036" in ids
 
     def test_synonym_extraction(self):
         import pronto
 
         ont = pronto.Ontology(io.BytesIO(_MINI_OBO.encode()))
-        term = ont["NCBITaxon:712036"]
+        term = ont["ELMO:712036"]
         syns = [s.description for s in term.synonyms]
         assert "buckthorn" in syns
 
@@ -77,7 +77,7 @@ class TestOboParser:
         import pronto
 
         ont = pronto.Ontology(io.BytesIO(_MINI_OBO.encode()))
-        term = ont["NCBITaxon:1"]
+        term = ont["ELMO:1"]
         assert term.obsolete
 
     def test_definition_text(self):
@@ -154,7 +154,7 @@ class TestOntologySnapshotModel:
 
 class TestOntologyTermModel:
     def test_terms_created(self, terms):
-        assert terms.filter(obsolete=False).count() == 4  # excludes NCBITaxon:1
+        assert terms.filter(obsolete=False).count() == 4  # excludes ELMO:1
 
     def test_str(self, terms):
         t = terms.get(curie="ENVO:00001001")
@@ -166,7 +166,7 @@ class TestOntologyTermModel:
         assert envo.count() == 2
 
     def test_synonym_labels_populated(self, terms):
-        t = terms.get(curie="NCBITaxon:712036")
+        t = terms.get(curie="ELMO:712036")
         assert "buckthorn" in t.synonym_labels
 
 
@@ -181,7 +181,7 @@ class TestSearchTerms:
 
         results = search_terms("buckthorn", snapshot=snapshot)
         curies = [r.curie for r in results]
-        assert "NCBITaxon:712036" in curies
+        assert "ELMO:712036" in curies
 
     def test_search_canopy(self, terms, snapshot):
         from apps.ontology.services import search_terms
@@ -215,7 +215,7 @@ class TestSearchTerms:
 
         results = search_terms("root", snapshot=snapshot)
         curies = [r.curie for r in results]
-        assert "NCBITaxon:1" not in curies
+        assert "ELMO:1" not in curies
 
     def test_no_active_snapshot_returns_empty(self, db):
         from apps.ontology.services import search_terms
@@ -263,6 +263,36 @@ class TestSearchTerms:
         add_ontology_errors(missing, spec, snapshot)
         assert "entity_term" in missing.errors
 
+    def test_free_text_allowed_when_slot_permits_it(self, terms, snapshot):
+        """A slot with allow_free_text accepts a plain string (no ':' from a
+        routed prefix) without an ontology-membership error — this is the
+        entity_term/measured_attribute "propose new term" path."""
+        from apps.ontology.validation import add_ontology_errors
+        from apps.schemas.input_binding import BindingResult
+
+        spec = [
+            {
+                "id": "all",
+                "slots": [
+                    {
+                        "name": "entity_term",
+                        "widget": "ontology_autocomplete",
+                        "ontology_prefixes": ["ENVO"],
+                        "allow_free_text": True,
+                    }
+                ],
+            }
+        ]
+        free_text = BindingResult(data={"entity_term": "a novel unlogged species"})
+        add_ontology_errors(free_text, spec, snapshot)
+        assert free_text.is_valid
+
+        # A malformed CURIE that still looks like it's targeting a routed
+        # prefix should still be flagged rather than silently accepted.
+        bad_curie = BindingResult(data={"entity_term": "ENVO:99999999"})
+        add_ontology_errors(bad_curie, spec, snapshot)
+        assert "entity_term" in bad_curie.errors
+
 
 # ---------------------------------------------------------------------------
 # API view tests
@@ -275,13 +305,13 @@ class TestOntologySearchView:
 
         client = Client()
         client.force_login(superuser)
-        resp = client.get("/ontology/search/?q=buckthorn&prefixes=NCBITaxon")
+        resp = client.get("/ontology/search/?q=buckthorn&prefixes=ELMO")
         assert resp.status_code == 200
         data = resp.json()
         assert "results" in data
         curies = [r["curie"] for r in data["results"]]
-        assert "NCBITaxon:712036" in curies
-        assert any(r["prefix"] == "NCBITaxon" for r in data["results"])
+        assert "ELMO:712036" in curies
+        assert any(r["prefix"] == "ELMO" for r in data["results"])
 
     def test_short_query_empty(self, snapshot, superuser):
         from django.test import Client
