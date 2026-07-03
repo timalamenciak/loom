@@ -5,18 +5,20 @@ Pure-Python tests (no DB) cover _clean(), type casting, and renderers.
 DB tests cover the full serialize_graph() → provenance → YAML pipeline.
 """
 
-from pathlib import Path
-
 import pytest
 
-SCHEMA_PATH = (
-    Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
-)
+from tests.schema_fixtures import frozen_schema_path
+
+# Renderer/validator tests below are pinned to 0.4.0: a graph stays pinned to
+# whichever schema version it was annotated under (CausalGraph.schema_version),
+# so apps/export/renderers.py must keep rendering graphs created under 0.4.x
+# correctly forever, not just under the current schema. See
+# TestRosettaRenderer/TestFCMRenderer's *_against_current_schema tests below
+# for the same coverage against whatever CAMO looks like today.
+SCHEMA_PATH = frozen_schema_path("0.4.0")
 
 
 def _schema_yaml() -> str:
-    if not SCHEMA_PATH.exists():
-        pytest.skip("CAMO schema not found")
     return SCHEMA_PATH.read_text(encoding="utf-8")
 
 
@@ -269,6 +271,31 @@ class TestRosettaRenderer:
         assert results[0].statement.startswith("Seedlings")
         assert "Shade" in results[0].statement
 
+    def test_renders_against_current_schema(self, latest_schema_yaml):
+        """Regression guard for the CausalPredicateEnum rename: CAMO 0.7.x
+        renamed PredicateEnum -> CausalPredicateEnum, which used to make
+        _predicate_annotations() find nothing and silently drop every edge."""
+        from apps.export.renderers import render_rosetta
+
+        data = {
+            "nodes": [
+                {"node_id": "n1", "name": "Buckthorn"},
+                {"node_id": "n2", "name": "Soil N"},
+            ],
+            "edges": [
+                {
+                    "edge_id": "e1",
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicate": "positively_regulates",
+                },
+            ],
+        }
+        results = render_rosetta(data, latest_schema_yaml)
+        assert len(results) == 1
+        assert "Buckthorn" in results[0].statement
+        assert "Soil N" in results[0].statement
+
 
 class TestFCMRenderer:
     def test_positive_tendency(self):
@@ -323,6 +350,29 @@ class TestFCMRenderer:
         data = {"edges": [{"edge_id": "e1"}]}
         assert render_fcm(data, _schema_yaml()) == []
 
+    def test_signs_against_current_schema(self, latest_schema_yaml):
+        """Regression guard for the CausalPredicateEnum rename: the current
+        schema's fcm_default_weight annotation (numeric) must still yield the
+        same +/-/0 sign that the old fcm_sign glyph annotation gave."""
+        from apps.export.renderers import render_fcm
+
+        positive = render_fcm(
+            {"edges": [{"edge_id": "e1", "predicate": "positively_regulates"}]},
+            latest_schema_yaml,
+        )
+        negative = render_fcm(
+            {"edges": [{"edge_id": "e2", "predicate": "negatively_regulates"}]},
+            latest_schema_yaml,
+        )
+        variable = render_fcm(
+            {"edges": [{"edge_id": "e3", "predicate": "regulates"}]},
+            latest_schema_yaml,
+        )
+
+        assert positive[0].sign == 1
+        assert negative[0].sign == -1
+        assert variable[0].sign == 0
+
 
 # ── DB fixtures ──────────────────────────────────────────────────────────────
 
@@ -341,16 +391,8 @@ def export_user(db):
 
 
 @pytest.fixture
-def schema_version(db):
-    from apps.schemas.models import SchemaVersion
-
-    if not SCHEMA_PATH.exists():
-        pytest.skip("CAMO schema not found")
-    return SchemaVersion.objects.create(
-        version="0.4.0",
-        linkml_yaml=SCHEMA_PATH.read_text(encoding="utf-8"),
-        is_active=True,
-    )
+def schema_version(frozen_schema_040):
+    return frozen_schema_040
 
 
 @pytest.fixture
@@ -491,7 +533,7 @@ class TestBuildProvenance:
         data = serialize_graph(populated_graph)
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
         prov = build_provenance(populated_graph, pre_yaml.encode())
-        assert prov["schema_version_str"] == "0.4.0"
+        assert prov["schema_version_str"] == populated_graph.schema_version.version
         assert prov["exporter_version"] == "loom-0.1.0"
 
     def test_sha256_is_deterministic(self, populated_graph):

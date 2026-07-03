@@ -150,6 +150,14 @@ MARKER_LLM_API_KEY = os.environ.get("LOOM_MARKER_LLM_API_KEY", "nokey")
 # GeoNames API (optional; for geographic lookups from StudyCoordinates)
 GEONAMES_USERNAME = os.environ.get("LOOM_GEONAMES_USERNAME", "")
 
+# CAMO schema upstream (causalmosaic) GitHub repo, "owner/name" form. Used by
+# the check_schema_updates / update_schema management commands only — never
+# on a request-serving path, since Loom targets network-restricted
+# deployments (see apps/schemas/upstream.py).
+CAMO_SCHEMA_GITHUB_REPO = os.environ.get(
+    "LOOM_CAMO_SCHEMA_GITHUB_REPO", "timalamenciak/causalmosaic"
+)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

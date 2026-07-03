@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -16,9 +14,13 @@ from apps.ontology.models import (
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 from apps.schemas.ontology_inference import infer_ontologies
+from tests.schema_fixtures import frozen_schema_path
 
 User = get_user_model()
-SCHEMA_PATH = Path("config/schema/camo-0.4.1.yaml")
+# Pinned to 0.4.1 deliberately: covers the inline-attributes declaration style
+# and gives `test_existing_graph_keeps_pinned_schema` a distinct "older" schema
+# to upgrade from. See conftest.frozen_schema_042 for the "newer" half.
+SCHEMA_PATH = frozen_schema_path("0.4.1")
 
 
 @pytest.fixture
@@ -100,7 +102,7 @@ def test_owner_can_update_project_settings(client, owner, configured_project, sc
 
 @pytest.mark.django_db
 def test_owner_can_upload_and_pin_schema(client, owner, configured_project):
-    content = Path("config/schema/camo-0.4.2.yaml").read_bytes()
+    content = frozen_schema_path("0.4.2").read_bytes()
     upload = SimpleUploadedFile("camo-0.4.2.yaml", content, content_type="text/yaml")
     client.force_login(owner)
     response = client.post(
@@ -135,7 +137,7 @@ def test_existing_graph_keeps_pinned_schema(client, owner, configured_project, s
     )
     newer = SchemaVersion.objects.create(
         version="0.4.2",
-        linkml_yaml=Path("config/schema/camo-0.4.2.yaml").read_text(encoding="utf-8"),
+        linkml_yaml=frozen_schema_path("0.4.2").read_text(encoding="utf-8"),
     )
     configured_project.active_schema = newer
     configured_project.save(update_fields=["active_schema"])

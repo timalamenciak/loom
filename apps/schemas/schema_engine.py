@@ -89,6 +89,10 @@ class LoomSchemaView:
     def enum_names(self) -> list[str]:
         return list(self._sv.all_enums().keys())
 
+    def slot_names(self, class_name: str) -> list[str]:
+        """All induced field names for *class_name* in schema declaration order."""
+        return self._all_slot_names(class_name)
+
     def form_spec(
         self,
         class_name: str,
@@ -297,12 +301,20 @@ class LoomSchemaView:
                 or _ann_value(ann, "preferred_label")
                 or pv_name.replace("_", " ").title()
             )
+            # `linguistic_cues` and `exemplars` serve the same UI purpose
+            # (example phrasing shown as an annotation hint) but different
+            # CAMO enums use different annotation names for it (e.g.
+            # ClaimStrengthEnum switched to `exemplars` while
+            # PhilosophicalAccountEnum still uses `linguistic_cues`) — fall
+            # back so the hint renders regardless of which one a given enum
+            # happens to use.
             choices.append(
                 {
                     "value": pv_name,
                     "label": label,
                     "description": pv.description or "",
-                    "linguistic_cues": _ann_value(ann, "linguistic_cues"),
+                    "linguistic_cues": _ann_value(ann, "linguistic_cues")
+                    or _ann_value(ann, "exemplars"),
                     "exemplars": _ann_value(ann, "exemplars"),
                 }
             )

@@ -50,10 +50,43 @@ _STRENGTH_DEFAULT = 0.5
 _FCM_SIGN_MAP = {"+": 1, "-": -1, "?": 0}
 
 
+def _normalize_fcm_sign(ann: dict[str, str]) -> str:
+    """Return a "+"/"-"/"?" sign glyph regardless of which CAMO generation
+    the predicate enum comes from.
+
+    CAMO 0.4.x annotated each PredicateEnum value with a single-character
+    fcm_sign glyph directly. CAMO 0.7.x renamed the enum to
+    CausalPredicateEnum and replaced fcm_sign with a numeric
+    fcm_default_weight annotation instead — this derives the same glyph from
+    that weight's sign so the rest of render_fcm doesn't need to care which
+    schema generation produced it.
+    """
+    if "fcm_sign" in ann:
+        return ann["fcm_sign"]
+    weight_str = ann.get("fcm_default_weight")
+    if weight_str is not None:
+        try:
+            weight = float(weight_str)
+        except ValueError:
+            return "?"
+        if weight > 0:
+            return "+"
+        if weight < 0:
+            return "-"
+    return "?"
+
+
 def _predicate_annotations(schema_yaml: str) -> dict[str, dict[str, str]]:
-    """Extract per-predicate rosetta_template and fcm_sign from the schema."""
+    """Extract per-predicate rosetta_template and a normalized fcm_sign from
+    the schema's predicate enum.
+
+    A graph stays pinned to whichever schema version it was annotated under
+    (CausalGraph.schema_version), so this must keep rendering graphs
+    annotated under both the old PredicateEnum and the current
+    CausalPredicateEnum indefinitely, not just the latest schema.
+    """
     sv = SchemaView(schema_yaml)
-    enum = sv.get_enum("PredicateEnum")
+    enum = sv.get_enum("CausalPredicateEnum") or sv.get_enum("PredicateEnum")
     out: dict[str, dict[str, str]] = {}
     if enum is None:
         return out
@@ -61,6 +94,7 @@ def _predicate_annotations(schema_yaml: str) -> dict[str, dict[str, str]]:
         ann: dict[str, str] = {}
         for k, v in (pv.annotations or {}).items():
             ann[str(k)] = str(v.value) if hasattr(v, "value") else str(v)
+        ann["fcm_sign"] = _normalize_fcm_sign(ann)
         out[pv_name] = ann
     return out
 

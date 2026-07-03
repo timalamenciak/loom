@@ -152,44 +152,22 @@ def project_and_user(db):
 
 
 @pytest.fixture
-def schema_version(db):
-    """Load the CAMO schema so tests can create graphs."""
-    from pathlib import Path
+def schema_version(frozen_schema_040):
+    """Load the CAMO schema so tests can create graphs.
 
-    from apps.schemas.models import SchemaVersion
-
-    schema_path = (
-        Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
-    )
-    if not schema_path.exists():
-        pytest.skip("CAMO schema file not found — skipping DB annotation tests")
-
-    sv = SchemaVersion.objects.create(
-        version="0.4.0",
-        linkml_yaml=schema_path.read_text(encoding="utf-8"),
-        is_active=True,
-    )
-    return sv
+    Pinned to 0.4.0 — see conftest.frozen_schema_040 for why (payloads below
+    use 0.4.x-era enum vocabulary not yet migrated to the current schema).
+    """
+    return frozen_schema_040
 
 
 @pytest.fixture
-def schema_version_042(db):
-    """Load CAMO 0.4.2 for SourceDocument enum-autocomplete coverage."""
-    from pathlib import Path
+def schema_version_042(frozen_schema_042):
+    """Load CAMO 0.4.2 for SourceDocument enum-autocomplete coverage.
 
-    from apps.schemas.models import SchemaVersion
-
-    schema_path = (
-        Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.2.yaml"
-    )
-    if not schema_path.exists():
-        pytest.skip("CAMO 0.4.2 schema file not found")
-
-    return SchemaVersion.objects.create(
-        version="0.4.2",
-        linkml_yaml=schema_path.read_text(encoding="utf-8"),
-        is_active=True,
-    )
+    Pinned deliberately — see conftest.frozen_schema_042.
+    """
+    return frozen_schema_042
 
 
 @pytest.fixture

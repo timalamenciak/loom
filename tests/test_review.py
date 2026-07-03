@@ -5,13 +5,11 @@ Pure-Python tests cover adjudicate_edge service and the schema-diff helpers.
 DB tests cover the full reviewer flow and CSV exports.
 """
 
-from pathlib import Path
-
 import pytest
 
-SCHEMA_PATH = (
-    Path(__file__).resolve().parent.parent / "config" / "schema" / "camo-0.4.0.yaml"
-)
+from tests.schema_fixtures import frozen_schema_path, latest_schema_path
+
+SCHEMA_PATH = frozen_schema_path("0.4.0")
 
 
 # ── Pure-Python: adjudication service ────────────────────────────────────────
@@ -90,21 +88,17 @@ class TestSchemaDiff:
         return _enum_values(sv)
 
     def test_slot_names_from_real_schema(self):
-        if not SCHEMA_PATH.exists():
-            pytest.skip("CAMO schema not found")
-        sv = self._sv_stub(SCHEMA_PATH.read_text(encoding="utf-8"))
+        sv = self._sv_stub(latest_schema_path().read_text(encoding="utf-8"))
         slots = self._slot_names(sv)
         assert "predicate" in slots
         assert "claim_strength" in slots
         assert "entity_type" in slots
 
     def test_enum_values_from_real_schema(self):
-        if not SCHEMA_PATH.exists():
-            pytest.skip("CAMO schema not found")
-        sv = self._sv_stub(SCHEMA_PATH.read_text(encoding="utf-8"))
+        sv = self._sv_stub(latest_schema_path().read_text(encoding="utf-8"))
         enums = self._enum_values(sv)
-        assert "PredicateEnum" in enums
-        assert "positively_regulates" in enums["PredicateEnum"]
+        assert "CausalPredicateEnum" in enums
+        assert "positively_regulates" in enums["CausalPredicateEnum"]
 
     def test_has_value_flat(self):
         from apps.export.management.commands.migrate_graph import _has_value
@@ -155,16 +149,8 @@ def project_with_roles(db):
 
 
 @pytest.fixture
-def schema_version(db):
-    from apps.schemas.models import SchemaVersion
-
-    if not SCHEMA_PATH.exists():
-        pytest.skip("CAMO schema not found")
-    return SchemaVersion.objects.create(
-        version="0.4.0",
-        linkml_yaml=SCHEMA_PATH.read_text(encoding="utf-8"),
-        is_active=True,
-    )
+def schema_version(frozen_schema_040):
+    return frozen_schema_040
 
 
 @pytest.fixture
