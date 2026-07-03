@@ -382,13 +382,13 @@ slots:
     description: "Broad category of the entity"
     in_subset:
       - layer1
-   entity_term:
-     any_of:
-       - range: uriorcurie
-       - range: string
-     description: "Ontology term identifying the entity (e.g. NCBITaxon:4950 for common buckthorn) or free text for terms not in an ontology"
-     in_subset:
-       - layer1
+  entity_term:
+    any_of:
+      - range: uriorcurie
+      - range: string
+    description: "Ontology term identifying the entity (e.g. NCBITaxon:4950 for common buckthorn) or free text for terms not in an ontology"
+    in_subset:
+      - layer1
   variable_attribute:
     range: uriorcurie
     description: "The attribute or property that varies (e.g. PATO:0000070 for abundance)"
