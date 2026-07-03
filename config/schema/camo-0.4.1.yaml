@@ -992,18 +992,22 @@ classes:
           variables and processes (Palmeri et al. 2013).
         range: NodeEntityTypeEnum
 
-      entity_term:
-        description: >-
-          The core ecological entity as an ontology CURIE. This is the
-          "what thing" — the taxon, chemical, abiotic factor, or process
-          class. Corresponds to ELMO's subject_value / object_value slot.
-          Examples: NCBITaxon:9612 (Canis lupus), CHEBI:24279
-          (glucosinolate), ENVO:01000253 (grassland).
-        range: uriorcurie
-        annotations:
-          note: >-
-            For taxa use NCBITaxon; for chemicals CHEBI; for environments
-            ENVO; for processes GO or ENVO process terms; for qualities PATO.
+       entity_term:
+         description: >-
+           The core ecological entity as an ontology CURIE or free text. This is the
+           "what thing" — the taxon, chemical, abiotic factor, or process
+           class. Corresponds to ELMO's subject_value / object_value slot.
+           Examples: NCBITaxon:9612 (Canis lupus), CHEBI:24279
+           (glucosinolate), ENVO:01000253 (grassland). For terms not in an ontology,
+           enter free text (e.g., "invasive grass").
+         any_of:
+           - range: uriorcurie
+           - range: string
+         annotations:
+           note: >-
+             For taxa use NCBITaxon; for chemicals CHEBI; for environments
+             ENVO; for processes GO or ENVO process terms; for qualities PATO.
+             For terms not in an ontology, enter free text.
 
       variable_attribute:
         description: >-

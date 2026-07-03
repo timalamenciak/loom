@@ -8,6 +8,7 @@ from apps.annotation.views import (
     EdgeCreateView,
     EdgeEditView,
     EdgeFormView,
+    GeoNamesLookupView,
     GraphOntologySnapshotUpgradeView,
     GraphPanelView,
     GraphView,
@@ -38,6 +39,12 @@ urlpatterns = [
         "<int:pk>/documents/<int:doc_pk>/autosave/<str:annotation_type>/<int:annotation_id>/",
         AutoSaveView.as_view(),
         name="autosave",
+    ),
+    # GeoNames lookup for coordinates
+    path(
+        "<int:pk>/documents/<int:doc_pk>/geonames-lookup/",
+        GeoNamesLookupView.as_view(),
+        name="geonames-lookup",
     ),
     # Main annotation surface
     path(

@@ -15,6 +15,9 @@ def calculate_study_duration_months(start_date: str, end_date: str) -> float:
 
     Accepts ISO 8601 formats (YYYY, YYYY-MM, YYYY-MM-DD).
 
+    If only the year is provided (e.g., "2023" and "2024"), the calculation
+    assumes January of the start year and January of the end year.
+
     Returns:
         Duration in months as a float. Returns 0.0 if dates are invalid or missing.
 
@@ -23,6 +26,8 @@ def calculate_study_duration_months(start_date: str, end_date: str) -> float:
         12.0
         >>> calculate_study_duration_months("2020-06-15", "2021-03-10")
         8.0
+        >>> calculate_study_duration_months("2023", "2024")
+        12.0
     """
 
     def parse_date(date_str: str) -> datetime | None:
@@ -31,9 +36,9 @@ def calculate_study_duration_months(start_date: str, end_date: str) -> float:
             return None
         try:
             if len(date_str) == 4:  # YYYY
-                return datetime.strptime(date_str, "%Y")
+                return datetime.strptime(date_str + "-01-01", "%Y-%m-%d")
             elif len(date_str) == 7:  # YYYY-MM
-                return datetime.strptime(date_str, "%Y-%m")
+                return datetime.strptime(date_str + "-01", "%Y-%m-%d")
             elif len(date_str) == 10:  # YYYY-MM-DD
                 return datetime.strptime(date_str, "%Y-%m-%d")
         except ValueError:

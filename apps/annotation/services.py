@@ -420,4 +420,24 @@ def _preprocess_source_document(data: dict) -> dict:
 
         result["study_duration_months"] = calculate_study_duration_months(start, end)
 
+    geonames_username = data.get("_geonames_username", None)
+    if geonames_username:
+        latitude = data.get("study_coordinates", [])
+        if latitude and len(latitude) > 0:
+            first_coord = latitude[0] if isinstance(latitude, list) else latitude
+            lat = first_coord.get("latitude") if isinstance(first_coord, dict) else None
+            lon = (
+                first_coord.get("longitude") if isinstance(first_coord, dict) else None
+            )
+            if lat is not None and lon is not None:
+                from apps.annotation.utils import get_geographic_context
+
+                geo = get_geographic_context(float(lat), float(lon), geonames_username)
+                if geo.get("study_country"):
+                    result["study_country"] = geo["study_country"]
+                if geo.get("study_state_or_province"):
+                    result["study_state_or_province"] = geo["study_state_or_province"]
+                if geo.get("nearest_named_location"):
+                    result["nearest_named_location"] = geo["nearest_named_location"]
+
     return result

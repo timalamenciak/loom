@@ -1941,22 +1941,25 @@ classes:
           variables and processes (Palmeri et al. 2013).
         range: NodeEntityTypeEnum
 
-      entity_term:
-        description: >-
-          The core ecological entity as an ontology CURIE. This is the
-          "what thing" — the taxon, chemical, abiotic factor, or process
-          class, and is the authoritative ontology grounding for the node's
-          entity. Corresponds to ELMO's subject_value / object_value slot.
-          Examples: NCBITaxon:9612 (Canis lupus), CHEBI:24279
-          (glucosinolate), ENVO:01000253 (grassland). Secondary ontology
-          crosswalks, if needed, should be maintained outside article
-          annotations in SSSOM files.
-        range: uriorcurie
-        annotations:
-          loom_ontologies: "NCBITaxon, CHEBI, ENVO, GO, PATO"
-          note: >-
-            For taxa use NCBITaxon; for chemicals CHEBI; for environments
-            ENVO; for processes GO or ENVO process terms; for qualities PATO.
+       entity_term:
+         description: >-
+           The core ecological entity as an ontology CURIE or free text. This is the
+           "what thing" — the taxon, chemical, abiotic factor, or process
+           class, and is the authoritative ontology grounding for the node's
+           entity. Corresponds to ELMO's subject_value / object_value slot.
+           Examples: NCBITaxon:9612 (Canis lupus), CHEBI:24279
+           (glucosinolate), ENVO:01000253 (grassland). For terms not in an ontology,
+           enter free text (e.g., "invasive grass"). Secondary ontology crosswalks
+           if needed, should be maintained outside article annotations in SSSOM files.
+         any_of:
+           - range: uriorcurie
+           - range: string
+         annotations:
+           loom_ontologies: "NCBITaxon, CHEBI, ENVO, GO, PATO"
+           note: >-
+             For taxa use NCBITaxon; for chemicals CHEBI; for environments
+             ENVO; for processes GO or ENVO process terms; for qualities PATO. For
+             terms not in an ontology, enter free text.
 
       variable_attribute:
         description: >-

@@ -93,6 +93,11 @@ widget_overrides:
   mechanism_description: textarea
   study_temporal_note: textarea
   study_sample_size: textarea
+  study_coordinates: textarea
+
+# GeoNames API configuration
+# Set GEONAMES_USERNAME in environment to enable automatic country/state lookup from coordinates
+# Otherwise, users can manually enter study_country and study_state_or_province
 
 # Slots excluded from annotation forms for all projects.
 # Pipeline-computed, system-managed, or UI-unsupported slots go here.

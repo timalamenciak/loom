@@ -49,10 +49,15 @@
 
     function updateSaveIndicator(timestamp) {
         const indicator = document.querySelector('[data-save-indicator]');
+        const icon = document.getElementById('save-indicator');
         if (indicator && timestamp) {
             const time = new Date(timestamp).toLocaleTimeString();
-            indicator.innerHTML = `✓ Saved ${time}`;
+            indicator.innerHTML = `Saved ${time}`;
             indicator.setAttribute('title', `Last saved: ${timestamp}`);
+            if (icon) {
+                icon.setAttribute('stroke', '#059669');
+                icon.setAttribute('fill', '#6ee7b7');
+            }
         }
     }
 

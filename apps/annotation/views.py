@@ -1443,7 +1443,45 @@ class GraphView(LoginRequiredMixin, View):
         return redirect("annotate", pk=pk, doc_pk=doc_pk)
 
 
-# ── Auto-save endpoint ─────────────────────────────────────────────────────────
+# ── GeoNames lookup endpoint ─────────────────────────────────────────────────────
+
+
+class GeoNamesLookupView(LoginRequiredMixin, View):
+    """Look up country/state from coordinates using GeoNames API."""
+
+    def get(self, request, pk, doc_pk):
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        require_editable_assignment(document, request.user)
+
+        latitude = request.GET.get("latitude")
+        longitude = request.GET.get("longitude")
+
+        if not latitude or not longitude:
+            return JsonResponse(
+                {"error": "latitude and longitude parameters are required"}, status=400
+            )
+
+        try:
+            lat = float(latitude)
+            lon = float(longitude)
+        except (ValueError, TypeError):
+            return JsonResponse({"error": "Invalid coordinates"}, status=400)
+
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            return JsonResponse({"error": "Coordinates out of range"}, status=400)
+
+        from apps.annotation.utils import get_geographic_context
+
+        username = request.GET.get("username") or request.session.get(
+            "geonames_username"
+        )
+        geo = get_geographic_context(lat, lon, username)
+
+        return JsonResponse(geo)
+
+
+# ── Auto-save endpoint ───────────────────────────────────────────────────────────
 
 
 class AutoSaveView(LoginRequiredMixin, View):

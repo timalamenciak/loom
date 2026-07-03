@@ -166,6 +166,7 @@
          {% if slot.has_minimum_value %}min="{{ slot.minimum_value }}"{% endif %}
          {% if slot.has_maximum_value %}max="{{ slot.maximum_value }}"{% endif %}
          {% if slot.pattern %}pattern="{{ slot.pattern }}"{% endif %}
+         {% if slot.widget == 'number' %}step="any"{% endif %}
          {% if slot.required %}required{% endif %}>
 </div>
 {% endif %}
