@@ -2,6 +2,7 @@
 
 from contextlib import nullcontext
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 
@@ -420,24 +421,27 @@ def _preprocess_source_document(data: dict) -> dict:
 
         result["study_duration_months"] = calculate_study_duration_months(start, end)
 
-    geonames_username = data.get("_geonames_username", None)
-    if geonames_username:
-        latitude = data.get("study_coordinates", [])
-        if latitude and len(latitude) > 0:
-            first_coord = latitude[0] if isinstance(latitude, list) else latitude
-            lat = first_coord.get("latitude") if isinstance(first_coord, dict) else None
-            lon = (
-                first_coord.get("longitude") if isinstance(first_coord, dict) else None
-            )
-            if lat is not None and lon is not None:
-                from apps.annotation.utils import get_geographic_context
+    # Fallback GeoNames lookup: the coordinate_list widget (static/js/
+    # coordinate-list.js) already fills study_country / study_state_or_province
+    # client-side when a location is saved. This covers the case where the
+    # form was submitted before that fetch resolved, or with JS disabled.
+    coordinates = data.get("study_coordinates") or []
+    first_coord = coordinates[0] if coordinates else None
+    if (
+        settings.GEONAMES_USERNAME
+        and isinstance(first_coord, dict)
+        and not result.get("study_country")
+        and not result.get("study_state_or_province")
+    ):
+        lat = first_coord.get("latitude")
+        lon = first_coord.get("longitude")
+        if lat is not None and lon is not None:
+            from apps.annotation.utils import get_geographic_context
 
-                geo = get_geographic_context(float(lat), float(lon), geonames_username)
-                if geo.get("study_country"):
-                    result["study_country"] = geo["study_country"]
-                if geo.get("study_state_or_province"):
-                    result["study_state_or_province"] = geo["study_state_or_province"]
-                if geo.get("nearest_named_location"):
-                    result["nearest_named_location"] = geo["nearest_named_location"]
+            geo = get_geographic_context(float(lat), float(lon), settings.GEONAMES_USERNAME)
+            if geo.get("study_country"):
+                result["study_country"] = geo["study_country"]
+            if geo.get("study_state_or_province"):
+                result["study_state_or_province"] = geo["study_state_or_province"]
 
     return result

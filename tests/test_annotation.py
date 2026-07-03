@@ -695,6 +695,108 @@ class TestSourceDocumentForm:
         assert b"Select a value defined by the active schema." in response.content
 
 
+class TestStudyCoordinatesWidget:
+    """study_coordinates is multivalued and class-ranged (range: StudyCoordinates,
+    inlined_as_list: true). It previously used the generic "textarea" widget,
+    which posts a flat string under the bare field name; the binder rejects
+    that for any class-ranged slot ("Use the schema-defined nested fields for
+    this value."). It now uses the dedicated "coordinate_list" widget, which
+    posts study_coordinates__<index>__latitude / __longitude instead.
+    """
+
+    def test_renders_coordinate_list_widget_not_flat_textarea(
+        self, project_and_user, document, assignment, latest_schema
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document, annotator=user, schema_version=latest_schema
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/",
+            HTTP_HX_REQUEST="true",
+        )
+
+        html = response.content.decode()
+        assert response.status_code == 200
+        assert "data-coordinate-list" in html
+        assert 'data-field-name="study_coordinates"' in html
+        assert 'id="id_study_coordinates_entry"' in html
+        assert "Save location" in html
+        assert '<textarea name="study_coordinates"' not in html
+
+    def test_saves_nested_coordinates_without_binder_error(
+        self, project_and_user, document, assignment, latest_schema
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document, annotator=user, schema_version=latest_schema
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/save/",
+            {
+                "study_coordinates__0__latitude": "43.466752",
+                "study_coordinates__0__longitude": "-80.5371904",
+                "study_country": "Canada",
+                "study_state_or_province": "Ontario",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 200, response.content.decode()
+        graph.refresh_from_db()
+        assert graph.source_document["study_coordinates"] == [
+            {"latitude": 43.466752, "longitude": -80.5371904}
+        ]
+        assert graph.source_document["study_country"] == "Canada"
+
+    def test_flat_string_posted_to_bare_slot_is_rejected(
+        self, project_and_user, document, assignment, latest_schema
+    ):
+        """A flat post under the bare slot name (the old broken shape) must
+        still be rejected — this is the schema binder's job, not the widget's.
+        Guards against ever "fixing" this by loosening the binder instead of
+        rendering the correct nested fields."""
+        from django.test import Client
+
+        from apps.annotation.models import CausalGraph
+
+        project, user = project_and_user
+        graph = CausalGraph.objects.create(
+            document=document, annotator=user, schema_version=latest_schema
+        )
+        assignment.graph = graph
+        assignment.save(update_fields=["graph"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/source-document/save/",
+            {"study_coordinates": "43.466752,-80.5371904"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 422
+        assert b"Use the schema-defined nested fields for this value." in response.content
+
+
 class TestEdgeCreate:
     def test_create_edge_htmx(
         self, project_and_user, document, assignment, graph, schema_version
@@ -1022,3 +1124,5 @@ class TestSubmitAnnotation:
         assert b"read-only" in workspace.content
         assert mutation.status_code == 403
         assert not Node.objects.filter(graph=graph).exists()
+
+

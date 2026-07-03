@@ -18,7 +18,7 @@
   <div class="help">Hold Ctrl or Command to select more than one value.</div>
 </div>
 
-{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" and slot.widget != "ontology_autocomplete" %}
+{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" and slot.widget != "ontology_autocomplete" and slot.widget != "coordinate_list" %}
 <div class="field">
   <label for="id_{{ field_name }}">
     {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
@@ -133,6 +133,39 @@
   <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}" value="true"
          {% if current_data|dict_get:field_name|is_checked %}checked{% endif %}>
   <label for="id_{{ field_name }}" style="margin:0">{{ slot.label }}</label>
+</div>
+
+{% elif slot.widget == "coordinate_list" %}
+<div class="field coordinate-list"
+     data-coordinate-list
+     data-field-name="{{ field_name }}"
+     data-initial="{{ current_data|dict_get:field_name|as_list|to_json }}"
+     {% if slot.geonames_country_slot %}data-country-field-id="id_{{ prefix }}{{ slot.geonames_country_slot }}"{% endif %}
+     {% if slot.geonames_state_slot %}data-state-field-id="id_{{ prefix }}{{ slot.geonames_state_slot }}"{% endif %}
+     {% if geonames_configured %}data-geonames-endpoint="{% url 'geonames-lookup' pk=project.pk doc_pk=document.pk %}"{% endif %}>
+  <label for="id_{{ field_name }}_entry">
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+  <div style="display:flex;gap:.5rem;align-items:center">
+    <input type="text" id="id_{{ field_name }}_entry" data-coordinate-entry
+           placeholder="e.g. 43.466752,-80.5371904" autocomplete="off" style="flex:1">
+    <button type="button" class="btn btn-secondary" data-coordinate-save style="width:auto">Save location</button>
+  </div>
+  <div class="help" data-coordinate-status aria-live="polite"></div>
+  <div data-coordinate-hidden-inputs></div>
+  <label style="margin-top:.5rem;display:block;font-size:.8rem;color:#374151">Saved locations</label>
+  <select data-coordinate-listbox multiple size="4" style="width:100%"></select>
+  <div style="margin-top:.35rem">
+    <button type="button" class="btn btn-secondary" data-coordinate-remove style="width:auto">Remove selected</button>
+  </div>
+  {% if not geonames_configured %}
+  <p class="help" style="margin-top:.4rem">
+    Country/state auto-fill is off — ask an administrator to set
+    <code>LOOM_GEONAMES_USERNAME</code> to enable it. You can still enter
+    study country and study state/province manually below.
+  </p>
+  {% endif %}
 </div>
 
 {% elif slot.widget == "fieldset" %}

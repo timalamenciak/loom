@@ -5,6 +5,7 @@ import json
 import logging
 import uuid
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -779,6 +780,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
             ontology_routing=ui.get("ontology_routing", {}),
             widget_overrides=ui.get("widget_overrides", {}),
             globally_hidden_slots=ui.get("globally_hidden_slots", []),
+            geonames_autofill=ui.get("geonames_autofill", {}),
         )
         initial = _source_doc_initial(document, graph)
         rules = document.project.source_document_rollup or []
@@ -802,6 +804,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
                 "sd_spec": sd_spec,
                 "current_data": initial,
                 "assignment": assignment,
+                "geonames_configured": bool(settings.GEONAMES_USERNAME),
             },
         )
 
@@ -825,6 +828,7 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
             ontology_routing=ui.get("ontology_routing", {}),
             widget_overrides=ui.get("widget_overrides", {}),
             globally_hidden_slots=ui.get("globally_hidden_slots", []),
+            geonames_autofill=ui.get("geonames_autofill", {}),
         )
         if bound.is_valid:
             add_ontology_errors(
@@ -845,6 +849,7 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
                     "current_data": dict(bound.data),
                     "form_errors": bound.errors,
                     "assignment": assignment,
+                    "geonames_configured": bool(settings.GEONAMES_USERNAME),
                 },
             )
 
@@ -1473,8 +1478,11 @@ class GeoNamesLookupView(LoginRequiredMixin, View):
 
         from apps.annotation.utils import get_geographic_context
 
-        username = request.GET.get("username") or request.session.get(
-            "geonames_username"
+        username = (
+            request.GET.get("username")
+            or request.session.get("geonames_username")
+            or settings.GEONAMES_USERNAME
+            or None
         )
         geo = get_geographic_context(lat, lon, username)
 

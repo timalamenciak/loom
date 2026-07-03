@@ -107,17 +107,35 @@ ontology_routing:
       root_qid: "Q87167"   # ecosystem
 
 # slot_name: widget_type  (overrides schema_engine widget detection)
+# study_coordinates is a multivalued, class-ranged slot (range: StudyCoordinates,
+# inlined_as_list) — it cannot use "textarea" (a flat scalar widget); doing so
+# posts a plain string where the form binder requires nested
+# study_coordinates__<index>__latitude / __longitude fields, which fails
+# validation. "coordinate_list" is a dedicated widget (see form_field.html and
+# static/js/coordinate-list.js) that lets an annotator enter "lat,lng", save it
+# as one entry in the multivalued list, and see previously saved entries.
 widget_overrides:
   original_sentence: textarea
   annotation_notes: textarea
   pathway_description: textarea
   study_temporal_note: textarea
   study_sample_size: textarea
-  study_coordinates: textarea
+  study_coordinates: coordinate_list
+
+# Which sibling scalar slots a coordinate_list widget should auto-fill from a
+# GeoNames reverse-geocode lookup after a location is saved. Keyed by the
+# coordinate_list slot name so schema_engine never hardcodes study_country /
+# study_state_or_province directly.
+geonames_autofill:
+  study_coordinates:
+    country_slot: study_country
+    state_slot: study_state_or_province
 
 # GeoNames API configuration
-# Set GEONAMES_USERNAME in environment to enable automatic country/state lookup from coordinates
-# Otherwise, users can manually enter study_country and study_state_or_province
+# Set LOOM_GEONAMES_USERNAME in the environment to enable automatic
+# country/state lookup from coordinates (see loom/settings/base.py's
+# GEONAMES_USERNAME). Otherwise, users can manually enter study_country and
+# study_state_or_province.
 
 # Slots excluded from annotation forms for all projects.
 # Pipeline-computed, system-managed, or UI-unsupported slots go here.

@@ -11,7 +11,7 @@ A form spec is a list of layer dicts, each containing a list of slot specs:
         {
           "name": "claim_strength",
           "label": "Claim Strength",
-          "widget": "select",   # text|number|checkbox|select|ontology_autocomplete|fieldset|node_picker
+          "widget": "select",   # text|number|checkbox|select|ontology_autocomplete|fieldset|node_picker|coordinate_list
           "required": False,
           "multivalued": False,
           "description": "...",
@@ -101,6 +101,7 @@ class LoomSchemaView:
         widget_overrides: dict | None = None,
         globally_hidden_slots: list[str] | None = None,
         slot_help_texts: dict | None = None,
+        geonames_autofill: dict | None = None,
     ) -> list[dict]:
         """
         Build a layered form spec for *class_name*.
@@ -108,6 +109,9 @@ class LoomSchemaView:
         *ontology_routing* is the ontology_routing dict from loom_ui.yaml.
         *globally_hidden_slots* are excluded before layer assignment.
         *slot_help_texts* maps slot name → placeholder/hint string shown in the form.
+        *geonames_autofill* is the geonames_autofill dict from loom_ui.yaml: maps a
+        `coordinate_list`-widget slot name to the sibling country/state slot names
+        it should populate (see loom_ui.yaml for the shape).
         """
         if ontology_routing is None:
             ontology_routing = {}
@@ -115,13 +119,20 @@ class LoomSchemaView:
             widget_overrides = {}
         if slot_help_texts is None:
             slot_help_texts = {}
+        if geonames_autofill is None:
+            geonames_autofill = {}
         hidden = frozenset(globally_hidden_slots or [])
 
         slot_names = [n for n in self._all_slot_names(class_name) if n not in hidden]
         slot_specs = {}
         for name in slot_names:
             spec = self._slot_spec(
-                name, class_name, ontology_routing, widget_overrides, slot_help_texts
+                name,
+                class_name,
+                ontology_routing,
+                widget_overrides,
+                slot_help_texts,
+                geonames_autofill,
             )
             # Skip slots marked as hidden by loom_role
             if spec is not None:
@@ -207,6 +218,7 @@ class LoomSchemaView:
         ontology_routing: dict,
         widget_overrides: dict,
         slot_help_texts: dict | None = None,
+        geonames_autofill: dict | None = None,
     ) -> dict:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
@@ -317,7 +329,16 @@ class LoomSchemaView:
                     ontology_routing=ontology_routing,
                     widget_overrides=widget_overrides,
                     slot_help_texts=slot_help_texts,
+                    geonames_autofill=geonames_autofill,
                 )
+
+        if widget == "coordinate_list":
+            autofill = (geonames_autofill or {}).get(slot_name) or {}
+            if autofill.get("country_slot"):
+                spec["geonames_country_slot"] = autofill["country_slot"]
+            if autofill.get("state_slot"):
+                spec["geonames_state_slot"] = autofill["state_slot"]
+
         # Apply loom_role overrides
         if slot_loom_role == "hidden":
             return None  # Signal to exclude this slot

@@ -54,4 +54,19 @@ def check_ui_config_drift(
                 "defined on any class in the active schema."
             )
 
+    for slot_name, autofill in (ui_config.get("geonames_autofill") or {}).items():
+        if slot_name not in any_class_slots:
+            warnings.append(
+                f"geonames_autofill references slot {slot_name!r}, which is not "
+                "defined on any class in the active schema."
+            )
+        for key in ("country_slot", "state_slot"):
+            sibling = (autofill or {}).get(key)
+            if sibling and sibling not in any_class_slots:
+                warnings.append(
+                    f"geonames_autofill[{slot_name!r}][{key!r}] references slot "
+                    f"{sibling!r}, which is not defined on any class in the "
+                    "active schema."
+                )
+
     return warnings

@@ -51,6 +51,17 @@ def to_json(value):
 
 
 @register.filter
+def as_list(value):
+    """Coerce a dict_get miss (which returns "") into an empty list.
+
+    Used before |to_json for multivalued, class-ranged slots (e.g.
+    coordinate_list) so the JS always receives a JSON array, never the
+    2-character JSON string '""'.
+    """
+    return value if isinstance(value, list) else []
+
+
+@register.filter
 def join_lines(value):
     """Render a multivalued scalar as one editable value per line."""
     if isinstance(value, (list, tuple)):
