@@ -438,7 +438,9 @@ def _preprocess_source_document(data: dict) -> dict:
         if lat is not None and lon is not None:
             from apps.annotation.utils import get_geographic_context
 
-            geo = get_geographic_context(float(lat), float(lon), settings.GEONAMES_USERNAME)
+            geo = get_geographic_context(
+                float(lat), float(lon), settings.GEONAMES_USERNAME
+            )
             if geo.get("study_country"):
                 result["study_country"] = geo["study_country"]
             if geo.get("study_state_or_province"):

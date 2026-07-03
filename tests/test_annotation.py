@@ -837,7 +837,9 @@ class TestStudyCoordinatesWidget:
         )
 
         assert response.status_code == 422
-        assert b"Use the schema-defined nested fields for this value." in response.content
+        assert (
+            b"Use the schema-defined nested fields for this value." in response.content
+        )
 
 
 class TestEdgeCreate:
@@ -1167,7 +1169,3 @@ class TestSubmitAnnotation:
         assert b"read-only" in workspace.content
         assert mutation.status_code == 403
         assert not Node.objects.filter(graph=graph).exists()
-
-
-
-

@@ -81,8 +81,9 @@ class TestEngineNoDB:
         study_state_or_province inline (coordinates > country > state > Save
         location — see form_field.html and loom_ui.yaml's geonames_autofill).
         Those two slots must not also appear as their own top-level fields."""
-        import yaml as _yaml
         from pathlib import Path
+
+        import yaml as _yaml
 
         ui = _yaml.safe_load(Path("config/loom_ui.yaml").read_text())
         lsv = LoomSchemaView(_StubSchemaVersion(latest_schema_yaml))
