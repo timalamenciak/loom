@@ -3,6 +3,11 @@
 Guidance for working in the **Loom** repository. Read this before generating
 code, schema, or migrations.
 
+> This file is read by Claude Code (via a `CLAUDE.md` symlink), Codex, and
+> OpenCode. The single quality gate is **`./validate.sh`**, which mirrors
+> `.github/workflows/ci.yml`. Don't re-enumerate individual checks elsewhere —
+> point at the script so local, CI, and agent hooks can't drift apart.
+
 ---
 
 ## What Loom is
@@ -162,6 +167,9 @@ loom/
 ```bash
 # Environment
 make dev                                  # or: docker compose up
+# Blocking checks (migration drift, deploy check, tests) need a running
+# Postgres and env vars (SECRET_KEY, DB_HOST, DB_NAME, DB_USER, DB_PASSWORD).
+# validate.sh sets these to match CI; `make dev` / compose provide the DB.
 
 # Projects & references
 python manage.py create_project "Grassland Map" --admin <user>
@@ -183,9 +191,14 @@ python manage.py export_graph <graph_id> --format yaml --validate -o out.yaml
 # Schema migration assistant (move an existing graph to a newer schema)
 python manage.py migrate_graph <graph_id> --to-version 0.5.0 --report
 
-# Quality
-ruff check . && black . && pytest
+# Quality — single source of truth, mirrors .github/workflows/ci.yml
+./validate.sh
 ```
+
+`./validate.sh` runs, as **blocking** gates: `ruff check`, `black --check`, the
+migration-drift check, the Django `--deploy` check (`--fail-level WARNING`,
+`loom.settings.prod`), and `pytest` with a **coverage floor of 85%**. It runs
+`pip-audit` and `mypy apps/ loom/` as **advisory** (non-blocking), matching CI.
 
 ---
 
@@ -242,13 +255,16 @@ Before making changes:
 5. Run focused checks before broad checks.
 
 Before finishing any task:
-- Always run `ruff check --fix .` and `black .`.
-- Always run `mypy .` if mypy is configured in the project.
-- Always run `bandit -r src/` if bandit is configured.
-- Always run `python manage.py check` for Django projects.
-- If `pre-commit` is configured, run `pre-commit run --all-files` instead.
-- Do not report a task complete with outstanding lint or format errors.
-- If a lint tool is not installed, say so and provide the install command; do not skip silently.
+- Auto-fix formatting first: `ruff check --fix .` and `black .`.
+- Then run the single quality gate: `./validate.sh` (mirrors CI — ruff, black,
+  migration drift, deploy check, and pytest with the 85% coverage floor; runs
+  pip-audit and mypy as advisory). This is the source of truth; do not
+  re-enumerate individual checks that can drift from it.
+- If `pre-commit` or `bandit` is configured for the repo, run it as well.
+- Do not report a task complete while `./validate.sh` is red, or with any
+  outstanding lint or format errors.
+- If a required tool is not installed, say so and provide the install command;
+  do not skip silently.
 
 Always preserve:
 - provenance
