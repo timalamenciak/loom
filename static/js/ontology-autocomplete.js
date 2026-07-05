@@ -151,6 +151,15 @@ const OntologyAutocomplete = {
             display: 'none',
             minWidth: '300px',
         });
+        // Without this, a real (non-instantaneous) click on an item races the
+        // input's blur-triggered hide-timeout below: mousedown blurs the
+        // input, which schedules this dropdown to be hidden; if that timeout
+        // fires before mouseup, the browser cancels the click entirely
+        // (a target that becomes hidden mid-gesture never dispatches
+        // 'click'), so the item's selection handler silently never runs.
+        // Preventing the mousedown's default action stops the input from
+        // blurring in the first place, so there's no race to lose.
+        el.addEventListener('mousedown', (e) => e.preventDefault());
         return el;
     },
 
@@ -760,6 +769,10 @@ const EnumAutocomplete = {
             display: 'none',
             minWidth: '300px',
         });
+        // See the matching comment in OntologyAutocomplete._buildDropdown —
+        // stops the input from blurring on mousedown so a real click can't
+        // lose the race against the blur-triggered hide-timeout below.
+        el.addEventListener('mousedown', (e) => e.preventDefault());
         return el;
     },
 
