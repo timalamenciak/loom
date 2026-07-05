@@ -63,8 +63,26 @@ const OntologyAutocomplete = {
             const q = input.value.trim();
             if (input.dataset.ontologyMultivalue !== 'true') {
                 const hidden = this._hiddenInput(input);
-                if (hidden && q !== input._oaSelectedLabel) hidden.value = '';
-                input.setCustomValidity(q ? 'Select a term from the suggestions.' : '');
+                const allowFreeText = input.dataset.ontologyAllowFreeText === 'true';
+                if (hidden && q !== input._oaSelectedLabel) {
+                    if (allowFreeText) {
+                        // CAMO's any_of [uriorcurie, string] pattern (entity_term,
+                        // measured_attribute, ...) accepts free text as a real
+                        // value in its own right — it isn't just a staging area
+                        // for a "Propose new term" click. Keep the submitted
+                        // value in sync with what's typed; picking an actual
+                        // suggestion (_selectTerm) overwrites it with the CURIE.
+                        hidden.value = q;
+                        this._clearWikidataHints(input);
+                    } else {
+                        hidden.value = '';
+                    }
+                }
+                input.setCustomValidity(
+                    q && !allowFreeText && q !== input._oaSelectedLabel
+                        ? 'Select a term from the suggestions.'
+                        : ''
+                );
             }
             if (q.length < 2) {
                 dropdown.style.display = 'none';

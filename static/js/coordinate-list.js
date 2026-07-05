@@ -28,6 +28,8 @@
  * swap of #form-panel — see annotate.html):
  *   CoordinateList.init();
  */
+const MAX_LISTBOX_LABEL_LENGTH = 40;
+
 const CoordinateList = {
     init() {
         document.querySelectorAll('[data-coordinate-list]').forEach((el) => this.attach(el));
@@ -92,9 +94,18 @@ const CoordinateList = {
                 const option = document.createElement('option');
                 option.value = String(index);
                 const place = [entry.country, entry.state].filter((v) => v).join(', ');
-                option.textContent = place
+                const label = place
                     ? `${entry.latitude}, ${entry.longitude} — ${place}`
                     : `${entry.latitude}, ${entry.longitude}`;
+                // A native <select> option neither wraps nor ellipsizes long
+                // text — it just clips silently past the box edge. Truncate
+                // the visible label ourselves and keep the full value in
+                // `title` (hover tooltip) so nothing is invisibly cut off.
+                option.textContent =
+                    label.length > MAX_LISTBOX_LABEL_LENGTH
+                        ? `${label.slice(0, MAX_LISTBOX_LABEL_LENGTH - 1)}…`
+                        : label;
+                option.title = label;
                 if (index === editingIndex) option.selected = true;
                 listbox.appendChild(option);
             });
@@ -120,17 +131,29 @@ const CoordinateList = {
             fetch(url)
                 .then((r) => r.json())
                 .then((data) => {
-                    if (data.error) {
-                        setStatus(data.error, true);
-                        return;
+                    let filled = false;
+                    if (countryField && data.study_country) {
+                        countryField.value = data.study_country;
+                        filled = true;
                     }
-                    if (countryField && data.study_country) countryField.value = data.study_country;
                     if (stateField && data.study_state_or_province) {
                         stateField.value = data.study_state_or_province;
+                        filled = true;
                     }
-                    setStatus('Country/state filled from GeoNames — check before saving.', false);
+                    if (filled) {
+                        setStatus('Country/state filled from GeoNames — check before saving.', false);
+                    } else {
+                        // GeoNames can respond 200 OK with nothing usable (bad
+                        // username, quota exceeded, no match for these
+                        // coordinates) — never claim success when nothing was
+                        // actually filled in.
+                        setStatus(
+                            data.error || 'GeoNames did not return a country/state for these coordinates.',
+                            true
+                        );
+                    }
                 })
-                .catch(() => setStatus('GeoNames lookup failed.', true));
+                .catch(() => setStatus('GeoNames lookup failed — check the server logs.', true));
         };
 
         // Auto-lookup as soon as a valid pair is typed, debounced so it

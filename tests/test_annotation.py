@@ -462,6 +462,40 @@ class TestNodeCreate:
         node = Node.objects.filter(graph=graph).first()
         assert node.data.get("entity_type") == "biotic"
 
+    def test_wikidata_hint_fields_do_not_block_node_save(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        """The `<slot>_wd_label` / `<slot>_wd_def` hidden inputs that
+        form_field.html renders next to any wikidata_live ontology_autocomplete
+        field (see static/js/ontology-autocomplete.js's _selectTerm) are
+        Loom-managed metadata, not schema slots. Posting them straight through
+        to bind_form_data made it reject them ("not defined by the active
+        schema") and blocked every save of a node using a wikidata_live field
+        (e.g. entity_term's default ontology_routing route) — exactly what a
+        real browser submission always includes once a Wikidata term is
+        picked."""
+        from django.test import Client
+
+        from apps.annotation.models import Node
+
+        project, user = project_and_user
+        client = Client()
+        client.login(username=user.username, password="pw")
+        url = f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/"
+        resp = client.post(
+            url,
+            {
+                "entity_type": "biotic",
+                "entity_term": "WD:Q712036",
+                "entity_term_wd_label": "Some Taxon",
+                "entity_term_wd_def": "a species of something",
+                "direction": "increases",
+            },
+            HTTP_HX_REQUEST="true",
+        )
+        assert resp.status_code == 200, resp.content.decode()
+        assert Node.objects.filter(graph=graph).exists()
+
     def test_unknown_schema_slot_is_rejected(
         self, project_and_user, document, assignment, graph, schema_version
     ):

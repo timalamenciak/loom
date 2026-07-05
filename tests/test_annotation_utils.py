@@ -80,6 +80,7 @@ class TestGetGeographicContext:
             "study_country": "",
             "study_state_or_province": "",
             "nearest_named_location": "",
+            "error": "GeoNames is not configured.",
         }
 
     def test_with_api_key_calls_geonames(self):
@@ -153,3 +154,42 @@ class TestReverseGeocodeGeoNames:
                 "study_state_or_province": "CA",
                 "nearest_named_location": "San Francisco, United States",
             }
+
+    def test_geonames_status_error_is_surfaced_not_silently_blanked(self):
+        """GeoNames returns HTTP 200 with a `status` error object for a bad or
+        unregistered username, an unactivated reverse-geocoding service, or an
+        exceeded hourly quota — it does not use a non-2xx HTTP status, so
+        `response.raise_for_status()` can't catch it. Previously this silently
+        produced an all-empty "successful" result with no way to tell the
+        annotator why nothing was filled in."""
+        from apps.annotation.utils import _reverse_geocode_geonames
+
+        mock_data = {
+            "status": {"message": "user does not exist", "value": 10},
+        }
+
+        with patch("requests.get") as mock_get:
+            mock_response = mock_get.return_value
+            mock_response.json.return_value = mock_data
+            mock_response.raise_for_status.return_value = None
+
+            result = _reverse_geocode_geonames(37.7749, -122.4194, "bad-username")
+
+            assert result["study_country"] == ""
+            assert result["study_state_or_province"] == ""
+            assert result["error"] == "user does not exist"
+
+    def test_no_country_name_in_response_is_surfaced_as_error(self):
+        """A 200 response with no countryName (e.g. no match for these
+        coordinates) must not be reported as a successful lookup either."""
+        from apps.annotation.utils import _reverse_geocode_geonames
+
+        with patch("requests.get") as mock_get:
+            mock_response = mock_get.return_value
+            mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+
+            result = _reverse_geocode_geonames(0.0, 0.0, "test-username")
+
+            assert result["study_country"] == ""
+            assert "error" in result

@@ -6,12 +6,16 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
     <h3 style="margin:0;font-size:1rem">{% if edge %}Edit Edge{% else %}Add Edge{% endif %}</h3>
     <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem">
+      {% if edge %}
       <svg id="save-indicator" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition:stroke 0.3s">
         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
         <polyline points="17 21 17 13 7 13 7 21"></polyline>
         <polyline points="7 3 7 8 15 8"></polyline>
       </svg>
-      <span data-save-indicator title="Click to save">Saving…</span>
+      <span data-save-indicator title="Edits auto-save as you type">Editing saved edge</span>
+      {% else %}
+      <span class="muted" title="Auto-save only starts once this edge has been saved for the first time">Not saved yet</span>
+      {% endif %}
     </div>
     <button type="button"
             onclick="document.getElementById('form-panel').innerHTML='<p class=\'empty muted\' style=\'padding:1rem;text-align:center\'>Select an action above to annotate.</p>'"

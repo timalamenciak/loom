@@ -131,10 +131,23 @@ def _graph_panel_ctx(project, document, graph, assignment):
 
 
 def _post_payload(request, *managed_names):
-    """Return a mutable QueryDict and selected Loom-managed values."""
+    """Return a mutable QueryDict and selected Loom-managed values.
+
+    Also strips `<slot>_wd_label` / `<slot>_wd_def` — the Wikidata hint hidden
+    inputs form_field.html renders next to any ontology_autocomplete field with
+    `wikidata_live` set (see static/js/ontology-autocomplete.js's _selectTerm).
+    They are never schema slots, so the generic binder (apps/schemas/
+    input_binding.py) rejects them outright as undefined fields; that made
+    saving any node/edge with a wikidata_live field (e.g. entity_term,
+    ecosystem_context) fail unconditionally. resolve_wd_curies_in_data reads
+    them straight off `request.POST` separately, so stripping them here from
+    the binder's payload doesn't lose anything.
+    """
     payload = request.POST.copy()
     if "csrfmiddlewaretoken" in payload:
         payload.pop("csrfmiddlewaretoken")
+    for name in [k for k in payload if k.endswith(("_wd_label", "_wd_def"))]:
+        payload.pop(name)
     managed = {}
     for name in managed_names:
         managed[name] = payload.get(name)

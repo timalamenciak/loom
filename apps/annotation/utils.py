@@ -90,7 +90,15 @@ def get_geographic_context(
             "study_country": "",
             "study_state_or_province": "",
             "nearest_named_location": "",
+            "error": "GeoNames is not configured.",
         }
+
+
+_EMPTY_GEO_CONTEXT = {
+    "study_country": "",
+    "study_state_or_province": "",
+    "nearest_named_location": "",
+}
 
 
 def _reverse_geocode_geonames(latitude: float, longitude: float, username: str) -> dict:
@@ -103,7 +111,14 @@ def _reverse_geocode_geonames(latitude: float, longitude: float, username: str) 
         username: GeoNames username for API access
 
     Returns:
-        Dictionary with country, state, and nearest location name
+        Dictionary with country, state, and nearest location name. Includes an
+        "error" key (and otherwise-empty values) if the lookup didn't actually
+        resolve a location — GeoNames returns HTTP 200 with a `status` error
+        object (bad/unregistered username, hourly quota exceeded, etc.)
+        rather than a non-2xx status, so `response.raise_for_status()` alone
+        can't detect it; treating a 200 response with no countryName as
+        success previously left the annotator staring at a "success" message
+        with blank fields and no indication why.
     """
     import requests
 
@@ -114,18 +129,24 @@ def _reverse_geocode_geonames(latitude: float, longitude: float, username: str) 
         response = requests.get(url, params=params, timeout=5)
         response.raise_for_status()
         data = response.json()
-
-        return {
-            "study_country": data.get("countryName", ""),
-            "study_state_or_province": data.get(
-                "adminName1", data.get("admin1Code", "")
-            ),
-            "nearest_named_location": f"{data.get('name', '')}, {data.get('countryName', '')}",
-        }
     except requests.exceptions.RequestException as e:
         print(f"GeoNames lookup failed: {e}")
+        return {**_EMPTY_GEO_CONTEXT, "error": f"GeoNames request failed: {e}"}
+
+    status = data.get("status")
+    if status:
+        message = status.get("message", "GeoNames returned an error.")
+        print(f"GeoNames lookup failed: {message}")
+        return {**_EMPTY_GEO_CONTEXT, "error": message}
+
+    if not data.get("countryName"):
         return {
-            "study_country": "",
-            "study_state_or_province": "",
-            "nearest_named_location": "",
+            **_EMPTY_GEO_CONTEXT,
+            "error": "GeoNames found no location for these coordinates.",
         }
+
+    return {
+        "study_country": data.get("countryName", ""),
+        "study_state_or_province": data.get("adminName1", data.get("admin1Code", "")),
+        "nearest_named_location": f"{data.get('name', '')}, {data.get('countryName', '')}",
+    }
