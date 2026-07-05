@@ -391,7 +391,8 @@ def test_wbsearch_parses_results_and_fails_closed():
 
     for error in (URLError("offline"), ValueError("bad json")):
         with patch("urllib.request.urlopen", side_effect=error):
-            assert wikidata_search._wbsearch("oak", 5) == []
+            with pytest.raises(wikidata_search.WikidataUnavailable):
+                wikidata_search._wbsearch("oak", 5)
 
 
 def test_sparql_filter_builds_queries_parses_results_and_fails_closed():
@@ -596,15 +597,33 @@ def test_merge_wikidata_deduplicates_and_fails_closed():
             {"curie": "WD:Q2", "label": "new", "description": "desc"},
         ],
     ):
-        results = _merge_wikidata(request, local, "term", 5)
+        results, unavailable = _merge_wikidata(request, local, "term", 5)
     assert [result["curie"] for result in results] == ["WD:Q1", "WD:Q2"]
     assert results[-1]["source"] == "wikidata"
     assert results[-1]["prefix"] == "WD"
+    assert unavailable is False
 
+    # A specific WikidataUnavailable (network/DNS/timeout on the primary
+    # call) is flagged distinctly from a plain empty/no-match result.
+    with patch(
+        "apps.ontology.views.wikidata_search",
+        side_effect=wikidata_search.WikidataUnavailable("offline"),
+    ):
+        results, unavailable = _merge_wikidata(request, local, "term", 5)
+        assert results == local
+        assert unavailable is True
+
+    # Any other unanticipated exception still fails closed (never blocks
+    # annotation) and is also flagged, as a last-resort safety net.
     with patch("apps.ontology.views.wikidata_search", side_effect=RuntimeError):
-        assert _merge_wikidata(request, local, "term", 5) == local
+        results, unavailable = _merge_wikidata(request, local, "term", 5)
+        assert results == local
+        assert unavailable is True
+
     request = RequestFactory().get("/ontology/search/")
-    assert _merge_wikidata(request, local, "term", 5) == local
+    results, unavailable = _merge_wikidata(request, local, "term", 5)
+    assert results == local
+    assert unavailable is False
 
 
 def test_project_search_does_not_leak_active_snapshot(client, project):

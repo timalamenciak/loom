@@ -66,18 +66,20 @@ class TestWBSearch:
             assert results == []
 
     def test_network_failure(self):
-        """Returns empty list on network error."""
+        """Raises WikidataUnavailable on network error — distinct from a
+        reachable-but-empty result, so callers can tell "unreachable" apart
+        from "no matching term"."""
         with patch(
             "apps.ontology.wikidata_search.urllib.request.urlopen"
         ) as mock_urlopen:
             mock_urlopen.side_effect = URLError("Network error")
 
-            results = wikidata_search._wbsearch("test", 10)
-
-            assert results == []
+            with pytest.raises(wikidata_search.WikidataUnavailable):
+                wikidata_search._wbsearch("test", 10)
 
     def test_invalid_json(self):
-        """Returns empty list for invalid JSON."""
+        """Raises WikidataUnavailable for invalid JSON (malformed response,
+        same as an unreachable service from the caller's perspective)."""
         mock_enter = MagicMock()
         mock_enter.read.return_value = b"not json"
 
@@ -86,9 +88,8 @@ class TestWBSearch:
         ) as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_enter
 
-            results = wikidata_search._wbsearch("test", 10)
-
-            assert results == []
+            with pytest.raises(wikidata_search.WikidataUnavailable):
+                wikidata_search._wbsearch("test", 10)
 
     def test_filters_non_q_ids(self):
         """Filters out non-Q IDs."""

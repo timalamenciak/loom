@@ -205,14 +205,8 @@ const OntologyAutocomplete = {
                 dropdown.appendChild(this._buildFreeTextItem(input, q));
             }
             dropdown.style.display = 'block';
-            const unavailable = data.meta?.unavailable_prefixes || [];
-            this._setStatus(
-                input,
-                unavailable.length
-                    ? `Not loaded: ${unavailable.join(', ')}.`
-                    : 'No matching cached terms.',
-                unavailable.length > 0,
-            );
+            const [message, isError] = this._statusMessage(data, 'No matching cached terms.');
+            this._setStatus(input, message, isError);
             return;
         }
 
@@ -224,12 +218,8 @@ const OntologyAutocomplete = {
             dropdown.appendChild(this._buildFreeTextItem(input, q));
         }
 
-        const unavailable = data.meta?.unavailable_prefixes || [];
-        this._setStatus(
-            input,
-            unavailable.length ? `Some ontologies are not loaded: ${unavailable.join(', ')}.` : '',
-            unavailable.length > 0,
-        );
+        const [message, isError] = this._statusMessage(data, '');
+        this._setStatus(input, message, isError);
         dropdown.style.display = 'block';
     },
 
@@ -422,6 +412,25 @@ const OntologyAutocomplete = {
         if (!status) return;
         status.textContent = message;
         status.style.color = isError ? '#b91c1c' : '';
+    },
+
+    // Composes the status line from unavailable-ontology and Wikidata-live
+    // signals in `data.meta`, so an annotator can tell "not loaded — ask an
+    // admin" and "live lookup unreachable — try free text" apart from "no
+    // matching term exists". Returns [message, isError].
+    _statusMessage(data, fallback) {
+        const parts = [];
+        const unavailable = data.meta?.unavailable_prefixes || [];
+        if (unavailable.length) {
+            parts.push(
+                `Not loaded: ${unavailable.join(', ')}. Ask a project admin to add it in Project Settings.`,
+            );
+        }
+        if (data.meta?.wikidata_status === 'unavailable') {
+            parts.push('Live Wikidata lookup is unreachable right now — you can still type a free-text term.');
+        }
+        if (!parts.length) return [fallback, false];
+        return [parts.join(' '), true];
     },
 
     // ── Conditional (sibling-field-aware) routing ──────────────────────────

@@ -109,9 +109,13 @@ class TestReverseGeocodeGeoNames:
         from apps.annotation.utils import _reverse_geocode_geonames
 
         mock_data = {
-            "countryName": "United States",
-            "adminName1": "California",
-            "name": "San Francisco",
+            "geonames": [
+                {
+                    "countryName": "United States",
+                    "adminName1": "California",
+                    "name": "San Francisco",
+                }
+            ]
         }
 
         with patch("requests.get") as mock_get:
@@ -129,6 +133,7 @@ class TestReverseGeocodeGeoNames:
 
             mock_get.assert_called_once()
             args, kwargs = mock_get.call_args
+            assert args[0] == "https://secure.geonames.org/findNearbyPlaceNameJSON"
             assert kwargs["params"]["lat"] == 37.7749
             assert kwargs["params"]["lng"] == -122.4194
             assert kwargs["params"]["username"] == "test-username"
@@ -137,9 +142,13 @@ class TestReverseGeocodeGeoNames:
         from apps.annotation.utils import _reverse_geocode_geonames
 
         mock_data = {
-            "countryName": "United States",
-            "admin1Code": "CA",
-            "name": "San Francisco",
+            "geonames": [
+                {
+                    "countryName": "United States",
+                    "adminCode1": "CA",
+                    "name": "San Francisco",
+                }
+            ]
         }
 
         with patch("requests.get") as mock_get:
@@ -180,7 +189,7 @@ class TestReverseGeocodeGeoNames:
             assert result["error"] == "user does not exist"
 
     def test_no_country_name_in_response_is_surfaced_as_error(self):
-        """A 200 response with no countryName (e.g. no match for these
+        """A 200 response with no `geonames` key (e.g. no match for these
         coordinates) must not be reported as a successful lookup either."""
         from apps.annotation.utils import _reverse_geocode_geonames
 
@@ -193,3 +202,20 @@ class TestReverseGeocodeGeoNames:
 
             assert result["study_country"] == ""
             assert "error" in result
+
+    def test_empty_geonames_list_is_surfaced_as_error(self):
+        """A 200 response with an empty `geonames` list (valid request, no
+        match at these coordinates) must not be reported as success either."""
+        from apps.annotation.utils import _reverse_geocode_geonames
+
+        with patch("requests.get") as mock_get:
+            mock_response = mock_get.return_value
+            mock_response.json.return_value = {"geonames": []}
+            mock_response.raise_for_status.return_value = None
+
+            result = _reverse_geocode_geonames(0.0, 0.0, "test-username")
+
+            assert result["study_country"] == ""
+            assert (
+                result["error"] == "GeoNames found no location for these coordinates."
+            )

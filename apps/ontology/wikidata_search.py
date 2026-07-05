@@ -35,6 +35,15 @@ _cache: dict[tuple, tuple[float, list[dict]]] = {}
 _cache_lock = threading.Lock()
 
 
+class WikidataUnavailable(Exception):
+    """Raised when the primary wbsearchentities call itself fails.
+
+    Distinct from "no results": callers use this to tell an annotator "the
+    live lookup couldn't be reached" instead of silently implying the term
+    just doesn't exist.
+    """
+
+
 def search(
     query: str,
     root_qid: str | None = None,
@@ -43,7 +52,10 @@ def search(
     """Return up to *limit* Wikidata taxa matching *query*.
 
     Each result is ``{"curie": "WD:Q<n>", "label": str, "description": str}``.
-    Returns [] on any network or parse failure.
+    Raises :class:`WikidataUnavailable` if the primary wbsearchentities call
+    fails (network/DNS/timeout) — the caller decides how to surface that.
+    A secondary filtering-step failure instead degrades to [] silently,
+    since it means "couldn't narrow the candidates," not "unreachable".
 
     When *root_qid* is given, results are restricted to that ontology branch
     where Loom can check the relationship cheaply enough for typeahead.
@@ -170,8 +182,8 @@ def _wbsearch(query: str, limit: int) -> list[dict]:
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             data = json.loads(resp.read().decode())
-    except (URLError, OSError, ValueError):
-        return []
+    except (URLError, OSError, ValueError) as exc:
+        raise WikidataUnavailable(str(exc)) from exc
 
     out: list[dict] = []
     for item in data.get("search", []):

@@ -119,10 +119,17 @@ def _reverse_geocode_geonames(latitude: float, longitude: float, username: str) 
         can't detect it; treating a 200 response with no countryName as
         success previously left the annotator staring at a "success" message
         with blank fields and no indication why.
+
+    Note: GeoNames has no `reverseJSON` service (a prior version of this code
+    called that path and always got a 404). `findNearbyPlaceNameJSON` is the
+    real endpoint that returns country + admin1 (state/province) + nearest
+    populated place in one call, nested under a `geonames` list. The `https`
+    host must be `secure.geonames.org` — `api.geonames.org` doesn't serve a
+    matching TLS certificate over https.
     """
     import requests
 
-    url = "http://api.geonames.org/reverseJSON"
+    url = "https://secure.geonames.org/findNearbyPlaceNameJSON"
     params = {"lat": latitude, "lng": longitude, "username": username, "style": "full"}
 
     try:
@@ -139,14 +146,16 @@ def _reverse_geocode_geonames(latitude: float, longitude: float, username: str) 
         print(f"GeoNames lookup failed: {message}")
         return {**_EMPTY_GEO_CONTEXT, "error": message}
 
-    if not data.get("countryName"):
+    matches = data.get("geonames") or []
+    if not matches:
         return {
             **_EMPTY_GEO_CONTEXT,
             "error": "GeoNames found no location for these coordinates.",
         }
 
+    place = matches[0]
     return {
-        "study_country": data.get("countryName", ""),
-        "study_state_or_province": data.get("adminName1", data.get("admin1Code", "")),
-        "nearest_named_location": f"{data.get('name', '')}, {data.get('countryName', '')}",
+        "study_country": place.get("countryName", ""),
+        "study_state_or_province": place.get("adminName1", place.get("adminCode1", "")),
+        "nearest_named_location": f"{place.get('name', '')}, {place.get('countryName', '')}",
     }

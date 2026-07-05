@@ -14,6 +14,7 @@ from apps.projects.models import Project, ProjectMembership
 from .loaders import ontology_entries
 from .models import OntologyTermSuggestion
 from .services import search_terms, terms_by_curies
+from .wikidata_search import WikidataUnavailable
 from .wikidata_search import search as wikidata_search
 
 
@@ -37,7 +38,9 @@ def _term_json(term) -> dict:
     }
 
 
-def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[dict]:
+def _merge_wikidata(
+    request, results: list[dict], q: str, limit: int
+) -> tuple[list[dict], bool]:
     """Append Wikidata live results when the caller requests it.
 
     Triggered by ``?wikidata_live=1``; ``?root_qid=`` is optional.  Results
@@ -45,17 +48,23 @@ def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[di
     terms take precedence.
 
     Wikidata results carry ``"source": "wikidata"`` so the frontend can label
-    them distinctly.  Any failure (network, timeout, 429, unexpected exception)
-    is silently swallowed — annotation work must never block on Wikidata being
-    reachable.
+    them distinctly.  Annotation work must never block on Wikidata being
+    reachable, so *results* is always returned; the second return value flags
+    whether the live lookup itself was unreachable (as opposed to reachable
+    but empty), so the caller can surface that distinctly instead of letting
+    it look like "this term doesn't exist".
     """
     if request.GET.get("wikidata_live") != "1":
-        return results
+        return results, False
     root_qid = request.GET.get("root_qid") or None
     try:
         wd = wikidata_search(q, root_qid=root_qid, limit=limit)
+    except WikidataUnavailable:
+        return results, True
     except Exception:
-        return results
+        # Last-resort safety net for anything unanticipated — annotation
+        # must never block on Wikidata, even if we can't say why it failed.
+        return results, True
     seen = {r["curie"] for r in results}
     for item in wd:
         if item["curie"] not in seen:
@@ -70,7 +79,7 @@ def _merge_wikidata(request, results: list[dict], q: str, limit: int) -> list[di
                 }
             )
             seen.add(item["curie"])
-    return results
+    return results, False
 
 
 class OntologySearchView(LoginRequiredMixin, View):
@@ -89,7 +98,7 @@ class OntologySearchView(LoginRequiredMixin, View):
 
         terms = search_terms(q, prefixes=prefixes, limit=limit)
         results = [_term_json(term) for term in terms]
-        results = _merge_wikidata(request, results, q, limit)
+        results, _wikidata_unavailable = _merge_wikidata(request, results, q, limit)
         return JsonResponse({"results": results})
 
 
@@ -183,7 +192,9 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
 
         # Live lookup (Wikidata etc.) — always attempted when caller requests it,
         # even when the local snapshot is absent or yields nothing.
-        results = _merge_wikidata(request, results, q, limit)
+        results, wikidata_unavailable = _merge_wikidata(request, results, q, limit)
+        if wikidata_unavailable:
+            meta["wikidata_status"] = "unavailable"
         return JsonResponse({"results": results, "meta": meta})
 
 
