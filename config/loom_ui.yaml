@@ -109,6 +109,23 @@ ontology_routing:
     prefixes: [ENVO]
     wikidata_live:
       root_qid: "Q87167"   # ecosystem
+  applied_to:
+    condition_slot: entity_type   # entity_type sibling within AppliedToEntity
+    allow_free_text: true
+    routes:
+      taxon:
+        wikidata_live:
+          root_qid: "Q16521"   # taxon — any organism or taxonomic group
+      management_intervention:
+        prefixes: [ELMO]
+      environmental_process:
+        prefixes: [ENVO]
+      environmental_variable:
+        prefixes: [ELMO, ENVO]
+    default:
+      prefixes: [ENVO]
+      wikidata_live:
+        root_qid: "Q16521"
 
 # slot_name: widget_type  (overrides schema_engine widget detection)
 # study_coordinates is a multivalued, class-ranged slot (range: StudyCoordinates,
@@ -125,6 +142,7 @@ widget_overrides:
   study_temporal_note: textarea
   study_sample_size: textarea
   study_coordinates: coordinate_list
+  applied_to: applied_to_list
 
 # Which sibling scalar slots a coordinate_list widget should auto-fill from a
 # GeoNames reverse-geocode lookup after a location is saved. Keyed by the
@@ -157,3 +175,5 @@ globally_hidden_slots:
 slot_help_text:
   name: "Composed label — e.g. 'Increased Euphorbia esula abundance'"
   description: "Author's exact phrasing for this entity (leave blank if name suffices)"
+  taxonomic_scope: "Wikidata QIDs or free-text guild names scoping a multi-taxon measurement (e.g. Q30019 for Sphagnum, 'native species'). Only for environmental_variable nodes — leave empty for taxon nodes."
+  applied_to: "The specific entity this process or intervention acts upon (e.g. 'herbivory on Sphagnum', 'removal of Alliaria petiolata'). Only for environmental_process and management_intervention nodes. For environmental_variable nodes with multi-taxon scope, use taxonomic_scope instead."
