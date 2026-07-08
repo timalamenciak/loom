@@ -11,7 +11,7 @@ A form spec is a list of layer dicts, each containing a list of slot specs:
         {
           "name": "claim_strength",
           "label": "Claim Strength",
-          "widget": "select",   # text|number|checkbox|select|ontology_autocomplete|fieldset|node_picker|coordinate_list
+          "widget": "select",   # text|number|checkbox|select|ontology_autocomplete|fieldset|node_picker|coordinate_list|applied_to_list
           "required": False,
           "multivalued": False,
           "description": "...",
@@ -374,6 +374,17 @@ class LoomSchemaView:
                 if sibling_spec is not None:
                     spec[slot_key] = sibling
                     spec[field_key] = sibling_spec
+
+        if widget == "applied_to_list":
+            # Pull entity_type choices from the range class (AppliedToEntity)
+            # so the template can pass them to the JS widget as a JSON array.
+            spec["entity_type_choices"] = []
+            range_class = self._sv.get_class(slot.range or "")
+            if range_class:
+                for inner_slot in self._sv.class_induced_slots(range_class.name):
+                    if inner_slot.name == "entity_type" and inner_slot.range:
+                        spec["entity_type_choices"] = self._enum_choices(inner_slot.range)
+                        break
 
         # Apply loom_role overrides
         if slot_loom_role == "hidden":

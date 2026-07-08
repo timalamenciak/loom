@@ -98,6 +98,26 @@ ontology_routing:
       prefixes: [ENVO]
       wikidata_live:
         root_qid: "Q16521"
+  # applied_to uses the same conditional entity_type → entity_term routing as
+  # the node-level entity_term field; the applied_to_list widget reads this
+  # via data-ontology-routes and re-queries the autocomplete per entry.
+  applied_to:
+    condition_slot: entity_type
+    allow_free_text: true
+    routes:
+      taxon:
+        wikidata_live:
+          root_qid: "Q16521"
+      management_intervention:
+        prefixes: [ELMO]
+      environmental_process:
+        prefixes: [ENVO]
+      environmental_variable:
+        prefixes: [ELMO, ENVO]
+    default:
+      prefixes: [ENVO]
+      wikidata_live:
+        root_qid: "Q16521"
   measured_attribute:
     prefixes: [PATO]
     allow_free_text: true

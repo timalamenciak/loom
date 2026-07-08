@@ -25,6 +25,9 @@
 ## pattern.
 ##
 ## Schema version: 0.7.4
+##   - Added AppliedToEntity class (entity_type + entity_term) and applied_to
+##     (multivalued, inlined_as_list) slot on CausalNode, enabling annotators
+##     to record which entities a node's causal claim applies to.
 ##   - entity_term widened to any_of [uriorcurie, string] so annotators can
 ##     record a term as free text when no cached ontology term matches yet
 ##     (mirrors the existing pattern already used by measured_attribute).
@@ -41,13 +44,6 @@
 ##     model: single-taxon measurements use a taxon node; multi-taxon
 ##     aggregates and ecological guilds use environmental_variable +
 ##     taxonomic_scope.
-##   - Added applied_to (multivalued AppliedToEntity) to CausalNode for
-##     environmental_process and management_intervention nodes that are directed
-##     at a specific entity (e.g. "herbivory on Sphagnum", "invasive species
-##     removal of Alliaria petiolata"). Not used on environmental_variable nodes
-##     — use taxonomic_scope there instead. Distinct from taxonomic_scope:
-##     taxonomic_scope scopes a multi-taxon measurement; applied_to names the
-##     directional target of a process or intervention.
 ## =============================================================================
 
 id: https://w3id.org/causal-mosaic
@@ -2140,21 +2136,26 @@ classes:
 
   AppliedToEntity:
     description: >-
-      A structured reference to the entity that a CausalNode (environmental
-      variable, process, or intervention) is directed at or acts upon.
-      Uses the same entity_type / entity_term decomposition as CausalNode.
+      One entity that a node's causal claim applies to. Pairs an entity type
+      (from EntityTypeEnum) with an ontology term or free-text identifier.
+      Stored as an inlined list on CausalNode.applied_to.
     attributes:
       entity_type:
-        description: "High-level category of the target entity."
+        description: "High-level category of the entity."
         range: EntityTypeEnum
+        required: true
       entity_term:
         description: >-
-          The target entity as an ontology CURIE (preferred) or free text.
-          For taxa use Wikidata QIDs; for environments ENVO; for processes GO.
+          The entity as an ontology CURIE (e.g. WD:Q30019, ENVO:01000253) or
+          free text when no cached term matches yet.
         any_of:
           - range: uriorcurie
           - range: string
         required: true
+
+  # ---------------------------------------------------------------------------
+  # Text grounding
+  # ---------------------------------------------------------------------------
 
   TextSpan:
     description: "A span of text in the source document, for provenance and RAG."
