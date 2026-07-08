@@ -101,6 +101,10 @@ ontology_routing:
   measured_attribute:
     prefixes: [PATO]
     allow_free_text: true
+  taxonomic_scope:
+    allow_free_text: true
+    wikidata_live:
+      root_qid: "Q16521"   # taxon — any organism or taxonomic group
   ecosystem_context:
     prefixes: [ENVO]
     wikidata_live:
