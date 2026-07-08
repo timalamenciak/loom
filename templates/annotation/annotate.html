@@ -299,6 +299,7 @@
 <script src="{% static 'js/annotation-actions.js' %}"></script>
 <script src="{% static 'js/excerpt-bin.js' %}"></script>
 <script src="{% static 'js/coordinate-list.js' %}"></script>
+<script src="{% static 'js/applied-to-list.js' %}"></script>
 
 {# ── Span selector ── #}
 {% if can_edit and document.canonical_text %}
@@ -348,6 +349,7 @@
     window.OntologyAutocomplete?.init(window.loomOntologySearchUrl, window.loomOntologySuggestUrl);
     window.EnumAutocomplete?.init();
     window.CoordinateList?.init();
+    window.AppliedToList?.init();
   }
 
   // Init for any forms in the initial server-rendered HTML (e.g. ?form=node).

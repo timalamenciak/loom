@@ -18,7 +18,7 @@
   <div class="help">Hold Ctrl or Command to select more than one value.</div>
 </div>
 
-{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" and slot.widget != "ontology_autocomplete" and slot.widget != "coordinate_list" %}
+{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" and slot.widget != "ontology_autocomplete" and slot.widget != "coordinate_list" and slot.widget != "applied_to_list" %}
 <div class="field">
   <label for="id_{{ field_name }}">
     {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
@@ -173,6 +173,41 @@
   <select data-coordinate-listbox multiple size="4" style="width:100%"></select>
   <div style="margin-top:.35rem">
     <button type="button" class="btn btn-secondary" data-coordinate-remove style="width:auto">Remove selected</button>
+  </div>
+</div>
+
+{% elif slot.widget == "applied_to_list" %}
+<div class="field applied-to-list"
+     data-applied-to-list
+     data-field-name="{{ field_name }}"
+     data-initial="{{ current_data|dict_get:field_name|as_list|to_json }}"
+     data-entity-type-choices="{{ slot.entity_type_choices|to_json }}"
+     data-ontology-routes="{{ slot.ontology_routes|to_json }}"
+     data-default-prefixes="{{ slot.ontology_prefixes|join:',' }}"
+     {% if slot.wikidata_live %}data-default-wikidata-live="{{ slot.wikidata_live|to_json }}"{% endif %}
+     {% if slot.allow_free_text %}data-allow-free-text="true"{% endif %}>
+  <label>
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
+
+  <div data-applied-to-hidden-inputs></div>
+
+  <ul data-applied-to-entry-list style="list-style:none;margin:.4rem 0;padding:0"></ul>
+
+  <div class="applied-to-add-row" style="display:flex;flex-direction:column;gap:.35rem;margin-top:.4rem">
+    <select data-applied-to-type style="width:100%">
+      <option value="">— Entity type —</option>
+      {% for c in slot.entity_type_choices %}
+      <option value="{{ c.value }}" title="{{ c.description }}">{{ c.label }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" data-applied-to-term-label
+           placeholder="Search ontology…" autocomplete="off" style="width:100%">
+    <input type="hidden" data-applied-to-term-value>
+    <div class="help" data-ontology-status aria-live="polite"></div>
+    <div class="help" data-applied-to-status aria-live="polite"></div>
+    <button type="button" class="btn btn-secondary" data-applied-to-add style="width:auto">Add entry</button>
   </div>
 </div>
 
