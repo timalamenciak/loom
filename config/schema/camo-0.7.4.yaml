@@ -2079,18 +2079,26 @@ classes:
             guild scope. Leave empty for taxon nodes and for variables with no
             taxonomic scope (e.g., soil pH, water table level).
 
-
-      ## --- Applied-to scope ---
-
       applied_to:
         description: >-
-          The entities this causal claim applies to. Use this to record which
-          specific taxa, variables, or processes are within scope of the claim
-          expressed by this node, when that scope differs from or refines the
-          primary entity identified by entity_term.
+          The specific entity that this process or management intervention is
+          directed at or acts upon. Use when the node's meaning is only
+          complete with reference to a target entity — for example, "herbivory
+          on Sphagnum" or "invasive species removal of Alliaria petiolata".
+          Accepts any entity type (taxon, community, habitat, etc.) using the
+          same entity_type / entity_term decomposition as CausalNode itself.
+
+          Use only on environmental_process and management_intervention nodes.
+          For environmental_variable nodes that are scoped to one or more taxa,
+          use taxonomic_scope instead.
         range: AppliedToEntity
         multivalued: true
         inlined_as_list: true
+        annotations:
+          note: >-
+            Only populate for environmental_process and management_intervention
+            nodes. Leave empty for environmental_variable nodes (use
+            taxonomic_scope there) and for processes with no directional target.
 
       ## --- Text Grounding ---
 
@@ -2123,7 +2131,7 @@ classes:
         annotations:
           loom_role: hidden
   # ---------------------------------------------------------------------------
-  # Applied-to scope
+  # Text grounding
   # ---------------------------------------------------------------------------
 
   AppliedToEntity:
