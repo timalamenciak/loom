@@ -383,7 +383,9 @@ class LoomSchemaView:
             if range_class:
                 for inner_slot in self._sv.class_induced_slots(range_class.name):
                     if inner_slot.name == "entity_type" and inner_slot.range:
-                        spec["entity_type_choices"] = self._enum_choices(inner_slot.range)
+                        spec["entity_type_choices"] = self._enum_choices(
+                            inner_slot.range
+                        )
                         break
 
         # Apply loom_role overrides

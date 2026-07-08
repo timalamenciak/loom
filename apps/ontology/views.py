@@ -142,11 +142,23 @@ class ProjectOntologySearchView(LoginRequiredMixin, View):
         }
 
         available_prefixes = _snapshot_prefixes(snapshot)
+        project_available_prefixes = _snapshot_prefixes(project_snapshot)
+        outdated_prefixes = []
+        if (
+            graph_snapshot is not None
+            and project_snapshot is not None
+            and graph_snapshot.pk != project_snapshot.pk
+        ):
+            outdated_prefixes = sorted(
+                (requested & project_available_prefixes) - available_prefixes
+            )
         unavailable_prefixes = sorted(requested - available_prefixes)
         meta = {
             "snapshot_id": snapshot.pk if snapshot else None,
             "available_prefixes": sorted(available_prefixes),
+            "project_available_prefixes": sorted(project_available_prefixes),
             "unavailable_prefixes": unavailable_prefixes,
+            "outdated_prefixes": outdated_prefixes,
             "status": (
                 "unavailable"
                 if snapshot is None

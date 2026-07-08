@@ -103,6 +103,86 @@ def request_project_ontologies(project, actor, names: list[str]):
     return request
 
 
+def sync_ready_project_ontology_snapshots(names: list[str] | None = None) -> int:
+    """Refresh project snapshots now satisfiable from ready ontology releases.
+
+    Manual cache loads (``manage.py load_ontology``) create reusable releases but
+    do not go through Project Settings. Projects still need their current
+    snapshot rebuilt from those releases before autocomplete can see the newly
+    loaded prefixes. Graphs remain pinned until a human explicitly upgrades
+    them from the annotation page.
+    """
+
+    from apps.projects.models import Project
+
+    changed_names = set(names or [])
+    updated = 0
+    projects = Project.objects.exclude(ontology_names=[]).select_related("created_by")
+    for project in projects:
+        project_names = sorted(set(project.ontology_names or []))
+        if not project_names:
+            continue
+        if changed_names and not changed_names.intersection(project_names):
+            continue
+        try:
+            snapshot = compose_snapshot(project_names)
+        except ValueError:
+            continue
+        if project.ontology_snapshot_id == snapshot.pk:
+            continue
+        old_snapshot_id = project.ontology_snapshot_id
+        project.ontology_snapshot = snapshot
+        project.save(update_fields=["ontology_snapshot", "updated_at"])
+        AuditEvent.objects.create(
+            actor=project.created_by,
+            action="project.ontology_snapshot.sync",
+            target_type="Project",
+            target_id=str(project.pk),
+            diff={
+                "old_snapshot_id": old_snapshot_id,
+                "new_snapshot_id": snapshot.pk,
+                "ontology_names": project_names,
+            },
+        )
+        updated += 1
+    return updated
+
+
+def refresh_projects_for_ready_ontologies(names: list[str]) -> tuple[int, int]:
+    """Retry satisfied project load requests, then sync matching projects."""
+
+    if not names:
+        return 0, 0
+
+    changed_names = set(names)
+    retried = 0
+    requests = OntologyLoadRequest.objects.filter(
+        status__in=[
+            OntologyLoadRequest.STATUS_PENDING,
+            OntologyLoadRequest.STATUS_FAILED,
+        ]
+    ).select_related("project", "requested_by")
+    for request in requests:
+        request_names = set(request.ontology_names or [])
+        if changed_names and not changed_names.intersection(request_names):
+            continue
+        if not request_names or any(
+            _ready_release(name) is None for name in request_names
+        ):
+            continue
+        before = request.status
+        process_load_request(request, allow_download=False)
+        request.refresh_from_db()
+        if (
+            before != request.status
+            or request.status == OntologyLoadRequest.STATUS_COMPLETE
+        ):
+            retried += 1
+
+    synced = sync_ready_project_ontology_snapshots(list(changed_names))
+    return retried, synced
+
+
 def process_load_request(request, *, allow_download: bool = True):
     with transaction.atomic():
         request = (

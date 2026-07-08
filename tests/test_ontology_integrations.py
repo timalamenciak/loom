@@ -25,7 +25,9 @@ from apps.ontology.models import (
 from apps.ontology.project_service import (
     compose_snapshot,
     process_load_request,
+    refresh_projects_for_ready_ontologies,
     request_project_ontologies,
+    sync_ready_project_ontology_snapshots,
 )
 from apps.projects.models import Assignment, Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
@@ -565,6 +567,53 @@ def test_project_ontology_request_validates_supersedes_and_completes(project):
     assert project.ontology_snapshot is not None
 
 
+def test_sync_ready_project_ontology_snapshots_updates_selected_project(project):
+    project.ontology_names = ["elmo"]
+    project.save(update_fields=["ontology_names"])
+    _release("elmo", "ELMO", "e" * 64)
+
+    updated = sync_ready_project_ontology_snapshots(["elmo"])
+
+    assert updated == 1
+    project.refresh_from_db()
+    assert project.ontology_snapshot is not None
+    assert project.ontology_snapshot.releases.get(prefix="ELMO").name == "elmo"
+    assert AuditEvent.objects.filter(
+        action="project.ontology_snapshot.sync", target_id=str(project.pk)
+    ).exists()
+
+
+def test_refresh_projects_retries_failed_request_after_manual_load(project):
+    ProjectMembership.objects.create(
+        project=project, user=project.created_by, role=ProjectMembership.ROLE_ADMIN
+    )
+    project.ontology_names = ["elmo"]
+    project.save(update_fields=["ontology_names"])
+    request = OntologyLoadRequest.objects.create(
+        project=project,
+        requested_by=project.created_by,
+        ontology_names=["elmo"],
+        status=OntologyLoadRequest.STATUS_FAILED,
+        error="Ontology 'elmo' has not been loaded yet",
+    )
+    OntologyLoadItem.objects.create(
+        request=request,
+        name="elmo",
+        prefix="ELMO",
+        status=OntologyLoadItem.STATUS_FAILED,
+        error="Ontology 'elmo' has not been loaded yet",
+    )
+    _release("elmo", "ELMO", "e" * 64)
+
+    retried, synced = refresh_projects_for_ready_ontologies(["elmo"])
+
+    assert (retried, synced) == (1, 0)
+    request.refresh_from_db()
+    project.refresh_from_db()
+    assert request.status == OntologyLoadRequest.STATUS_COMPLETE
+    assert project.ontology_snapshot.releases.get(prefix="ELMO").name == "elmo"
+
+
 def test_process_load_request_download_failure_and_terminal_noop(project):
     request = OntologyLoadRequest.objects.create(
         project=project,
@@ -715,6 +764,7 @@ def test_project_search_keeps_graph_pinned_when_project_has_newer_prefix(
     payload = response.json()
     assert payload["results"] == []
     assert payload["meta"]["unavailable_prefixes"] == ["PATO"]
+    assert payload["meta"]["outdated_prefixes"] == ["PATO"]
 
     assignment = Assignment.objects.create(
         project=project,

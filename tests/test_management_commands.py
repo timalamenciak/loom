@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from apps.annotation.models import CausalGraph, Edge, Node
-from apps.ontology.models import OntologySnapshot
+from apps.ontology.models import OntologyRelease, OntologySnapshot
 from apps.projects.models import Document, Project, ProjectMembership
 from apps.schemas.models import SchemaVersion
 
@@ -480,6 +480,34 @@ def test_load_ontology_command_selection_success_and_failure(db):
 
     with pytest.raises(CommandError, match="single ontology"):
         call_command("load_ontology", "envo", "pato", "--source", "file.obo")
+
+
+def test_load_ontology_command_updates_selected_project_snapshot(project):
+    project.ontology_names = ["envo"]
+    project.save(update_fields=["ontology_names"])
+    output = StringIO()
+
+    def fake_load(name, **kwargs):
+        OntologyRelease.objects.create(
+            name=name,
+            prefix="ENVO",
+            source_url="https://example.org/envo.obo",
+            source_sha256="f" * 64,
+            status=OntologyRelease.STATUS_READY,
+            term_count=12,
+        )
+        return kwargs["snapshot"], 12
+
+    with patch(
+        "apps.ontology.management.commands.load_ontology.load_ontology",
+        side_effect=fake_load,
+    ):
+        call_command("load_ontology", "envo", "--new-snapshot", stdout=output)
+
+    project.refresh_from_db()
+    assert project.ontology_snapshot is not None
+    assert project.ontology_snapshot.releases.get(prefix="ENVO").name == "envo"
+    assert "Updated 1 project ontology snapshot" in output.getvalue()
 
 
 def test_process_loads_and_trigram_commands(db):

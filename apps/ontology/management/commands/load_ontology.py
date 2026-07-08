@@ -7,6 +7,7 @@ from apps.ontology.loaders import (
     preload_names,
 )
 from apps.ontology.models import OntologySnapshot
+from apps.ontology.project_service import refresh_projects_for_ready_ontologies
 
 
 class Command(BaseCommand):
@@ -75,6 +76,7 @@ class Command(BaseCommand):
             raise CommandError("--source can only be used with a single ontology name.")
 
         total_terms = 0
+        successful_names = []
         for name in names:
             self.stdout.write(f"Loading {name} …")
             try:
@@ -86,12 +88,25 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(self.style.SUCCESS(f"  {name}: {count:,} terms"))
                 total_terms += count
+                successful_names.append(name)
             except Exception as exc:
                 self.stderr.write(self.style.ERROR(f"  {name}: FAILED — {exc}"))
 
         if options["activate"]:
             snapshot.is_active = True
             snapshot.save(update_fields=["is_active"])
+
+        retried, synced = refresh_projects_for_ready_ontologies(successful_names)
+        if retried:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Retried {retried:,} project ontology load request(s)."
+                )
+            )
+        if synced:
+            self.stdout.write(
+                self.style.SUCCESS(f"Updated {synced:,} project ontology snapshot(s).")
+            )
 
         self.stdout.write(
             self.style.SUCCESS(

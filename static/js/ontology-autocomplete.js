@@ -430,9 +430,16 @@ const OntologyAutocomplete = {
     _statusMessage(data, fallback) {
         const parts = [];
         const unavailable = data.meta?.unavailable_prefixes || [];
-        if (unavailable.length) {
+        const outdated = data.meta?.outdated_prefixes || [];
+        if (outdated.length) {
             parts.push(
-                `Not loaded: ${unavailable.join(', ')}. Ask a project admin to add it in Project Settings.`,
+                `Graph ontology cache is out of date for: ${outdated.join(', ')}. Use the Update ontology cache button at the top of the page.`,
+            );
+        }
+        const notLoaded = unavailable.filter((prefix) => !outdated.includes(prefix));
+        if (notLoaded.length) {
+            parts.push(
+                `Not loaded: ${notLoaded.join(', ')}. Ask a project admin to add it in Project Settings.`,
             );
         }
         if (data.meta?.wikidata_status === 'unavailable') {
