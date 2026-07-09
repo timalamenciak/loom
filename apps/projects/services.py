@@ -282,7 +282,9 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
             if info.filename.lower().endswith(".md"):
                 stem = _normalized_match_key(Path(info.filename).stem)
                 if stem:
-                    md_sidecars[stem] = archive.read(info).decode("utf-8", errors="replace")
+                    md_sidecars[stem] = archive.read(info).decode(
+                        "utf-8", errors="replace"
+                    )
 
         for info in entries:
             if not info.filename.lower().endswith(".pdf"):
