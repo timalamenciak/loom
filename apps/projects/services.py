@@ -130,6 +130,7 @@ class BundleImportResult:
     already_had_pdf: list[Document] = field(default_factory=list)
     unmatched_pdfs: list[str] = field(default_factory=list)
     extraction_deferred: list[Document] = field(default_factory=list)
+    markdown_ingested: list[Document] = field(default_factory=list)
 
 
 def _normalized_match_key(value: str | None) -> str:
@@ -275,6 +276,14 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
         result.created, result.skipped = import_ris_file(project, io.StringIO(ris_text))
         exact, doi_refs = _pdf_match_indexes(project, records)
 
+        # Index .md sidecars by normalised stem so they can be matched to PDFs.
+        md_sidecars: dict[str, str] = {}
+        for info in entries:
+            if info.filename.lower().endswith(".md"):
+                stem = _normalized_match_key(Path(info.filename).stem)
+                if stem:
+                    md_sidecars[stem] = archive.read(info).decode("utf-8", errors="replace")
+
         for info in entries:
             if not info.filename.lower().endswith(".pdf"):
                 continue
@@ -291,6 +300,12 @@ def import_zipped_ris_bundle(project: Project, file_obj) -> BundleImportResult:
             attach_pdf_to_document(doc, io.BytesIO(archive.read(info)), safe_name)
             result.attached.append(doc)
             result.extraction_deferred.append(doc)
+
+            stem = _normalized_match_key(Path(safe_name).stem)
+            if stem in md_sidecars:
+                doc.canonical_markdown = md_sidecars[stem]
+                doc.save(update_fields=["canonical_markdown"])
+                result.markdown_ingested.append(doc)
 
     return result
 

@@ -3,6 +3,7 @@
 import html as _html
 import logging as _logging
 import os as _os
+from pathlib import Path as _Path
 
 from django.conf import settings as _django_settings
 from django.db import transaction
@@ -91,6 +92,17 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
     around the call and restored on exit so they don't leak to other threads.
     Marker 1.x passes these to its internal litellm-backed OpenAI service.
     """
+    # DISABLED: Marker runs off-process on a separate GPU machine.
+    # Use helper-scripts/marker_convert.py to produce .md sidecars, then run
+    # python manage.py extract_markdown to ingest them.
+    #
+    # TO RE-ENABLE in-process Marker:
+    #   1. Delete the "return None" line immediately below.
+    #   2. Un-comment the MARKER_* settings block in loom/settings/base.py.
+    #   3. Un-comment the pip install step in Dockerfile.
+    return None
+
+    # --- original in-process body (preserved for re-enable) ---
     try:
         from marker.config.parser import ConfigParser
         from marker.converters.pdf import PdfConverter
@@ -100,6 +112,9 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
             "MARKER_ENABLED=True but marker-pdf is not installed. "
             "Run: pip install 'loom[marker]'"
         )
+        return None
+    except Exception:
+        _logger.exception("marker-pdf import failed unexpectedly (version mismatch?)")
         return None
 
     config: dict = {"force_ocr": False}
@@ -139,23 +154,34 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
 def extract_markdown_from_pdf(document) -> bool:
     """Convert PDF to Markdown, saving to document.canonical_markdown.
 
-    Uses marker-pdf when MARKER_ENABLED is True; falls back to pdfplumber.
-    Does NOT replace canonical_text — both fields coexist.
+    Checks for a .md sidecar alongside the PDF first (produced by
+    helper-scripts/marker_convert.py on a separate machine). Falls back to
+    pdfplumber for basic page-by-page text. Does NOT replace canonical_text.
     Returns True on success.
     """
     if not document.pdf_file:
         return False
 
-    if getattr(_django_settings, "MARKER_ENABLED", False):
-        markdown = _extract_markdown_with_marker(document.pdf_file.path)
-        if markdown is not None:
-            document.canonical_markdown = markdown
-            document.save(update_fields=["canonical_markdown"])
-            return True
-        _logger.warning(
-            "Marker extraction returned nothing for document %s; falling back to pdfplumber.",
-            document.pk,
-        )
+    # Sidecar produced by helper-scripts/marker_convert.py: same stem, .md ext.
+    sidecar = _Path(document.pdf_file.path).with_suffix(".md")
+    if sidecar.exists():
+        document.canonical_markdown = sidecar.read_text(encoding="utf-8")
+        document.save(update_fields=["canonical_markdown"])
+        return True
+
+    # TO RE-ENABLE in-process Marker: un-comment the block below and follow
+    # the instructions at the top of _extract_markdown_with_marker().
+    #
+    # if getattr(_django_settings, "MARKER_ENABLED", False):
+    #     markdown = _extract_markdown_with_marker(document.pdf_file.path)
+    #     if markdown is not None:
+    #         document.canonical_markdown = markdown
+    #         document.save(update_fields=["canonical_markdown"])
+    #         return True
+    #     _logger.warning(
+    #         "Marker extraction returned nothing for document %s; falling back to pdfplumber.",
+    #         document.pk,
+    #     )
 
     # pdfplumber fallback
     try:

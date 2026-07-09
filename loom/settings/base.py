@@ -134,18 +134,17 @@ LLM_PROPOSALS_ENABLED = False
 # Marker PDF-to-Markdown (optional; falls back to pdfplumber when disabled)
 # Install marker-pdf: pip install "loom[marker]"
 # ---------------------------------------------------------------------------
-# Enable Marker instead of pdfplumber for extract_markdown management command.
-MARKER_ENABLED = os.environ.get("LOOM_MARKER_ENABLED", "false").lower() == "true"
-# Add an LLM boost via any OpenAI-compatible endpoint (e.g. a local Qwen server).
-MARKER_LLM_ENABLED = (
-    os.environ.get("LOOM_MARKER_LLM_ENABLED", "false").lower() == "true"
-)
-# Base URL of the OpenAI-compatible API, e.g. http://localhost:8080/v1
-MARKER_LLM_BASE_URL = os.environ.get("LOOM_MARKER_LLM_BASE_URL", "")
-# Model name to request, e.g. "qwen2.5-72b-instruct"
-MARKER_LLM_MODEL = os.environ.get("LOOM_MARKER_LLM_MODEL", "")
-# API key; use any non-empty string for endpoints that don't enforce auth.
-MARKER_LLM_API_KEY = os.environ.get("LOOM_MARKER_LLM_API_KEY", "nokey")
+# DISABLED: Marker now runs off-process via helper-scripts/marker_convert.py.
+# TO RE-ENABLE in-process Marker: un-comment the lines below, follow the
+# instructions in apps/documents/services.py:_extract_markdown_with_marker(),
+# and un-comment the pip install step in Dockerfile.
+#
+# MARKER_ENABLED = os.environ.get("LOOM_MARKER_ENABLED", "false").lower() == "true"
+# MARKER_LLM_ENABLED = os.environ.get("LOOM_MARKER_LLM_ENABLED", "false").lower() == "true"
+# MARKER_LLM_BASE_URL = os.environ.get("LOOM_MARKER_LLM_BASE_URL", "")
+# MARKER_LLM_MODEL = os.environ.get("LOOM_MARKER_LLM_MODEL", "")
+# MARKER_LLM_API_KEY = os.environ.get("LOOM_MARKER_LLM_API_KEY", "nokey")
+MARKER_ENABLED = False
 
 # GeoNames API (optional; for geographic lookups from StudyCoordinates)
 GEONAMES_USERNAME = os.environ.get("LOOM_GEONAMES_USERNAME", "")

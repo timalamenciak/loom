@@ -45,6 +45,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends gosu \
     && mkdir -p /home/loom \
     && chown loom:loom /home/loom
 
+# marker-pdf for LLM-assisted PDF-to-Markdown extraction.
+# DISABLED: Marker now runs off-process via helper-scripts/marker_convert.py.
+# TO RE-ENABLE: un-comment the RUN step below and follow the instructions in
+# loom/settings/base.py and apps/documents/services.py.
+#
+# RUN python -m pip uninstall -y marker 2>/dev/null || true \
+#     && python -m pip install "marker-pdf>=1.0,<2.0"
+
 COPY docker/entrypoint.sh /usr/local/bin/loom-entrypoint
 COPY manage.py ./
 COPY apps ./apps
