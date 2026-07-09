@@ -1,12 +1,15 @@
 """Phase 3 document services: PDF text extraction, span management."""
 
 import html as _html
+import logging as _logging
 import os as _os
 
 from django.conf import settings as _django_settings
 from django.db import transaction
 
 from .models import TextSpan
+
+_logger = _logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Text extraction
@@ -93,9 +96,13 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
         from marker.converters.pdf import PdfConverter
         from marker.models import create_model_dict
     except ImportError:
+        _logger.warning(
+            "MARKER_ENABLED=True but marker-pdf is not installed. "
+            "Run: pip install 'loom[marker]'"
+        )
         return None
 
-    config: dict = {}
+    config: dict = {"force_ocr": False}
     env_overrides: dict[str, str] = {}
 
     if getattr(_django_settings, "MARKER_LLM_ENABLED", False) and getattr(
@@ -119,6 +126,7 @@ def _extract_markdown_with_marker(pdf_path: str) -> str | None:
         rendered = converter(pdf_path)
         return rendered.markdown
     except Exception:
+        _logger.exception("marker-pdf conversion failed for %s", pdf_path)
         return None
     finally:
         for k, v in old_env.items():
@@ -144,6 +152,10 @@ def extract_markdown_from_pdf(document) -> bool:
             document.canonical_markdown = markdown
             document.save(update_fields=["canonical_markdown"])
             return True
+        _logger.warning(
+            "Marker extraction returned nothing for document %s; falling back to pdfplumber.",
+            document.pk,
+        )
 
     # pdfplumber fallback
     try:
