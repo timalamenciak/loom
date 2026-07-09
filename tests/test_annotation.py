@@ -559,7 +559,7 @@ class TestNodeCreate:
             f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
             {
                 "entity_type": "biotic",
-                "_source_span_pks": [str(first.pk), str(second.pk)],
+                "source_spans": [str(first.pk), str(second.pk)],
             },
             HTTP_HX_REQUEST="true",
         )
@@ -589,7 +589,7 @@ class TestNodeCreate:
 
         response = client.post(
             f"/annotation/{project.pk}/documents/{document.pk}/annotate/nodes/",
-            {"entity_type": "biotic", "_source_span_pks": [str(span.pk)]},
+            {"entity_type": "biotic", "source_spans": [str(span.pk)]},
             HTTP_HX_REQUEST="true",
         )
 
@@ -764,6 +764,8 @@ class TestStudyCoordinatesWidget:
         assert "data-coordinate-list" in html
         assert 'data-field-name="study_coordinates"' in html
         assert 'id="id_study_coordinates_entry"' in html
+        assert 'data-coordinate-item-field="coordinate_location_basis"' in html
+        assert "Exact site" in html
         assert "Save location" in html
         assert '<textarea name="study_coordinates"' not in html
 
@@ -807,8 +809,12 @@ class TestStudyCoordinatesWidget:
         entry_pos = html.index("id_study_coordinates_entry", widget_start)
         country_pos = html.index('name="study_country"', widget_start)
         state_pos = html.index('name="study_state_or_province"', widget_start)
+        basis_pos = html.index(
+            'data-coordinate-item-field="coordinate_location_basis"',
+            widget_start,
+        )
         save_pos = html.index("data-coordinate-save", widget_start)
-        assert entry_pos < country_pos < state_pos < save_pos < widget_end
+        assert entry_pos < country_pos < state_pos < basis_pos < save_pos < widget_end
 
     def test_saves_nested_coordinates_without_binder_error(
         self, project_and_user, document, assignment, latest_schema
@@ -831,6 +837,7 @@ class TestStudyCoordinatesWidget:
             {
                 "study_coordinates__0__latitude": "43.466752",
                 "study_coordinates__0__longitude": "-80.5371904",
+                "study_coordinates__0__coordinate_location_basis": "exact_site",
                 "study_country": "Canada",
                 "study_state_or_province": "Ontario",
             },
@@ -840,7 +847,11 @@ class TestStudyCoordinatesWidget:
         assert response.status_code == 200, response.content.decode()
         graph.refresh_from_db()
         assert graph.source_document["study_coordinates"] == [
-            {"latitude": 43.466752, "longitude": -80.5371904}
+            {
+                "latitude": 43.466752,
+                "longitude": -80.5371904,
+                "coordinate_location_basis": ["exact_site"],
+            }
         ]
         assert graph.source_document["study_country"] == "Canada"
 
@@ -961,7 +972,7 @@ class TestEdgeCreate:
                 "subject": subject.node_id,
                 "object": object_node.node_id,
                 "predicate": "positively_regulates",
-                "_source_span_pks": [str(first.pk), str(second.pk)],
+                "source_spans": [str(first.pk), str(second.pk)],
             },
             HTTP_HX_REQUEST="true",
         )
@@ -990,9 +1001,9 @@ class TestEdgeCreate:
         )
 
         assert response.status_code == 200
-        assert response.content.count(b'name="_source_span_pks"') == 2
+        assert response.content.count(b'name="source_spans"') == 2
         assert response.content.count(b"checked") >= 2
-        assert b"Grounding excerpts" in response.content
+        assert b"Source Spans" in response.content
         assert b"[...]" in response.content
 
     def test_service_rejects_nodes_from_another_graph(

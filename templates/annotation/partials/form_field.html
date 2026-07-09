@@ -18,7 +18,7 @@
   <div class="help">Hold Ctrl or Command to select more than one value.</div>
 </div>
 
-{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" and slot.widget != "ontology_autocomplete" and slot.widget != "coordinate_list" and slot.widget != "applied_to_list" %}
+{% elif slot.multivalued and slot.widget != "fieldset" and slot.widget != "node_picker" and slot.widget != "ontology_autocomplete" and slot.widget != "coordinate_list" and slot.widget != "applied_to_list" and slot.widget != "source_span_picker" %}
 <div class="field">
   <label for="id_{{ field_name }}">
     {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
@@ -158,6 +158,38 @@
     {% include "annotation/partials/form_field.html" with slot=slot.geonames_state_field prefix="" current_data=current_data %}
   {% endif %}
 
+  {% for item_slot in slot.coordinate_item_fields %}
+    {% with item_field_id="id_"|add:field_name|add:"_"|add:item_slot.name|add:"_entry" %}
+    <div class="field">
+      <label for="{{ item_field_id }}">
+        {{ item_slot.label }}{% if item_slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+      </label>
+      {% if item_slot.description %}<div class="help">{{ item_slot.description }}</div>{% endif %}
+      {% if item_slot.widget == "select" %}
+      <select id="{{ item_field_id }}"
+              data-coordinate-item-field="{{ item_slot.name }}"
+              {% if item_slot.multivalued %}multiple data-coordinate-item-multivalue="true"{% endif %}
+              {% if item_slot.required %}data-coordinate-item-required="true"{% endif %}>
+        {% if not item_slot.multivalued %}<option value="">-- Select --</option>{% endif %}
+        {% for c in item_slot.choices %}
+        <option value="{{ c.value }}" title="{{ c.description }}">{{ c.label }}</option>
+        {% endfor %}
+      </select>
+      {% if item_slot.multivalued %}
+      <div class="help">Hold Ctrl or Command to select more than one value.</div>
+      {% endif %}
+      {% else %}
+      <input type="{{ item_slot.widget }}" id="{{ item_field_id }}"
+             data-coordinate-item-field="{{ item_slot.name }}"
+             {% if item_slot.has_minimum_value %}min="{{ item_slot.minimum_value }}"{% endif %}
+             {% if item_slot.has_maximum_value %}max="{{ item_slot.maximum_value }}"{% endif %}
+             {% if item_slot.pattern %}pattern="{{ item_slot.pattern }}"{% endif %}
+             {% if item_slot.widget == 'number' %}step="any"{% endif %}>
+      {% endif %}
+    </div>
+    {% endwith %}
+  {% endfor %}
+
   <button type="button" class="btn btn-secondary" data-coordinate-save style="width:auto">Save location</button>
   {% if not geonames_configured %}
   <p class="help" style="margin-top:.4rem">
@@ -175,6 +207,36 @@
     <button type="button" class="btn btn-secondary" data-coordinate-remove style="width:auto">Remove selected</button>
   </div>
 </div>
+
+{% elif slot.widget == "source_span_picker" %}
+<fieldset class="excerpt-grounding">
+  <legend>
+    {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
+  </legend>
+  {% if slot.description %}<p class="help">{{ slot.description }}</p>{% endif %}
+  <p class="help">Choose every excerpt that directly supports this {% if edge %}edge{% else %}node{% endif %}.</p>
+  {% if excerpt_options %}
+  <div class="excerpt-grounding-options">
+    {% for option in excerpt_options %}
+    <label class="excerpt-grounding-option{% if option.unavailable %} unavailable{% endif %}"
+           for="id_{{ field_name }}_{{ option.span.pk }}">
+      <input type="checkbox" name="{{ field_name }}" value="{{ option.span.pk }}"
+             id="id_{{ field_name }}_{{ option.span.pk }}"
+             {% if option.selected %}checked{% endif %}
+             {% if option.unavailable %}disabled{% endif %}>
+      <span>
+        <span class="excerpt-grounding-text">{{ option.span.text|truncatechars:220 }}</span>
+        {% if option.unavailable %}
+          <small>Already grounds another {% if edge %}edge{% else %}node{% endif %}.</small>
+        {% endif %}
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="help excerpt-grounding-empty">No excerpts yet. Select text in the document pane to add one.</p>
+  {% endif %}
+</fieldset>
 
 {% elif slot.widget == "applied_to_list" %}
 <div class="field applied-to-list"

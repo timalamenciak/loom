@@ -8,7 +8,9 @@
  * class-ranged slot (e.g. SourceDocument.study_coordinates, range
  * StudyCoordinates, inlined_as_list: true). Saved entries are POSTed as
  * `<field>__<index>__latitude` / `<field>__<index>__longitude` hidden inputs
- * — the numeric-index nesting the generic form binder
+ * plus any schema-configured extra item fields such as
+ * `<field>__<index>__coordinate_location_basis` — the numeric-index nesting
+ * the generic form binder
  * (apps/schemas/input_binding.py) requires for multivalued inlined classes.
  * Posting a flat value under the bare field name is rejected by the binder
  * ("Use the schema-defined nested fields for this value.").
@@ -18,9 +20,9 @@
  * country/state inputs named via data-country-field-id / data-state-field-id
  * (this widget never hardcodes study_country / study_state_or_province
  * itself). The saved-locations listbox shows the country/state alongside
- * each entry for audit, purely as display metadata — only latitude/longitude
- * are schema attributes of StudyCoordinates and get posted. Clicking a saved
- * entry loads its coordinates/country/state back into the editable fields;
+ * each entry for audit, purely as display metadata. Clicking a saved
+ * entry loads its coordinates/country/state and extra item fields back into
+ * the editable fields;
  * clicking "Save location" again then updates that entry in place instead of
  * appending a new one.
  *
@@ -52,6 +54,7 @@ const CoordinateList = {
         const stateField = container.dataset.stateFieldId
             ? document.getElementById(container.dataset.stateFieldId)
             : null;
+        const itemFields = Array.from(container.querySelectorAll('[data-coordinate-item-field]'));
 
         let entries = [];
         try {
@@ -60,15 +63,6 @@ const CoordinateList = {
         } catch (e) {
             entries = [];
         }
-        // Older saved entries only carry latitude/longitude — normalize so
-        // every entry has the same shape for rendering/editing.
-        entries = entries.map((e) => ({
-            latitude: e.latitude,
-            longitude: e.longitude,
-            country: e.country || '',
-            state: e.state || '',
-        }));
-
         let editingIndex = null;
         let lookupTimer = null;
 
@@ -77,6 +71,54 @@ const CoordinateList = {
             status.textContent = message;
             status.style.color = isError ? '#dc2626' : '#6b7280';
         };
+
+        const readItemField = (field) => {
+            if (field.matches('select[multiple]')) {
+                return Array.from(field.selectedOptions)
+                    .map((option) => option.value)
+                    .filter((value) => value);
+            }
+            return (field.value || '').trim();
+        };
+
+        const writeItemField = (field, value) => {
+            if (field.matches('select[multiple]')) {
+                const selected = new Set(Array.isArray(value) ? value.map(String) : []);
+                Array.from(field.options).forEach((option) => {
+                    option.selected = selected.has(option.value);
+                });
+                return;
+            }
+            field.value = value || '';
+        };
+
+        const clearItemFields = () => {
+            itemFields.forEach((field) => writeItemField(field, field.matches('select[multiple]') ? [] : ''));
+        };
+
+        // Older saved entries only carry latitude/longitude — normalize so
+        // every entry has the same shape for rendering/editing.
+        entries = entries.map((e) => {
+            const normalised = {
+                latitude: e.latitude,
+                longitude: e.longitude,
+                country: e.country || '',
+                state: e.state || '',
+            };
+            itemFields.forEach((field) => {
+                const key = field.dataset.coordinateItemField;
+                if (!key) return;
+                const value = e[key];
+                normalised[key] = field.matches('select[multiple]')
+                    ? Array.isArray(value)
+                        ? value
+                        : value
+                          ? [value]
+                          : []
+                    : value || '';
+            });
+            return normalised;
+        });
 
         const render = () => {
             hiddenWrap.innerHTML = '';
@@ -91,11 +133,30 @@ const CoordinateList = {
                     input.value = value;
                     hiddenWrap.appendChild(input);
                 });
+                itemFields.forEach((field) => {
+                    const key = field.dataset.coordinateItemField;
+                    if (!key) return;
+                    const rawValue = entry[key];
+                    const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+                    values.forEach((value) => {
+                        if (value === null || value === undefined || value === '') return;
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `${fieldName}__${index}__${key}`;
+                        input.value = value;
+                        hiddenWrap.appendChild(input);
+                    });
+                });
                 const option = document.createElement('option');
                 option.value = String(index);
                 const place = [entry.country, entry.state].filter((v) => v).join(', ');
-                const label = place
-                    ? `${entry.latitude}, ${entry.longitude} — ${place}`
+                const extraValues = itemFields
+                    .map((field) => entry[field.dataset.coordinateItemField])
+                    .reduce((acc, value) => acc.concat(Array.isArray(value) ? value : [value]), [])
+                    .filter((value) => value);
+                const detail = [place].concat(extraValues).filter((value) => value).join(', ');
+                const label = detail
+                    ? `${entry.latitude}, ${entry.longitude} — ${detail}`
                     : `${entry.latitude}, ${entry.longitude}`;
                 // A native <select> option neither wraps nor ellipsizes long
                 // text — it just clips silently past the box edge. Truncate
@@ -182,6 +243,10 @@ const CoordinateList = {
                 country: countryField ? countryField.value.trim() : '',
                 state: stateField ? stateField.value.trim() : '',
             };
+            itemFields.forEach((field) => {
+                const key = field.dataset.coordinateItemField;
+                if (key) entry[key] = readItemField(field);
+            });
             if (editingIndex !== null && editingIndex < entries.length) {
                 entries[editingIndex] = entry;
                 setStatus('Location updated.', false);
@@ -191,6 +256,7 @@ const CoordinateList = {
             }
             editingIndex = null;
             entryInput.value = '';
+            clearItemFields();
             render();
         };
 
@@ -214,6 +280,10 @@ const CoordinateList = {
             entryInput.value = `${entry.latitude},${entry.longitude}`;
             if (countryField) countryField.value = entry.country || '';
             if (stateField) stateField.value = entry.state || '';
+            itemFields.forEach((field) => {
+                const key = field.dataset.coordinateItemField;
+                if (key) writeItemField(field, entry[key]);
+            });
             setStatus(
                 'Editing saved location — change the fields and click "Save location" to update it.',
                 false
@@ -227,6 +297,7 @@ const CoordinateList = {
             if (editingIndex !== null && selected.has(editingIndex)) {
                 editingIndex = null;
                 entryInput.value = '';
+                clearItemFields();
             }
             render();
         });

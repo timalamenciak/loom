@@ -11,7 +11,7 @@ A form spec is a list of layer dicts, each containing a list of slot specs:
         {
           "name": "claim_strength",
           "label": "Claim Strength",
-          "widget": "select",   # text|number|checkbox|select|ontology_autocomplete|fieldset|node_picker|coordinate_list|applied_to_list
+          "widget": "select",   # text|number|checkbox|select|ontology_autocomplete|fieldset|node_picker|coordinate_list|applied_to_list|source_span_picker
           "required": False,
           "multivalued": False,
           "description": "...",
@@ -102,6 +102,7 @@ class LoomSchemaView:
         globally_hidden_slots: list[str] | None = None,
         slot_help_texts: dict | None = None,
         geonames_autofill: dict | None = None,
+        coordinate_list_fields: dict | None = None,
     ) -> list[dict]:
         """
         Build a layered form spec for *class_name*.
@@ -112,6 +113,8 @@ class LoomSchemaView:
         *geonames_autofill* is the geonames_autofill dict from loom_ui.yaml: maps a
         `coordinate_list`-widget slot name to the sibling country/state slot names
         it should populate (see loom_ui.yaml for the shape).
+        *coordinate_list_fields* maps a `coordinate_list`-widget slot name to
+        additional nested range-class slots the widget should collect per entry.
         """
         if ontology_routing is None:
             ontology_routing = {}
@@ -121,6 +124,8 @@ class LoomSchemaView:
             slot_help_texts = {}
         if geonames_autofill is None:
             geonames_autofill = {}
+        if coordinate_list_fields is None:
+            coordinate_list_fields = {}
         hidden = frozenset(globally_hidden_slots or [])
 
         slot_names = [n for n in self._all_slot_names(class_name) if n not in hidden]
@@ -133,6 +138,7 @@ class LoomSchemaView:
                 widget_overrides,
                 slot_help_texts,
                 geonames_autofill,
+                coordinate_list_fields,
             )
             # Skip slots marked as hidden by loom_role
             if spec is not None:
@@ -236,6 +242,7 @@ class LoomSchemaView:
         widget_overrides: dict,
         slot_help_texts: dict | None = None,
         geonames_autofill: dict | None = None,
+        coordinate_list_fields: dict | None = None,
     ) -> dict:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
@@ -347,6 +354,7 @@ class LoomSchemaView:
                     widget_overrides=widget_overrides,
                     slot_help_texts=slot_help_texts,
                     geonames_autofill=geonames_autofill,
+                    coordinate_list_fields=coordinate_list_fields,
                 )
 
         if widget == "coordinate_list":
@@ -374,6 +382,25 @@ class LoomSchemaView:
                 if sibling_spec is not None:
                     spec[slot_key] = sibling
                     spec[field_key] = sibling_spec
+            extra_fields = []
+            range_class_name = slot.range or ""
+            range_slot_names = set(self._all_slot_names(range_class_name))
+            for nested_name in (coordinate_list_fields or {}).get(slot_name, []):
+                if nested_name not in range_slot_names:
+                    continue
+                nested_spec = self._slot_spec(
+                    nested_name,
+                    range_class_name,
+                    ontology_routing,
+                    widget_overrides,
+                    slot_help_texts,
+                    geonames_autofill,
+                    coordinate_list_fields,
+                )
+                if nested_spec is not None:
+                    extra_fields.append(nested_spec)
+            if extra_fields:
+                spec["coordinate_item_fields"] = extra_fields
 
         if widget == "applied_to_list":
             # Pull entity_type choices from the range class (AppliedToEntity)

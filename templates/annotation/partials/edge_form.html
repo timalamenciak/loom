@@ -39,7 +39,6 @@
         hx-target="#graph-panel"
         hx-swap="innerHTML">
     {% csrf_token %}
-    {% include "annotation/partials/excerpt_grounding.html" %}
 
     {% for layer in edge_spec %}
     <details {% if not layer.collapsed_by_default %}open{% endif %}
@@ -49,7 +48,7 @@
       </summary>
       <div style="padding-top:.5rem">
         {% for slot in layer.slots %}
-          {% if slot.name != "edge_id" and slot.name != "source_spans" %}
+          {% if slot.name != "edge_id" %}
             {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}
           {% endif %}
         {% endfor %}

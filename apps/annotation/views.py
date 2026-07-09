@@ -170,7 +170,8 @@ def _parse_span_ids(values) -> list[int]:
 
 
 def _requested_span_ids(request) -> list[int]:
-    values = request.POST.getlist("_source_span_pks")
+    values = request.POST.getlist("source_spans")
+    values.extend(request.POST.getlist("_source_span_pks"))
     legacy = request.POST.get("_source_span_pk")
     if legacy:
         values.append(legacy)
@@ -545,7 +546,7 @@ class NodeCreateView(LoginRequiredMixin, View):
 
         span_ids = _requested_span_ids(request)
         payload, _managed = _post_payload(
-            request, "_source_span_pk", "_source_span_pks"
+            request, "source_spans", "_source_span_pk", "_source_span_pks"
         )
         lsv = get_schema_view(graph.schema_version)
         bound = lsv.bind_form_data(
@@ -655,7 +656,7 @@ class NodeEditView(LoginRequiredMixin, View):
 
         span_ids = _requested_span_ids(request)
         payload, _managed = _post_payload(
-            request, "_source_span_pk", "_source_span_pks"
+            request, "source_spans", "_source_span_pk", "_source_span_pks"
         )
         lsv = get_schema_view(graph.schema_version)
         bound = lsv.bind_form_data(
@@ -794,6 +795,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
             widget_overrides=ui.get("widget_overrides", {}),
             globally_hidden_slots=ui.get("globally_hidden_slots", []),
             geonames_autofill=ui.get("geonames_autofill", {}),
+            coordinate_list_fields=ui.get("coordinate_list_fields", {}),
         )
         initial = _source_doc_initial(document, graph)
         rules = document.project.source_document_rollup or []
@@ -842,6 +844,7 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
             widget_overrides=ui.get("widget_overrides", {}),
             globally_hidden_slots=ui.get("globally_hidden_slots", []),
             geonames_autofill=ui.get("geonames_autofill", {}),
+            coordinate_list_fields=ui.get("coordinate_list_fields", {}),
         )
         if bound.is_valid:
             add_ontology_errors(
@@ -946,6 +949,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
             request,
             "_source_span_pk",
             "_source_span_pks",
+            "source_spans",
             "subject",
             "object",
         )
@@ -1082,6 +1086,7 @@ class EdgeEditView(LoginRequiredMixin, View):
             request,
             "_source_span_pk",
             "_source_span_pks",
+            "source_spans",
             "subject",
             "object",
         )

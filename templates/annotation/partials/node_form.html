@@ -33,11 +33,10 @@
         hx-target="#graph-panel"
         hx-swap="innerHTML">
     {% csrf_token %}
-    {% include "annotation/partials/excerpt_grounding.html" %}
 
     {% for layer in node_spec %}
       {% for slot in layer.slots %}
-        {% if slot.name != "node_id" and slot.name != "source_spans" %}
+        {% if slot.name != "node_id" %}
           {% include "annotation/partials/form_field.html" with slot=slot prefix="" %}
         {% endif %}
       {% endfor %}

@@ -91,6 +91,7 @@ class TestEngineNoDB:
             "SourceDocument",
             widget_overrides=ui.get("widget_overrides", {}),
             geonames_autofill=ui.get("geonames_autofill", {}),
+            coordinate_list_fields=ui.get("coordinate_list_fields", {}),
         )
         all_slots = [s for layer in spec for s in layer["slots"]]
         names = [s["name"] for s in all_slots]
@@ -101,6 +102,10 @@ class TestEngineNoDB:
         assert coord["widget"] == "coordinate_list"
         assert coord["geonames_country_field"]["name"] == "study_country"
         assert coord["geonames_state_field"]["name"] == "study_state_or_province"
+        assert coord["coordinate_item_fields"][0]["name"] == (
+            "coordinate_location_basis"
+        )
+        assert coord["coordinate_item_fields"][0]["widget"] == "select"
 
     def test_geonames_autofill_sibling_stays_top_level_without_coordinate_list_widget(
         self,

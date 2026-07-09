@@ -56,6 +56,7 @@ layers:
     label: "Layer 4: Evidential Basis"
     collapsed_by_default: false
     slots:
+      - source_spans
       - evidential_basis
       - annotation_confidence
       - annotation_notes
@@ -163,6 +164,14 @@ widget_overrides:
   study_sample_size: textarea
   study_coordinates: coordinate_list
   applied_to: applied_to_list
+  source_spans: source_span_picker
+
+# Extra nested StudyCoordinates fields rendered by the coordinate_list widget.
+# The widget still posts schema-shaped nested inputs, e.g.
+# study_coordinates__0__coordinate_location_basis.
+coordinate_list_fields:
+  study_coordinates:
+    - coordinate_location_basis
 
 # Which sibling scalar slots a coordinate_list widget should auto-fill from a
 # GeoNames reverse-geocode lookup after a location is saved. Keyed by the
