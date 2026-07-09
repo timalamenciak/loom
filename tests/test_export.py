@@ -534,7 +534,9 @@ class TestBuildProvenance:
         pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
         prov = build_provenance(populated_graph, pre_yaml.encode())
         assert prov["schema_version_str"] == populated_graph.schema_version.version
-        assert prov["exporter_version"] == "loom-0.1.0"
+        from loom import __version__
+
+        assert prov["exporter_version"] == f"loom-{__version__}"
 
     def test_sha256_is_deterministic(self, populated_graph):
         import yaml
