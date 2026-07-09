@@ -1534,10 +1534,12 @@ class AutoSaveView(LoginRequiredMixin, View):
             )
 
         if annotation_type == "node":
+            from django.utils import timezone
+
             node = get_object_or_404(Node, pk=annotation_id, graph=graph)
             node.data = {**node.data, **data}
             node.save(update_fields=["data"])
-            return JsonResponse({"ok": True, "last_saved": node.updated_at.isoformat()})
+            return JsonResponse({"ok": True, "last_saved": timezone.now().isoformat()})
 
         elif annotation_type == "edge":
             edge = get_object_or_404(Edge, pk=annotation_id, graph=graph)

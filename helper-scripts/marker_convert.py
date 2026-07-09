@@ -84,7 +84,7 @@ def _find_pdfs_from_ris(ris_path: Path, base_dir: Path) -> list[Path]:
 
 
 def _build_converter(llm_url: str | None, llm_model: str | None, api_key: str):
-    """Import Marker, configure it, and return (converter, env_overrides)."""
+    """Import Marker, configure it, and return a converter callable."""
     try:
         from marker.config.parser import ConfigParser
         from marker.converters.pdf import PdfConverter
@@ -94,41 +94,79 @@ def _build_converter(llm_url: str | None, llm_model: str | None, api_key: str):
         print("Run: pip install marker-pdf", file=sys.stderr)
         sys.exit(1)
 
-    config: dict = {"force_ocr": False}
-    env_overrides: dict[str, str] = {}
+    base_config: dict = {"force_ocr": False}
 
     if llm_url:
-        config["use_llm"] = True
-        config["llm_service"] = "marker.services.openai.OpenAIService"
-        env_overrides["OPENAI_BASE_URL"] = llm_url
-        env_overrides["OPENAI_API_KEY"] = api_key
-        if llm_model:
-            config["openai_model"] = llm_model
+        from marker.services.openai import OpenAIService
 
-    config_parser = ConfigParser(config)
+        # resolve_dependencies() passes self.config as the 'config' kwarg to
+        # the service class — so api key and base url must be in the config
+        # dict, not just in env vars.  Set env vars too for belt-and-suspenders.
+        os.environ["OPENAI_BASE_URL"] = llm_url
+        os.environ["OPENAI_API_KEY"] = api_key
+
+        llm_config = {
+            **base_config,
+            "use_llm": True,
+            "openai_api_key": api_key,
+            "openai_base_url": llm_url,
+            "openai_model": llm_model or "",
+        }
+
+        # Strategy 1: pass llm_service as a dotted-path string — PdfConverter
+        # converts it to a class via strings_to_classes() before calling
+        # resolve_dependencies, which then instantiates it with self.config.
+        try:
+            config_parser = ConfigParser(llm_config)
+            converter = PdfConverter(
+                config=config_parser.generate_config_dict(),
+                artifact_dict=create_model_dict(),
+                llm_service="marker.services.openai.OpenAIService",
+            )
+            print("  (LLM: OpenAI service via constructor kwarg)")
+            return converter
+        except Exception as e1:
+            print(f"  Strategy 1 failed ({type(e1).__name__}: {e1})", file=sys.stderr)
+
+        # Strategy 2: monkeypatch default_llm_service with the CLASS object
+        # (not a string — resolve_dependencies calls cls.__init__ directly).
+        _original = PdfConverter.default_llm_service
+        try:
+            PdfConverter.default_llm_service = OpenAIService
+            config_parser = ConfigParser(llm_config)
+            converter = PdfConverter(
+                config=config_parser.generate_config_dict(),
+                artifact_dict=create_model_dict(),
+            )
+            print("  (LLM: class-attribute monkeypatch)")
+            return converter
+        except Exception as e2:
+            PdfConverter.default_llm_service = _original
+            print(f"  Strategy 2 failed ({type(e2).__name__}: {e2})", file=sys.stderr)
+
+        print(
+            "WARNING: Could not initialise OpenAI LLM service. "
+            "Falling back to layout-only Marker (no LLM assist).",
+            file=sys.stderr,
+        )
+
+    config_parser = ConfigParser(base_config)
     converter = PdfConverter(
         config=config_parser.generate_config_dict(),
         artifact_dict=create_model_dict(),
     )
-    return converter, env_overrides
+    print("  (LLM: disabled — layout-only)")
+    return converter
 
 
-def _convert_one(pdf_path: Path, converter, env_overrides: dict[str, str]) -> str | None:
+def _convert_one(pdf_path: Path, converter) -> str | None:
     """Run the converter on one PDF; return Markdown or None on failure."""
-    old_env = {k: os.environ.get(k) for k in env_overrides}
     try:
-        os.environ.update(env_overrides)
         rendered = converter(str(pdf_path))
         return rendered.markdown
     except Exception as exc:
         print(f"  ERROR: {exc}", file=sys.stderr)
         return None
-    finally:
-        for k, v in old_env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +258,7 @@ def main() -> None:
     print()
 
     print("Loading Marker models (this may take a moment on first run)…")
-    converter, env_overrides = _build_converter(llm_url, args.llm_model, args.api_key)
+    converter = _build_converter(llm_url, args.llm_model, args.api_key)
     print()
 
     ok = skip = fail = 0
@@ -232,7 +270,7 @@ def main() -> None:
             continue
 
         print(f"  → {pdf.name} … ", end="", flush=True)
-        markdown = _convert_one(pdf, converter, env_overrides)
+        markdown = _convert_one(pdf, converter)
         if markdown is None:
             print("FAILED")
             fail += 1
