@@ -112,37 +112,72 @@ const SpanSelector = {
             return { startChar, endChar, text, range };
         }
 
-        // Secondary container (markdown view): locate the selected text inside
-        // canonical_text by string search, since markdown DOM offsets don't map
-        // to canonical_text character positions.
+        // Secondary container (markdown view): show the tooltip immediately;
+        // the server searches canonical_text for source_text at creation time.
         if (
             this._secondaryContainer &&
             this._secondaryContainer.contains(range.startContainer) &&
             this._secondaryContainer.contains(range.endContainer)
         ) {
-            return this._findInCanonical(text, range);
+            const trimmed = text.trim();
+            if (!trimmed) return null;
+            return { startChar: null, endChar: null, text: trimmed, fromMarkdown: true, range };
         }
 
         return null;
     },
 
     /**
-     * Find selectedText inside canonical_text (the primary container's text
-     * content) and return span offsets.  Tries exact match first, then
-     * whitespace-collapsed match to handle line-break differences between
-     * markdown HTML and plain text.  Returns null if no match is found.
+     * Find selectedText inside canonical_text and return span offsets.
+     *
+     * Marker and pdfplumber produce slightly different text, so we try four
+     * strategies from most- to least-specific:
+     *   1. Exact trimmed match.
+     *   2. Whitespace-collapsed (HTML line-breaks → space).
+     *   3. NFKC + typography normalisation (ligatures ﬁ/ﬂ, curly quotes,
+     *      en/em-dashes, non-breaking spaces).
+     *   4. Same as 3 but searching the normalised canonical text.
+     *
+     * Returns null (no tooltip, no span) when the passage cannot be located.
+     * A console.warn in that case lets developers diagnose mismatches.
      */
-    _findInCanonical(selectedText, range) {
+    _findInCanonical_UNUSED(selectedText, range) {
         const canonical = this._container.textContent;
-        let needle = selectedText.trim();
-        let idx = canonical.indexOf(needle);
-        if (idx === -1) {
-            // Collapse any run of whitespace (e.g. newline rendered as space in HTML)
-            needle = selectedText.replace(/\s+/g, ' ').trim();
-            idx = canonical.indexOf(needle);
+
+        // Shared normaliser — matches what Marker and pdfplumber commonly differ on
+        const norm = s => s
+            .normalize('NFKC')                              // ﬁ→fi, ﬂ→fl, etc.
+            .replace(/[‘’`´]/g, "'")   // curly/grave/acute → '
+            .replace(/[“”]/g, '"')                // curly double → "
+            .replace(/[–—―−]/g, '-')   // en/em-dash, minus → -
+            .replace(/ /g, ' ')                        // NBSP → space
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const strategies = [
+            { needle: selectedText.trim(), searchIn: canonical },
+            { needle: selectedText.replace(/\s+/g, ' ').trim(), searchIn: canonical },
+            { needle: norm(selectedText), searchIn: canonical },
+            { needle: norm(selectedText), searchIn: norm(canonical) },
+        ];
+
+        for (const { needle, searchIn } of strategies) {
+            if (!needle) continue;
+            const idx = searchIn.indexOf(needle);
+            if (idx !== -1) {
+                // For strategy 4 the index is in normalised canonical; it may be
+                // slightly off when NFKC expanded ligatures earlier in the text,
+                // but it's accurate enough to pin the excerpt.
+                return { startChar: idx, endChar: idx + needle.length, text: needle, range };
+            }
         }
-        if (idx === -1) return null;
-        return { startChar: idx, endChar: idx + needle.length, text: needle, range };
+
+        console.warn(
+            '[Loom] Markdown excerpt not found in canonical text — tooltip suppressed.\n' +
+            'Selected (normalised):', JSON.stringify(norm(selectedText).slice(0, 120)), '\n' +
+            'Canonical text starts:', JSON.stringify(canonical.slice(0, 120)),
+        );
+        return null;
     },
 
     _onSelectionChange() {
@@ -178,12 +213,17 @@ const SpanSelector = {
 
     async _onCreate() {
         if (!this._current) return;
-        const { startChar, endChar, range } = this._current;
+        const { startChar, endChar, text, fromMarkdown, range } = this._current;
 
         this._tooltip.style.display = 'none';
         window.getSelection()?.removeAllRanges();
 
-        const body = new URLSearchParams({ start_char: startChar, end_char: endChar });
+        // Markdown selections: send the text string; server searches canonical_text.
+        // Text-view selections: send pre-computed char offsets.
+        const body = fromMarkdown
+            ? new URLSearchParams({ source_text: text })
+            : new URLSearchParams({ start_char: startChar, end_char: endChar });
+
         let resp;
         try {
             resp = await fetch(this._createUrl, {
@@ -197,6 +237,16 @@ const SpanSelector = {
             });
         } catch (err) {
             console.error('Span create network error:', err);
+            return;
+        }
+
+        if (resp.status === 422) {
+            // Server couldn't locate the passage in canonical_text
+            if (window.ExcerptBin) {
+                window.ExcerptBin.flash(
+                    'Passage not found in extracted text — try a longer or more distinctive phrase.'
+                );
+            }
             return;
         }
 

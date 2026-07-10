@@ -1,5 +1,8 @@
 """Document reader and span management views."""
 
+import re
+import unicodedata
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -91,6 +94,39 @@ class DocumentPdfView(LoginRequiredMixin, View):
         return response
 
 
+def _search_canonical(needle: str, haystack: str) -> tuple[int, int] | tuple[None, None]:
+    """Find needle in haystack with progressive normalisation.
+
+    Handles typography differences between Marker (LLM-assisted) and pdfplumber:
+    ligatures (ﬁ→fi), curly quotes, en/em-dashes, non-breaking spaces, and
+    whitespace collapsing.  Returns (start, end) character offsets into the
+    ORIGINAL haystack, or (None, None) when no match is found.
+    """
+
+    def _norm(s: str) -> str:
+        s = unicodedata.normalize("NFKC", s)
+        s = s.replace("‘", "'").replace("’", "'")
+        s = s.replace("“", '"').replace("”", '"')
+        s = s.replace("–", "-").replace("—", "-").replace("−", "-")
+        s = s.replace(" ", " ")
+        s = re.sub(r"\s+", " ", s).strip()
+        return s
+
+    for n, h in [
+        (needle.strip(), haystack),
+        (re.sub(r"\s+", " ", needle).strip(), haystack),
+        (_norm(needle), haystack),
+        (_norm(needle), _norm(haystack)),
+    ]:
+        if not n:
+            continue
+        idx = h.find(n)
+        if idx != -1:
+            return idx, idx + len(n)
+
+    return None, None
+
+
 class SpanCreateView(LoginRequiredMixin, View):
     """Create a TextSpan from char offsets; returns HTMX partial on XHR."""
 
@@ -98,14 +134,35 @@ class SpanCreateView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk)
         require_editable_assignment(document, request.user)
 
-        try:
-            start = int(request.POST["start_char"])
-            end = int(request.POST["end_char"])
-        except (KeyError, ValueError):
-            messages.error(request, "Invalid span offsets.")
-            return redirect("document-read", doc_pk=doc_pk)
-
         canonical = document.canonical_text or ""
+
+        # source_text: text selected in the markdown view.  The server searches
+        # canonical_text for it rather than relying on the client to compute offsets,
+        # because Marker and pdfplumber produce different character sequences.
+        source_text = request.POST.get("source_text", "").strip()
+        if source_text:
+            start, end = _search_canonical(source_text, canonical)
+            if start is None:
+                if request.headers.get("X-Span-Select") == "true":
+                    return JsonResponse(
+                        {"error": "passage_not_found"},
+                        status=422,
+                    )
+                messages.error(
+                    request,
+                    "Passage not found in document text. "
+                    "Try selecting a shorter or more distinctive phrase, "
+                    "or use the Text view.",
+                )
+                return redirect("document-read", doc_pk=doc_pk)
+        else:
+            try:
+                start = int(request.POST["start_char"])
+                end = int(request.POST["end_char"])
+            except (KeyError, ValueError):
+                messages.error(request, "Invalid span offsets.")
+                return redirect("document-read", doc_pk=doc_pk)
+
         if not (0 <= start < end <= len(canonical)):
             messages.error(request, "Offsets out of range.")
             return redirect("document-read", doc_pk=doc_pk)
