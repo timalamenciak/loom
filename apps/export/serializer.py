@@ -109,7 +109,7 @@ def _serialize_edge(
     edge, slot_ranges: dict[str, str], source_document: dict | None = None
 ) -> dict:
     base = {
-        "id": edge.edge_id,
+        "edge_id": edge.edge_id,
         "subject": edge.subject.node_id,
         "object": edge.object.node_id,
     }
@@ -205,7 +205,6 @@ def serialize_graph(graph) -> dict:
     ]
     return {
         "graph_id": str(graph.pk),
-        "schema_version": graph.schema_version.version,
         "source_document": _serialize_source_document(graph.document, slot_ranges),
         "nodes": nodes,
         "edges": edges,
