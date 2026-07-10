@@ -167,15 +167,28 @@ class SpanCreateView(LoginRequiredMixin, View):
             text_source = "canonical_text"
 
         source_text = request.POST.get("source_text", "").strip()
-        if source_text:
-            # Text-search path: used for markdown-view selections.
-            if text_source == "canonical_markdown":
-                # The user selected from rendered HTML, so search in the plain
-                # text extracted from the markdown (without formatting markers).
-                search_in = _markdown_plain_text(document.canonical_markdown or "")
-            else:
-                search_in = document.canonical_text or ""
-            start, end = _search_canonical(source_text, search_in)
+        if source_text and text_source == "canonical_markdown":
+            # Markdown-view selection: the user highlighted rendered HTML, so the
+            # selected text won't match the raw markdown (which has ** / ## / etc.).
+            # Try a best-effort position search so offsets aren't completely bogus,
+            # but ALWAYS create the span — the text content is what matters here.
+            plain = _markdown_plain_text(document.canonical_markdown or "")
+            start, end = _search_canonical(source_text, plain)
+            if start is None:
+                # Position unknown; dummy offsets satisfy the DB constraint
+                # (start >= 0, end > start).  span.text is still correct.
+                start, end = 0, len(source_text)
+            span = create_span(
+                document,
+                start,
+                end,
+                created_by=request.user,
+                text_source=text_source,
+                text=source_text,
+            )
+        elif source_text:
+            # Text-search path for canonical_text (used by document-reader view).
+            start, end = _search_canonical(source_text, document.canonical_text or "")
             if start is None:
                 if request.headers.get("X-Span-Select") == "true":
                     return JsonResponse(
@@ -187,6 +200,9 @@ class SpanCreateView(LoginRequiredMixin, View):
                     "Passage not found. Try selecting a more distinctive phrase.",
                 )
                 return redirect("document-read", doc_pk=doc_pk)
+            span = create_span(
+                document, start, end, created_by=request.user, text_source=text_source
+            )
         else:
             # Offset path: used for text-view selections (precomputed by JS).
             text_source = "canonical_text"
@@ -201,21 +217,10 @@ class SpanCreateView(LoginRequiredMixin, View):
             if not (0 <= start < end <= len(canonical)):
                 messages.error(request, "Offsets out of range.")
                 return redirect("document-read", doc_pk=doc_pk)
+            span = create_span(
+                document, start, end, created_by=request.user, text_source=text_source
+            )
 
-        span = create_span(
-            document,
-            start,
-            end,
-            created_by=request.user,
-            text_source=text_source,
-            # For markdown selections, the offsets are into the plain-text
-            # rendering, not raw markdown, so pass the selected text directly.
-            text=(
-                source_text
-                if (source_text and text_source == "canonical_markdown")
-                else None
-            ),
-        )
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
             .select_related("node", "edge")
