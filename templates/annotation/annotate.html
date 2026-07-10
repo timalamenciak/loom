@@ -225,7 +225,7 @@
       {% if markdown_html %}
       <div id="document-view-markdown" class="document-view text-fallback-pane" hidden>
         <div style="font-size:.72rem;color:#64748b;margin-bottom:.65rem">
-          Layout-aware Markdown view (docling). Use the Text view to select grounding excerpts.
+          Layout-aware Markdown view. Select text here to add excerpts, or switch to the Text view.
         </div>
         <div class="markdown-body" style="font-family:Georgia,serif;font-size:.9rem;line-height:1.7;color:#1a1a1a">
           {{ markdown_html }}
@@ -316,6 +316,9 @@
     '{{ csrf_token }}',
     { label: 'Add to excerpt bin' }
   );
+  {% if markdown_html %}
+  SpanSelector.initSecondary('document-view-markdown');
+  {% endif %}
 </script>
 {% else %}
 <script>

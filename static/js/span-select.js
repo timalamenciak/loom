@@ -12,6 +12,7 @@
 
 const SpanSelector = {
     _container: null,
+    _secondaryContainer: null,
     _createUrl: null,
     _csrfToken: null,
     _tooltip: null,
@@ -20,6 +21,7 @@ const SpanSelector = {
     init(containerId, createUrl, csrfToken, options = {}) {
         this._container = document.getElementById(containerId);
         if (!this._container) return;
+        this._secondaryContainer = null;
         this._createUrl = createUrl;
         this._csrfToken = csrfToken;
         this._buildTooltip(options);
@@ -63,6 +65,15 @@ const SpanSelector = {
     },
 
     /**
+     * Register a secondary container (e.g. the markdown view).  Selections
+     * inside it are mapped back to canonical_text via text search rather than
+     * DOM offset walking, since the markdown HTML has different structure.
+     */
+    initSecondary(containerId) {
+        this._secondaryContainer = document.getElementById(containerId);
+    },
+
+    /**
      * Walk text nodes from the container start to (domNode, domOffset),
      * counting characters.  Handles nested elements (<mark> etc.) correctly
      * because TreeWalker visits only TEXT_NODE nodes.
@@ -87,23 +98,51 @@ const SpanSelector = {
         const sel = window.getSelection();
         if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
         const range = sel.getRangeAt(0);
-
-        // Ensure both endpoints are inside the container
-        if (
-            !this._container.contains(range.startContainer) ||
-            !this._container.contains(range.endContainer)
-        ) {
-            return null;
-        }
-
         const text = range.toString();
         if (!text.trim()) return null;
 
-        const startChar = this._charsBefore(range.startContainer, range.startOffset);
-        const endChar = this._charsBefore(range.endContainer, range.endOffset);
-        if (endChar <= startChar) return null;
+        // Primary container: compute char offsets directly from DOM text nodes.
+        if (
+            this._container.contains(range.startContainer) &&
+            this._container.contains(range.endContainer)
+        ) {
+            const startChar = this._charsBefore(range.startContainer, range.startOffset);
+            const endChar = this._charsBefore(range.endContainer, range.endOffset);
+            if (endChar <= startChar) return null;
+            return { startChar, endChar, text, range };
+        }
 
-        return { startChar, endChar, text, range };
+        // Secondary container (markdown view): locate the selected text inside
+        // canonical_text by string search, since markdown DOM offsets don't map
+        // to canonical_text character positions.
+        if (
+            this._secondaryContainer &&
+            this._secondaryContainer.contains(range.startContainer) &&
+            this._secondaryContainer.contains(range.endContainer)
+        ) {
+            return this._findInCanonical(text, range);
+        }
+
+        return null;
+    },
+
+    /**
+     * Find selectedText inside canonical_text (the primary container's text
+     * content) and return span offsets.  Tries exact match first, then
+     * whitespace-collapsed match to handle line-break differences between
+     * markdown HTML and plain text.  Returns null if no match is found.
+     */
+    _findInCanonical(selectedText, range) {
+        const canonical = this._container.textContent;
+        let needle = selectedText.trim();
+        let idx = canonical.indexOf(needle);
+        if (idx === -1) {
+            // Collapse any run of whitespace (e.g. newline rendered as space in HTML)
+            needle = selectedText.replace(/\s+/g, ' ').trim();
+            idx = canonical.indexOf(needle);
+        }
+        if (idx === -1) return null;
+        return { startChar: idx, endChar: idx + needle.length, text: needle, range };
     },
 
     _onSelectionChange() {
