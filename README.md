@@ -6,10 +6,9 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Self-hosted annotation workbench for the **Causal Mosaic (CAMO)** schema. Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
+This is a self-hosted annotation workbench for annotating PDFs with [LinkML](https://linkml.io/) schema. It is currently designed for the [Causal Mosaic (CAMO) schema](https://github.com/timalamenciak/causalmosaic). Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
 
-Current package version: **0.1.0** (semantic versioning). The single source of
-truth is `loom.__version__`; build metadata and export provenance derive.
+Current stable version: **0.3.0** 
 
 Loom is released under the [MIT License](LICENSE).
 
@@ -23,14 +22,7 @@ Loom is released under the [MIT License](LICENSE).
 - Audited graph writes and LinkML-validated YAML export with SHA-256 provenance
 - Deterministic Rosetta statements and fuzzy cognitive map weights
 
-Loom stores schema payloads in JSON rather than CAMO-specific relational
-columns. Adding or changing a CAMO slot belongs in the LinkML schema and, when
-presentation needs help, `config/loom_ui.yaml`—not in a Django form or model.
-
-Generated forms are also bound on the server: unknown fields are rejected,
-values are coerced from their induced LinkML ranges, and enum, cardinality,
-numeric-bound, pattern, nested-class, and required-field constraints follow the
-graph-pinned schema. Full graph validation runs before submission and export.
+Full graph validation runs before submission and export.
 
 ## Requirements
 
@@ -326,8 +318,8 @@ If you use Loom in published research, please cite it using the metadata in
 [`CITATION.cff`](CITATION.cff). A formatted citation is:
 
 > Alamenciak, T. (2026). *Loom: A Schema-Driven Annotation Workbench for
-> Causal Mosaic Graphs* (v0.1.0). RacoonLab.
-> https://github.com/racoonlab/loom
+> Causal Mosaic Graphs* (v0.3.0).
+> https://github.com/timalamenciak/loom
 
 GitHub's "Cite this repository" button (upper right of the repo page) will
 generate formatted citations from `CITATION.cff` automatically.

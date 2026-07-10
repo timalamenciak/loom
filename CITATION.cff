@@ -3,8 +3,8 @@ title: "Loom: A Schema-Driven Annotation Workbench for Causal Mosaic Graphs"
 message: "If you use Loom in your research, please cite it using the metadata in this file."
 type: software
 license: MIT
-version: "0.1.0"
-repository-code: "https://github.com/racoonlab/loom"
+version: "0.3.0"
+repository-code: "https://github.com/timalamenciak/loom"
 abstract: >
   Loom is a self-hosted web application for annotating scientific literature
   with the Causal Mosaic (CAMO) schema. Annotators highlight evidence in PDFs,
@@ -18,7 +18,7 @@ authors:
     given-names: Tim
     email: tim.alamenciak@gmail.com
     affiliation: "Carleton University"
-    orcid: "https://orcid.org/0000-0002-1296-2528"  # replace with real ORCID
+    orcid: "https://orcid.org/0000-0002-1296-2528" 
 
 keywords:
   - causal annotation
