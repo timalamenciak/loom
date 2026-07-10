@@ -65,9 +65,9 @@ const SpanSelector = {
     },
 
     /**
-     * Register a secondary container (e.g. the markdown view).  Selections
-     * inside it are mapped back to canonical_text via text search rather than
-     * DOM offset walking, since the markdown HTML has different structure.
+     * Register a secondary container (the markdown view).  Selections inside
+     * it are sent as plain text to the server, which searches canonical_markdown
+     * directly — no comparison with canonical_text needed.
      */
     initSecondary(containerId) {
         this._secondaryContainer = document.getElementById(containerId);
@@ -218,10 +218,10 @@ const SpanSelector = {
         this._tooltip.style.display = 'none';
         window.getSelection()?.removeAllRanges();
 
-        // Markdown selections: send the text string; server searches canonical_text.
+        // Markdown selections: send the selected text; server searches canonical_markdown.
         // Text-view selections: send pre-computed char offsets.
         const body = fromMarkdown
-            ? new URLSearchParams({ source_text: text })
+            ? new URLSearchParams({ source_text: text, text_source: 'canonical_markdown' })
             : new URLSearchParams({ start_char: startChar, end_char: endChar });
 
         let resp;
@@ -241,10 +241,9 @@ const SpanSelector = {
         }
 
         if (resp.status === 422) {
-            // Server couldn't locate the passage in canonical_text
             if (window.ExcerptBin) {
                 window.ExcerptBin.flash(
-                    'Passage not found in extracted text — try a longer or more distinctive phrase.'
+                    'Passage not found — try selecting a more distinctive phrase.'
                 );
             }
             return;

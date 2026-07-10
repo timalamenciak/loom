@@ -11,6 +11,7 @@ class TextSpan(models.Model):
     start_char = models.IntegerField()
     end_char = models.IntegerField()
     text = models.TextField(blank=True)
+    text_source = models.CharField(max_length=20, default="canonical_text")
     node = models.ForeignKey(
         "annotation.Node",
         null=True,

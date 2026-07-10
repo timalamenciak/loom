@@ -388,11 +388,12 @@ class AnnotationView(LoginRequiredMixin, View):
         )
         highlighted_text = ""
         if document.canonical_text:
+            text_spans = [s for s in spans if s.text_source == "canonical_text"]
             highlighted_text = mark_safe(
-                render_highlighted_text(document.canonical_text, spans)
+                render_highlighted_text(document.canonical_text, text_spans)
             )
 
-        # Docling Markdown → rendered HTML (read-only; spans are still on canonical_text)
+        # Marker Markdown → rendered HTML (spans from this view use canonical_markdown offsets)
         markdown_html = ""
         if document.canonical_markdown:
             try:

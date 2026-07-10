@@ -56,7 +56,8 @@ class DocumentReaderView(LoginRequiredMixin, View):
             .select_related("node", "edge")
             .order_by("start_char")
         )
-        highlighted = render_highlighted_text(document.canonical_text or "", spans)
+        text_spans = spans.filter(text_source="canonical_text")
+        highlighted = render_highlighted_text(document.canonical_text or "", text_spans)
 
         return render(
             request,
@@ -94,7 +95,9 @@ class DocumentPdfView(LoginRequiredMixin, View):
         return response
 
 
-def _search_canonical(needle: str, haystack: str) -> tuple[int, int] | tuple[None, None]:
+def _search_canonical(
+    needle: str, haystack: str
+) -> tuple[int, int] | tuple[None, None]:
     """Find needle in haystack with progressive normalisation.
 
     Handles typography differences between Marker (LLM-assisted) and pdfplumber:
@@ -134,13 +137,18 @@ class SpanCreateView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk)
         require_editable_assignment(document, request.user)
 
-        canonical = document.canonical_text or ""
+        text_source = request.POST.get("text_source", "canonical_text")
+        if text_source not in ("canonical_text", "canonical_markdown"):
+            text_source = "canonical_text"
 
-        # source_text: text selected in the markdown view.  The server searches
-        # canonical_text for it rather than relying on the client to compute offsets,
-        # because Marker and pdfplumber produce different character sequences.
         source_text = request.POST.get("source_text", "").strip()
         if source_text:
+            # Text-search path: used for markdown-view selections.  Search in
+            # whichever text source the client declares is authoritative.
+            if text_source == "canonical_markdown":
+                canonical = document.canonical_markdown or ""
+            else:
+                canonical = document.canonical_text or ""
             start, end = _search_canonical(source_text, canonical)
             if start is None:
                 if request.headers.get("X-Span-Select") == "true":
@@ -150,12 +158,13 @@ class SpanCreateView(LoginRequiredMixin, View):
                     )
                 messages.error(
                     request,
-                    "Passage not found in document text. "
-                    "Try selecting a shorter or more distinctive phrase, "
-                    "or use the Text view.",
+                    "Passage not found. Try selecting a more distinctive phrase.",
                 )
                 return redirect("document-read", doc_pk=doc_pk)
         else:
+            # Offset path: used for text-view selections (precomputed by JS).
+            text_source = "canonical_text"
+            canonical = document.canonical_text or ""
             try:
                 start = int(request.POST["start_char"])
                 end = int(request.POST["end_char"])
@@ -163,11 +172,13 @@ class SpanCreateView(LoginRequiredMixin, View):
                 messages.error(request, "Invalid span offsets.")
                 return redirect("document-read", doc_pk=doc_pk)
 
-        if not (0 <= start < end <= len(canonical)):
-            messages.error(request, "Offsets out of range.")
-            return redirect("document-read", doc_pk=doc_pk)
+            if not (0 <= start < end <= len(canonical)):
+                messages.error(request, "Offsets out of range.")
+                return redirect("document-read", doc_pk=doc_pk)
 
-        span = create_span(document, start, end, created_by=request.user)
+        span = create_span(
+            document, start, end, created_by=request.user, text_source=text_source
+        )
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
             .select_related("node", "edge")

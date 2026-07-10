@@ -227,17 +227,22 @@ def create_span(
     start_char: int,
     end_char: int,
     created_by=None,
+    text_source: str = "canonical_text",
 ) -> TextSpan:
-    """Create a TextSpan; snaps the text snippet from canonical_text."""
-    canonical = document.canonical_text or ""
+    """Create a TextSpan; snaps the text snippet from the specified text source."""
+    if text_source == "canonical_markdown":
+        canonical = document.canonical_markdown or ""
+    else:
+        canonical = document.canonical_text or ""
     if not (0 <= start_char < end_char <= len(canonical)):
-        raise ValueError("Span offsets must identify text within canonical_text.")
+        raise ValueError(f"Span offsets must identify text within {text_source}.")
     text = canonical[start_char:end_char]
     span = TextSpan.objects.create(
         document=document,
         start_char=start_char,
         end_char=end_char,
         text=text,
+        text_source=text_source,
         created_by=created_by,
     )
     if created_by is not None:
@@ -248,7 +253,7 @@ def create_span(
             "span.create",
             "TextSpan",
             span.pk,
-            {"start_char": start_char, "end_char": end_char},
+            {"start_char": start_char, "end_char": end_char, "text_source": text_source},
         )
     return span
 
