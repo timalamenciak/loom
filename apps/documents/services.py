@@ -259,7 +259,11 @@ def create_span(
             "span.create",
             "TextSpan",
             span.pk,
-            {"start_char": start_char, "end_char": end_char, "text_source": text_source},
+            {
+                "start_char": start_char,
+                "end_char": end_char,
+                "text_source": text_source,
+            },
         )
     return span
 

@@ -104,6 +104,7 @@ def _markdown_plain_text(raw_markdown: str) -> str:
     """
     try:
         import html as _html_std
+
         import markdown as _md
 
         html_str = _md.markdown(raw_markdown, extensions=["tables", "fenced_code"])
@@ -209,7 +210,11 @@ class SpanCreateView(LoginRequiredMixin, View):
             text_source=text_source,
             # For markdown selections, the offsets are into the plain-text
             # rendering, not raw markdown, so pass the selected text directly.
-            text=source_text if (source_text and text_source == "canonical_markdown") else None,
+            text=(
+                source_text
+                if (source_text and text_source == "canonical_markdown")
+                else None
+            ),
         )
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
