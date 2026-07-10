@@ -47,22 +47,6 @@ class ExportGraphView(LoginRequiredMixin, View):
         _require_access(request, graph)
 
         data, final_yaml, sha256 = _export_data(graph)
-        is_valid, validation_messages = validate_graph_data(
-            data, graph.schema_version.linkml_yaml
-        )
-        if not is_valid:
-            return render(
-                request,
-                "export/validate_result.html",
-                {
-                    "graph": graph,
-                    "document": graph.document,
-                    "project": graph.document.project,
-                    "is_valid": False,
-                    "messages": validation_messages,
-                },
-                status=422,
-            )
 
         if request.GET.get("download"):
             resp = HttpResponse(final_yaml, content_type="application/x-yaml")
@@ -71,6 +55,9 @@ class ExportGraphView(LoginRequiredMixin, View):
             )
             return resp
 
+        is_valid, validation_messages = validate_graph_data(
+            data, graph.schema_version.linkml_yaml
+        )
         schema_yaml = graph.schema_version.linkml_yaml
         rosetta = render_rosetta(data, schema_yaml)
         fcm = render_fcm(data, schema_yaml)
@@ -87,6 +74,8 @@ class ExportGraphView(LoginRequiredMixin, View):
                 "fcm": fcm,
                 "yaml_preview": final_yaml,
                 "sha256": sha256,
+                "is_valid": is_valid,
+                "validation_messages": validation_messages,
             },
         )
 

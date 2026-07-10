@@ -139,6 +139,7 @@ class LoomSchemaView:
                 slot_help_texts,
                 geonames_autofill,
                 coordinate_list_fields,
+                hidden,
             )
             # Skip slots marked as hidden by loom_role
             if spec is not None:
@@ -243,6 +244,7 @@ class LoomSchemaView:
         slot_help_texts: dict | None = None,
         geonames_autofill: dict | None = None,
         coordinate_list_fields: dict | None = None,
+        globally_hidden_slots: frozenset | None = None,
     ) -> dict:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
@@ -355,6 +357,7 @@ class LoomSchemaView:
                     slot_help_texts=slot_help_texts,
                     geonames_autofill=geonames_autofill,
                     coordinate_list_fields=coordinate_list_fields,
+                    globally_hidden_slots=list(globally_hidden_slots or []),
                 )
 
         if widget == "coordinate_list":

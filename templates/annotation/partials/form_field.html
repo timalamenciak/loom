@@ -50,6 +50,7 @@
     {% endif %}{% endfor %}
   </div>
   {% endif %}
+  {% if slot.help_text %}<div class="help" style="margin-top:.3rem;font-style:italic">{{ slot.help_text }}</div>{% endif %}
 </div>
 
 {% elif slot.widget == "node_picker" %}
@@ -57,16 +58,23 @@
   <label for="id_{{ field_name }}">
     {{ slot.label }}{% if slot.required %} <span style="color:#dc2626">*</span>{% endif %}
   </label>
+  {% if slot.description %}<div class="help">{{ slot.description }}</div>{% endif %}
   {% if graph_nodes %}
-  <select name="{{ field_name }}" id="id_{{ field_name }}"{% if slot.required %} required{% endif %}>
-    <option value="">— Choose node —</option>
+  {% with selected_val=current_data|dict_get:field_name %}
+  <select name="{{ field_name }}" id="id_{{ field_name }}"
+          {% if slot.required %}required{% endif %}
+          {% if slot.multivalued %}multiple size="4"{% endif %}>
+    {% if not slot.multivalued %}<option value="">— Choose node —</option>{% endif %}
     {% for node in graph_nodes %}
     <option value="{{ node.node_id }}"
-            {% if current_data|dict_get:field_name == node.node_id %}selected{% endif %}>
+            {% if slot.multivalued %}{% if node.node_id in selected_val %}selected{% endif %}
+            {% else %}{% if selected_val == node.node_id %}selected{% endif %}{% endif %}>
       {{ node.name }}{% if node.category %} ({{ node.category }}){% endif %}
     </option>
     {% endfor %}
   </select>
+  {% endwith %}
+  {% if slot.multivalued %}<div class="help">Hold Ctrl or Command to select more than one node.</div>{% endif %}
   {% else %}
   <p class="help" style="color:#dc2626">No nodes yet — add nodes before creating an edge.</p>
   <input type="hidden" name="{{ field_name }}" value="">
@@ -128,11 +136,15 @@
 </div>
 
 {% elif slot.widget == "checkbox" %}
-<div class="field" style="display:flex;align-items:center;gap:.5rem">
-  <input type="hidden" name="{{ field_name }}" value="false">
-  <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}" value="true"
-         {% if current_data|dict_get:field_name|is_checked %}checked{% endif %}>
-  <label for="id_{{ field_name }}" style="margin:0">{{ slot.label }}</label>
+<div class="field">
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <input type="hidden" name="{{ field_name }}" value="false">
+    <input type="checkbox" name="{{ field_name }}" id="id_{{ field_name }}" value="true"
+           {% if current_data|dict_get:field_name|is_checked %}checked{% endif %}>
+    <label for="id_{{ field_name }}" style="margin:0">{{ slot.label }}</label>
+  </div>
+  {% if slot.description %}<div class="help" style="margin-top:.3rem">{{ slot.description }}</div>{% endif %}
+  {% if slot.help_text %}<div class="help" style="margin-top:.2rem;font-style:italic">{{ slot.help_text }}</div>{% endif %}
 </div>
 
 {% elif slot.widget == "coordinate_list" %}

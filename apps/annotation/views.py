@@ -1262,13 +1262,12 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
                 serialize_graph(graph), graph.schema_version.linkml_yaml
             )
             if not valid:
-                messages.error(
+                messages.warning(
                     request,
-                    "The graph does not validate against its pinned schema and was not submitted.",
+                    "Submitted with schema validation warnings — review before final export.",
                 )
                 for message in validation_messages[:5]:
-                    messages.error(request, message)
-                return redirect("annotate", pk=project.pk, doc_pk=document.pk)
+                    messages.warning(request, message)
 
         # Close all open sessions
         for s in WorkSession.objects.filter(

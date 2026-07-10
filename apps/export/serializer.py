@@ -88,7 +88,7 @@ def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
 
 
 def _serialize_node(node, slot_ranges: dict[str, str]) -> dict:
-    base = {"node_id": node.node_id, "name": node.name}
+    base = {"id": node.node_id, "name": node.name}
     merged = {**node.data, **base}
     return _clean(merged, slot_ranges)
 
@@ -109,7 +109,7 @@ def _serialize_edge(
     edge, slot_ranges: dict[str, str], source_document: dict | None = None
 ) -> dict:
     base = {
-        "edge_id": edge.edge_id,
+        "id": edge.edge_id,
         "subject": edge.subject.node_id,
         "object": edge.object.node_id,
     }
@@ -205,6 +205,7 @@ def serialize_graph(graph) -> dict:
     ]
     return {
         "graph_id": str(graph.pk),
+        "schema_version": graph.schema_version.version,
         "source_document": _serialize_source_document(graph.document, slot_ranges),
         "nodes": nodes,
         "edges": edges,

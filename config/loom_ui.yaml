@@ -9,6 +9,13 @@
 # Globally hidden: slots excluded from annotation forms for all projects.
 
 layers:
+  - id: subject_object
+    label: "Subject & Object"
+    collapsed_by_default: false
+    slots:
+      - subject
+      - object
+
   - id: layer1
     label: "Layer 1: Claim & Predicate"
     collapsed_by_default: false
@@ -147,6 +154,10 @@ ontology_routing:
       prefixes: [ENVO]
       wikidata_live:
         root_qid: "Q16521"
+  # scope_conditions: free-text multi-entry (no ontology search, pure free text with pill display)
+  scope_conditions:
+    allow_free_text: true
+    prefixes: []
 
 # slot_name: widget_type  (overrides schema_engine widget detection)
 # study_coordinates is a multivalued, class-ranged slot (range: StudyCoordinates,
@@ -165,6 +176,7 @@ widget_overrides:
   study_coordinates: coordinate_list
   applied_to: applied_to_list
   source_spans: source_span_picker
+  mediator_node_ids: node_picker
 
 # Extra nested StudyCoordinates fields rendered by the coordinate_list widget.
 # The widget still posts schema-shaped nested inputs, e.g.
@@ -198,6 +210,9 @@ globally_hidden_slots:
   - annotator
   - annotation_timestamp
   - source_document      # managed at graph level via SourceDocument form, not per-edge
+  - geographic_scope     # per-edge scope; inherited from source_document at export
+  - temporal_scope       # per-edge scope; inherited from source_document at export
+  - temporal_extent      # causal effect window; inherited from source_document at export
 
 # Per-slot help text shown as placeholder / hint in the annotation form.
 # Supplements or replaces the LinkML schema description in the UI.
@@ -206,3 +221,5 @@ slot_help_text:
   description: "Author's exact phrasing for this entity (leave blank if name suffices)"
   taxonomic_scope: "Wikidata QIDs or free-text guild names scoping a multi-taxon measurement (e.g. Q30019 for Sphagnum, 'native species'). Only for environmental_variable nodes — leave empty for taxon nodes."
   applied_to: "The specific entity this process or intervention acts upon (e.g. 'herbivory on Sphagnum', 'removal of Alliaria petiolata'). Only for environmental_process and management_intervention nodes. For environmental_variable nodes with multi-taxon scope, use taxonomic_scope instead."
+  token_or_type: "Token = a specific causal event documented in this paper (e.g. a named removal in one park in 2018). Type = a general causal principle or mechanism. Choose 'type' for the vast majority of ecological claims; only choose 'token' when the paper is reporting a single unique historical event."
+  dose_response: "Check this if the paper explicitly describes a gradient or dose-response pattern — e.g., greater disturbance intensity leads to greater species loss, or higher herbicide dose produces stronger weed suppression. A simple directional claim ('X causes Y') without a gradient does not qualify."

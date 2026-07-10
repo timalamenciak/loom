@@ -19,6 +19,18 @@
     </a>
   </div>
 
+  {# Validation warnings (non-blocking) #}
+  {% if not is_valid %}
+  <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:.75rem 1rem;margin-bottom:1.25rem">
+    <p style="margin:0 0 .4rem;font-weight:600;color:#92400e">&#9888; Schema validation warnings (export still available)</p>
+    <ul style="margin:0;padding-left:1.25rem;font-size:.85rem;color:#78350f;line-height:1.6">
+      {% for msg in validation_messages %}
+      <li>{{ msg }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   {# Summary card #}
   <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:1rem;margin-bottom:1.5rem">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.75rem">
