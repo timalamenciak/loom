@@ -48,16 +48,22 @@ class ExportGraphView(LoginRequiredMixin, View):
 
         data, final_yaml, sha256 = _export_data(graph)
 
+        is_valid, validation_messages = validate_graph_data(
+            data, graph.schema_version.linkml_yaml
+        )
+
         if request.GET.get("download"):
+            if not is_valid:
+                return HttpResponse(
+                    "Validation errors found:\n" + "\n".join(validation_messages),
+                    content_type="text/plain",
+                    status=422,
+                )
             resp = HttpResponse(final_yaml, content_type="application/x-yaml")
             resp["Content-Disposition"] = (
                 f'attachment; filename="graph-{graph_pk}.yaml"'
             )
             return resp
-
-        is_valid, validation_messages = validate_graph_data(
-            data, graph.schema_version.linkml_yaml
-        )
         schema_yaml = graph.schema_version.linkml_yaml
         rosetta = render_rosetta(data, schema_yaml)
         fcm = render_fcm(data, schema_yaml)

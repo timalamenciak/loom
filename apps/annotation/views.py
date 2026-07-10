@@ -1264,10 +1264,11 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
             if not valid:
                 messages.warning(
                     request,
-                    "Submitted with schema validation warnings — review before final export.",
+                    "Submission blocked: schema validation errors must be resolved first.",
                 )
                 for message in validation_messages[:5]:
                     messages.warning(request, message)
+                return redirect("my-queue")
 
         # Close all open sessions
         for s in WorkSession.objects.filter(

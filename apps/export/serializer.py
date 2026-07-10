@@ -88,7 +88,7 @@ def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
 
 
 def _serialize_node(node, slot_ranges: dict[str, str]) -> dict:
-    base = {"id": node.node_id, "name": node.name}
+    base = {"node_id": node.node_id, "name": node.name}
     merged = {**node.data, **base}
     return _clean(merged, slot_ranges)
 
