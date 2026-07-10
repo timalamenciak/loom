@@ -95,6 +95,30 @@ class DocumentPdfView(LoginRequiredMixin, View):
         return response
 
 
+def _markdown_plain_text(raw_markdown: str) -> str:
+    """Convert markdown to approximate plain text matching what the browser renders.
+
+    Used so that text selected in the rendered markdown view can be found even
+    when the raw markdown contains inline formatting markers (**, *, ``, etc.)
+    that are invisible in the rendered HTML.
+    """
+    try:
+        import html as _html_std
+        import markdown as _md
+
+        html_str = _md.markdown(raw_markdown, extensions=["tables", "fenced_code"])
+        # Replace each tag with a space so word boundaries between adjacent block
+        # elements (e.g. </h2><p>) are preserved in the resulting plain text.
+        plain = re.sub(r"<[^>]+>", " ", html_str)
+        return _html_std.unescape(plain)
+    except Exception:
+        # Fallback: strip the most common inline markers without the markdown lib
+        text = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", raw_markdown, flags=re.DOTALL)
+        text = re.sub(r"_{1,2}(.*?)_{1,2}", r"\1", text, flags=re.DOTALL)
+        text = re.sub(r"^#+\s+", "", text, flags=re.MULTILINE)
+        return text
+
+
 def _search_canonical(
     needle: str, haystack: str
 ) -> tuple[int, int] | tuple[None, None]:
@@ -143,13 +167,14 @@ class SpanCreateView(LoginRequiredMixin, View):
 
         source_text = request.POST.get("source_text", "").strip()
         if source_text:
-            # Text-search path: used for markdown-view selections.  Search in
-            # whichever text source the client declares is authoritative.
+            # Text-search path: used for markdown-view selections.
             if text_source == "canonical_markdown":
-                canonical = document.canonical_markdown or ""
+                # The user selected from rendered HTML, so search in the plain
+                # text extracted from the markdown (without formatting markers).
+                search_in = _markdown_plain_text(document.canonical_markdown or "")
             else:
-                canonical = document.canonical_text or ""
-            start, end = _search_canonical(source_text, canonical)
+                search_in = document.canonical_text or ""
+            start, end = _search_canonical(source_text, search_in)
             if start is None:
                 if request.headers.get("X-Span-Select") == "true":
                     return JsonResponse(
@@ -177,7 +202,14 @@ class SpanCreateView(LoginRequiredMixin, View):
                 return redirect("document-read", doc_pk=doc_pk)
 
         span = create_span(
-            document, start, end, created_by=request.user, text_source=text_source
+            document,
+            start,
+            end,
+            created_by=request.user,
+            text_source=text_source,
+            # For markdown selections, the offsets are into the plain-text
+            # rendering, not raw markdown, so pass the selected text directly.
+            text=source_text if (source_text and text_source == "canonical_markdown") else None,
         )
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
