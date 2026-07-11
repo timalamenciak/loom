@@ -16,13 +16,17 @@ User = get_user_model()
 
 @pytest.fixture
 def staff_user(db):
-    return User.objects.create_user("form-builder-io-staff", password="x", is_staff=True)
+    return User.objects.create_user(
+        "form-builder-io-staff", password="x", is_staff=True
+    )
 
 
 @pytest.fixture
 def schema_version(db):
     content = latest_schema_path().read_text(encoding="utf-8")
-    return SchemaVersion.objects.create(version="form-builder-io-test", linkml_yaml=content)
+    return SchemaVersion.objects.create(
+        version="form-builder-io-test", linkml_yaml=content
+    )
 
 
 class TestFormBuilderExportView:
@@ -37,7 +41,10 @@ class TestFormBuilderExportView:
         assert response.status_code == 200
         assert response["Content-Type"] == "application/x-yaml"
         assert "attachment" in response["Content-Disposition"]
-        assert f"form_config_{schema_version.version}.yaml" in response["Content-Disposition"]
+        assert (
+            f"form_config_{schema_version.version}.yaml"
+            in response["Content-Disposition"]
+        )
 
         data = yaml.safe_load(response.content.decode())
         assert isinstance(data, dict)
@@ -68,7 +75,9 @@ class TestFormBuilderImportView:
             }
         )
         upload = SimpleUploadedFile(
-            "config.yaml", config_yaml.encode("utf-8"), content_type="application/x-yaml"
+            "config.yaml",
+            config_yaml.encode("utf-8"),
+            content_type="application/x-yaml",
         )
 
         response = client.post(
@@ -102,7 +111,9 @@ class TestFormBuilderImportView:
             }
         )
         upload = SimpleUploadedFile(
-            "config.yaml", config_yaml.encode("utf-8"), content_type="application/x-yaml"
+            "config.yaml",
+            config_yaml.encode("utf-8"),
+            content_type="application/x-yaml",
         )
 
         response = client.post(

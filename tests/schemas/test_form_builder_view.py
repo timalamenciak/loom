@@ -22,7 +22,9 @@ def staff_user(db):
 @pytest.fixture
 def schema_version(db):
     content = latest_schema_path().read_text(encoding="utf-8")
-    return SchemaVersion.objects.create(version="form-builder-test", linkml_yaml=content)
+    return SchemaVersion.objects.create(
+        version="form-builder-test", linkml_yaml=content
+    )
 
 
 class TestFormBuilderView:
@@ -109,7 +111,9 @@ class TestFormBuilderSaveView:
             ],
             "unassigned": [],
         }
-        response = client.post(url, data=json.dumps(second), content_type="application/json")
+        response = client.post(
+            url, data=json.dumps(second), content_type="application/json"
+        )
 
         assert response.status_code == 200
         assert SchemaUIConfig.objects.filter(schema_version=schema_version).count() == 1

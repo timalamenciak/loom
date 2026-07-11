@@ -24,9 +24,7 @@ def annotator(db):
 
 @pytest.fixture
 def project(db, annotator):
-    project = Project.objects.create(
-        name="Schema Override Test", created_by=annotator
-    )
+    project = Project.objects.create(name="Schema Override Test", created_by=annotator)
     ProjectMembership.objects.create(
         project=project, user=annotator, role=ProjectMembership.ROLE_ANNOTATOR
     )
