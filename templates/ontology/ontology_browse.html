@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Browse {{ release.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> ›
+  <a href="{% url 'ontology-manage-list' %}">Ontologies</a> ›
+  Browse {{ release.name }}
+</div>
+
+<h1>{{ release.name }} <code>{{ release.prefix }}</code></h1>
+<p style="color:var(--muted)">
+  Read-only search over this ontology's loaded terms — use it to confirm a
+  load succeeded or to look up a specific CURIE or label.
+  {{ release.term_count }} term{{ release.term_count|pluralize }} loaded.
+</p>
+
+<p>
+  <input type="search" name="q" placeholder="Search label, synonym, or CURIE…"
+         autocomplete="off"
+         hx-get="{% url 'ontology-manage-search' release.pk %}"
+         hx-trigger="keyup changed delay:300ms, search"
+         hx-target="#term-results"
+         hx-swap="innerHTML"
+         style="width:100%;max-width:32rem;padding:.5rem .75rem">
+</p>
+
+<div id="term-results">
+  <p class="muted">Type at least one character to search.</p>
+</div>
+{% endblock %}

@@ -1,18 +1,22 @@
 """Ontology search API — JSON endpoint consumed by ontology-autocomplete.js."""
 
 import json
+import tempfile
+from pathlib import Path
 
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
+from django.views.generic import ListView
 
 from apps.annotation.models import CausalGraph
 from apps.projects.models import Project, ProjectMembership
 
-from .loaders import ontology_entries
-from .models import OntologyTermSuggestion
+from .loaders import load_ontology, ontology_entries
+from .models import AdHocOntologySource, OntologyRelease, OntologyTermSuggestion
 from .services import search_terms, terms_by_curies
 from .wikidata_search import WikidataUnavailable
 from .wikidata_search import search as wikidata_search
@@ -259,3 +263,166 @@ class ProjectOntologyTermSuggestionView(LoginRequiredMixin, View):
             target_ontology=target_ontology[:100],
         )
         return JsonResponse({"ok": True, "id": suggestion.pk})
+
+
+_UPLOAD_EXTENSIONS = {".obo", ".owl", ".yaml", ".yml"}
+
+
+class OntologyManageListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """Staff-only: GET /ontology/manage/ — every loaded OntologyRelease."""
+
+    raise_exception = True
+    model = OntologyRelease
+    queryset = OntologyRelease.objects.all().order_by("name")
+    template_name = "ontology/ontology_list.html"
+    context_object_name = "releases"
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+
+class OntologyReloadView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Staff-only: POST /ontology/manage/<pk>/reload/ — re-fetch a release's source."""
+
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def post(self, request, pk):
+        release = get_object_or_404(OntologyRelease, pk=pk)
+        try:
+            _snapshot, count = load_ontology(release.name, source=release.source_url)
+            messages.success(request, f"Reloaded {release.name}: {count:,} terms.")
+        except Exception as exc:
+            OntologyRelease.objects.filter(pk=pk).update(
+                status=OntologyRelease.STATUS_FAILED, error=str(exc)
+            )
+            messages.error(request, f"Reload of {release.name} failed: {exc}")
+        return redirect("ontology-manage-list")
+
+
+class OntologyDeleteView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Staff-only: POST /ontology/manage/<pk>/delete/ — drop a release and its terms."""
+
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def post(self, request, pk):
+        release = get_object_or_404(OntologyRelease, pk=pk)
+        name = release.name
+        release.terms.all().delete()
+        release.delete()
+        messages.success(request, f"Deleted {name} and its terms.")
+        return redirect("ontology-manage-list")
+
+
+class OntologyUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Staff-only: GET/POST /ontology/manage/upload/ — register + load an ad hoc source.
+
+    Accepts an OBO/OWL or LinkML YAML file directly (rather than a name already
+    present in config/ontologies.yaml), so it registers an ``AdHocOntologySource``
+    row first — ``load_ontology`` resolves *name* through that config lookup same
+    as any YAML-configured ontology, it just doesn't know the difference.
+    """
+
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def get(self, request):
+        return render(request, "ontology/ontology_upload.html", {})
+
+    def post(self, request):
+        name = request.POST.get("name", "").strip()
+        prefix = request.POST.get("prefix", "").strip()[:10]
+        upload = request.FILES.get("source_file")
+        ctx = {"name": name, "prefix": prefix}
+
+        if not name or not prefix:
+            ctx["error"] = "Name and prefix are required."
+            return render(request, "ontology/ontology_upload.html", ctx)
+        if not upload:
+            ctx["error"] = "Choose a source file to upload."
+            return render(request, "ontology/ontology_upload.html", ctx)
+
+        ext = Path(upload.name).suffix.lower()
+        if ext not in _UPLOAD_EXTENSIONS:
+            ctx["error"] = (
+                f"Unsupported file type '{ext or upload.name}'. "
+                f"Allowed: {', '.join(sorted(_UPLOAD_EXTENSIONS))}."
+            )
+            return render(request, "ontology/ontology_upload.html", ctx)
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                for chunk in upload.chunks():
+                    tmp.write(chunk)
+                tmp_path = tmp.name
+
+            AdHocOntologySource.objects.update_or_create(
+                name=name,
+                defaults={
+                    "prefix": prefix,
+                    "url": f"file://{tmp_path}",
+                    "created_by": request.user,
+                },
+            )
+            _snapshot, count = load_ontology(name=name, source=tmp_path)
+            ctx["success"] = True
+            ctx["term_count"] = count
+        except Exception as exc:
+            ctx["error"] = f"Could not load ontology: {exc}"
+        finally:
+            if tmp_path:
+                Path(tmp_path).unlink(missing_ok=True)
+
+        return render(request, "ontology/ontology_upload.html", ctx)
+
+
+class OntologyBrowseView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Staff-only: GET /ontology/manage/<pk>/browse/ — search box for one release.
+
+    Read-only diagnostic page: confirms a load succeeded and lets a curator
+    look up a specific term. The search box itself hits OntologyTermSearchView
+    over HTMX rather than submitting a form.
+    """
+
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def get(self, request, pk):
+        release = get_object_or_404(OntologyRelease, pk=pk)
+        return render(request, "ontology/ontology_browse.html", {"release": release})
+
+
+class OntologyTermSearchView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Staff-only: GET /ontology/manage/<pk>/search/?q=... — HTMX partial of matching terms.
+
+    Scoped by the release's prefix within the active snapshot via the
+    existing ``search_terms()`` — there's no ``release_id`` filter on that
+    function, and a release is only searchable once it is linked into a
+    snapshot, which every ``load_ontology()`` call already does. Good enough
+    for "did my load work / what did it produce", which is this view's job.
+    """
+
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def get(self, request, pk):
+        release = get_object_or_404(OntologyRelease, pk=pk)
+        q = request.GET.get("q", "").strip()
+        terms = search_terms(q, prefixes=[release.prefix], limit=20) if q else []
+        return render(
+            request,
+            "ontology/partials/term_results.html",
+            {"release": release, "terms": terms, "q": q},
+        )

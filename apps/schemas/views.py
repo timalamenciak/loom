@@ -14,6 +14,8 @@ from django.utils.text import slugify
 from django.views import View
 from linkml_runtime.utils.schemaview import SchemaView
 
+from apps.ontology.models import OntologyRelease
+
 from .models import SchemaUIConfig, SchemaVersion
 from .schema_engine import WIDGET_MAP, LoomSchemaView, get_schema_view, invalidate_cache
 
@@ -150,6 +152,33 @@ def _slot_meta(schema_view) -> dict:
     }
 
 
+def _simple_ontology_prefixes(routing) -> list[str]:
+    """Extract prefixes from a slot's ontology_routing entry if it's one of
+    the two "simple" list shapes (flat prefix strings, or the form builder's
+    ``[{"prefix": ...}]`` shape) — see LoomSchemaView._slot_spec. Dict-shaped
+    entries (condition_slot routing, wikidata_live, allow_free_text) aren't
+    representable in the builder's multi-select, so this returns [] for them
+    and the caller leaves those entries untouched rather than clobbering them.
+    """
+    if not isinstance(routing, list):
+        return []
+    prefixes = [
+        item.get("prefix") if isinstance(item, dict) else item for item in routing
+    ]
+    return [p for p in prefixes if p]
+
+
+def _ontology_choices() -> list[dict]:
+    """{prefix, name} for every ready OntologyRelease, one entry per prefix."""
+    seen: dict[str, str] = {}
+    releases = OntologyRelease.objects.filter(
+        status=OntologyRelease.STATUS_READY
+    ).order_by("prefix", "-loaded_at")
+    for release in releases:
+        seen.setdefault(release.prefix, release.name)
+    return [{"prefix": prefix, "name": name} for prefix, name in sorted(seen.items())]
+
+
 def _builder_state(config, slot_names: list[str]) -> dict:
     """Reshape a SchemaUIConfig into the drag-and-drop editor's working
     state: layers (each with its slots expanded into per-slot override
@@ -157,6 +186,7 @@ def _builder_state(config, slot_names: list[str]) -> dict:
     hidden = set(config.globally_hidden_slots or [])
     widget_overrides = config.widget_overrides or {}
     slot_help_text = config.slot_help_text or {}
+    ontology_routing = config.ontology_routing or {}
     known = set(slot_names)
 
     assigned: set[str] = set()
@@ -174,6 +204,9 @@ def _builder_state(config, slot_names: list[str]) -> dict:
                         "widget": widget_overrides.get(name, ""),
                         "help_text": slot_help_text.get(name, ""),
                         "required_override": None,
+                        "ontology_sources": _simple_ontology_prefixes(
+                            ontology_routing.get(name)
+                        ),
                     }
                     for name in layer_slot_names
                 ],
@@ -186,7 +219,8 @@ def _builder_state(config, slot_names: list[str]) -> dict:
 
 class FormBuilderView(LoginRequiredMixin, UserPassesTestMixin, View):
     """Staff-only: drag-and-drop editor for a schema's UI config (layer
-    grouping, per-slot widget override, hidden flag, help text)."""
+    grouping, per-slot widget override, hidden flag, help text, ontology
+    sources)."""
 
     raise_exception = True
 
@@ -207,6 +241,7 @@ class FormBuilderView(LoginRequiredMixin, UserPassesTestMixin, View):
                 "config_json": json.dumps(_builder_state(config, list(slot_meta))),
                 "slot_meta_json": json.dumps(slot_meta),
                 "widget_choices_json": json.dumps(list(WIDGET_MAP.keys())),
+                "ontology_choices_json": json.dumps(_ontology_choices()),
             },
         )
 
@@ -229,6 +264,15 @@ class FormBuilderSaveView(LoginRequiredMixin, UserPassesTestMixin, View):
         try:
             payload = json.loads(request.body)
 
+            # Seed from the existing config rather than starting empty: the
+            # builder's ontology-sources multi-select only edits "simple"
+            # (list-shaped) routing entries (see _simple_ontology_prefixes).
+            # Dict-shaped entries — condition_slot routing, wikidata_live,
+            # allow_free_text — aren't represented in that control, so a save
+            # from this view must not silently delete them.
+            existing_config = SchemaUIConfig.for_schema_version(sv)
+            ontology_routing = dict(existing_config.ontology_routing or {})
+
             layers = []
             widget_overrides = {}
             globally_hidden_slots = []
@@ -249,6 +293,18 @@ class FormBuilderSaveView(LoginRequiredMixin, UserPassesTestMixin, View):
                     help_text = (slot.get("help_text") or "").strip()
                     if help_text:
                         slot_help_text[name] = help_text
+
+                    sources = [
+                        str(p).strip()
+                        for p in (slot.get("ontology_sources") or [])
+                        if str(p).strip()
+                    ]
+                    if sources:
+                        ontology_routing[name] = [{"prefix": p} for p in sources]
+                    elif isinstance(ontology_routing.get(name), list):
+                        # Was builder-editable and is now empty: the user
+                        # cleared every selection, so drop the entry.
+                        del ontology_routing[name]
                 # Stored as id/label (not the client's bare "name") because
                 # schema_engine.LoomSchemaView.form_spec() and every other
                 # loom_ui.yaml-shaped consumer index a layer by "id" and
@@ -269,6 +325,7 @@ class FormBuilderSaveView(LoginRequiredMixin, UserPassesTestMixin, View):
                 project=None,
                 defaults={
                     "layers": layers,
+                    "ontology_routing": ontology_routing,
                     "widget_overrides": widget_overrides,
                     "globally_hidden_slots": globally_hidden_slots,
                     "slot_help_text": slot_help_text,

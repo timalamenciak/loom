@@ -12,8 +12,8 @@
 <h1>Form Builder — Schema {{ sv.version }}</h1>
 <p style="color:var(--muted)">
   Drag slots between sections and the unassigned pool, rename sections, and
-  set per-slot widget / hidden / help-text overrides. Nothing is saved until
-  you click Save.
+  set per-slot widget / hidden / help-text / ontology-source overrides.
+  Nothing is saved until you click Save.
 </p>
 
 {% csrf_token %}
@@ -21,6 +21,7 @@
 <script type="application/json" id="form-builder-init">{{ config_json }}</script>
 <script type="application/json" id="form-builder-slot-meta">{{ slot_meta_json }}</script>
 <script type="application/json" id="form-builder-widget-choices">{{ widget_choices_json }}</script>
+<script type="application/json" id="form-builder-ontology-choices">{{ ontology_choices_json }}</script>
 
 <div
   x-data="formBuilder('{% url 'schema-form-builder-save' sv.pk %}', '{% url 'schema-form-builder-import' sv.pk %}')"
@@ -94,6 +95,12 @@
                   placeholder="help text"
                   style="width:100%;margin-top:.3rem;font-size:.8rem;padding:.2rem .3rem"
                 >
+                <label style="font-size:.7rem;color:var(--muted);display:block;margin-top:.3rem">Ontology sources</label>
+                <select multiple x-model="slot.ontology_sources" size="4" style="width:100%;font-size:.8rem">
+                  <template x-for="o in ontologyChoices" :key="o.prefix">
+                    <option :value="o.prefix" x-text="o.name + ' (' + o.prefix + ')'"></option>
+                  </template>
+                </select>
               </div>
             </template>
           </div>
@@ -137,6 +144,7 @@ function formBuilder(saveUrl, importUrl) {
     layers: [],
     unassigned: [],
     widgetChoices: [],
+    ontologyChoices: [],
     slotMeta: {},
     dragging: null,
     isDragging: false,
@@ -151,6 +159,9 @@ function formBuilder(saveUrl, importUrl) {
       this.unassigned = initData.unassigned;
       this.widgetChoices = JSON.parse(
         document.getElementById('form-builder-widget-choices').textContent
+      );
+      this.ontologyChoices = JSON.parse(
+        document.getElementById('form-builder-ontology-choices').textContent
       );
       this.slotMeta = JSON.parse(
         document.getElementById('form-builder-slot-meta').textContent
@@ -212,6 +223,7 @@ function formBuilder(saveUrl, importUrl) {
         widget: '',
         help_text: '',
         required_override: null,
+        ontology_sources: [],
       });
       this.dragging = null;
     },

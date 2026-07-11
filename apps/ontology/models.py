@@ -40,6 +40,13 @@ class OntologyRelease(models.Model):
     prefix = models.CharField(max_length=50, db_index=True)
     source_url = models.TextField()
     source_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
+    # Upstream location to HEAD-check for changes (see the check_ontology_updates
+    # management command). Separate from source_url — that field is whatever this
+    # specific release was actually fetched from (may be a local temp path or an
+    # override), while upstream_url is the stable address to poll going forward.
+    upstream_url = models.URLField(null=True, blank=True)
+    source_etag = models.CharField(max_length=255, blank=True)
+    update_available = models.BooleanField(default=False)
     # Sorted root CURIEs this release was scoped to at load time (see
     # ontologies.yaml's `root_terms`/`include_descendants`), or [] for an
     # unscoped full-file load. `source_sha256` alone content-addresses the

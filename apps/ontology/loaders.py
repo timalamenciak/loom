@@ -196,14 +196,113 @@ def _descendant_closure(ont, root_terms: list[str]) -> set[str]:
     return allowed
 
 
+def _try_linkml_schemaview(content: bytes):
+    """Return a parsed ``SchemaView`` if *content* is a LinkML schema, else None.
+
+    A LinkML source is YAML describing `classes`/`slots`/`enums`; an OBO/OWL
+    source is a different grammar entirely (OBO's `[Term]` stanzas are not
+    even valid YAML). So a ``SchemaView`` construction failure is the signal
+    to fall through to the pronto/OBO path below, not a real error.
+    """
+    from linkml_runtime.utils.schemaview import SchemaView
+
+    try:
+        return SchemaView(content.decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _load_linkml_terms(
+    release: OntologyRelease, schema_view, root_terms: list[str]
+) -> int:
+    """Populate *release* from a LinkML schema's enums, one CURIE per permissible value.
+
+    Each ``EnumDefinition`` is treated as its own vocabulary namespace (e.g.
+    ``ClaimStrength:Strong``), unlike the OBO path where every term in a
+    release shares the configured source prefix. *root_terms*, when given,
+    names the subset of enums to load — there is no descendant closure for
+    enums, so unlike the OBO branch this is a name filter, not a subclass walk.
+    """
+    enums = schema_view.all_enums()
+    if root_terms:
+        wanted = {r.lower() for r in root_terms}
+        enums = {name: ed for name, ed in enums.items() if name.lower() in wanted}
+
+    batch = []
+    for enum_def in enums.values():
+        for pv_text, pv in enum_def.permissible_values.items():
+            batch.append(
+                OntologyTerm(
+                    release=release,
+                    prefix=enum_def.name,
+                    curie=f"{enum_def.name}:{pv_text.replace(' ', '_')}",
+                    label=pv_text,
+                    synonyms=[],
+                    synonym_labels="",
+                    definition=pv.description or "",
+                    obsolete=False,
+                )
+            )
+            if len(batch) >= 2000:
+                OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+                batch = []
+    if batch:
+        OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+    return release.terms.count()
+
+
+def _load_obo_terms(
+    release: OntologyRelease,
+    content: bytes,
+    prefix: str,
+    root_terms: list[str],
+    scope: list[str],
+) -> int:
+    import pronto
+
+    with _pronto_assume_utf8():
+        ont = pronto.Ontology(io.BytesIO(content))
+    allowed_ids = _descendant_closure(ont, root_terms) if scope else None
+    batch = []
+    for term in ont.terms():
+        curie = str(term.id)
+        term_prefix = curie.split(":")[0] if ":" in curie else prefix
+        # Case-insensitive: some sources (e.g. ELMO's own OBO release)
+        # emit lowercase CURIEs (`elmo:3620020`) while Loom/CAMO use
+        # the uppercase prefix (`ELMO:`) everywhere else. Without this,
+        # every term from such a source is silently dropped.
+        if term_prefix.lower() != prefix.lower():
+            continue
+        if allowed_ids is not None and curie.lower() not in allowed_ids:
+            continue
+        curie = f"{prefix}:{curie.split(':', 1)[1]}" if ":" in curie else curie
+        synonyms = [syn.description for syn in (term.synonyms or [])]
+        batch.append(
+            OntologyTerm(
+                release=release,
+                prefix=prefix,
+                curie=curie,
+                label=term.name or curie,
+                synonyms=synonyms,
+                synonym_labels=" ".join(synonyms),
+                definition=str(term.definition) if term.definition else "",
+                obsolete=bool(term.obsolete),
+            )
+        )
+        if len(batch) >= 2000:
+            OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+            batch = []
+    if batch:
+        OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
+    return release.terms.count()
+
+
 def load_ontology_release(
     name: str,
     source: str | None = None,
     stdout=None,
 ) -> tuple[OntologyRelease, int]:
     """Load one configured ontology into an immutable, reusable release."""
-    import pronto
-
     cfg = ontology_config(name)
     if cfg is None:
         raise ValueError(f"Ontology '{name}' not found in config/ontologies.yaml")
@@ -222,6 +321,8 @@ def load_ontology_release(
     # seed-list/MIREOT pattern ELMO's own build uses against ENVO (see
     # src/ontology/imports/envo_terms.txt upstream) — a huge source ontology
     # doesn't need to be cached in full when only one branch is ever routed to.
+    # For a LinkML source, root_terms instead names which enums to load (see
+    # _load_linkml_terms) — there's no descendant closure for enum values.
     root_terms = sorted({str(r) for r in (cfg.get("root_terms") or [])})
     include_descendants = bool(cfg.get("include_descendants"))
     scope = root_terms if include_descendants else []
@@ -243,43 +344,13 @@ def load_ontology_release(
         scope_root_curies=scope,
         status=OntologyRelease.STATUS_LOADING,
     )
+    schema_view = _try_linkml_schemaview(content)
     try:
         with transaction.atomic():
-            with _pronto_assume_utf8():
-                ont = pronto.Ontology(io.BytesIO(content))
-            allowed_ids = _descendant_closure(ont, root_terms) if scope else None
-            batch = []
-            for term in ont.terms():
-                curie = str(term.id)
-                term_prefix = curie.split(":")[0] if ":" in curie else prefix
-                # Case-insensitive: some sources (e.g. ELMO's own OBO release)
-                # emit lowercase CURIEs (`elmo:3620020`) while Loom/CAMO use
-                # the uppercase prefix (`ELMO:`) everywhere else. Without this,
-                # every term from such a source is silently dropped.
-                if term_prefix.lower() != prefix.lower():
-                    continue
-                if allowed_ids is not None and curie.lower() not in allowed_ids:
-                    continue
-                curie = f"{prefix}:{curie.split(':', 1)[1]}" if ":" in curie else curie
-                synonyms = [syn.description for syn in (term.synonyms or [])]
-                batch.append(
-                    OntologyTerm(
-                        release=release,
-                        prefix=prefix,
-                        curie=curie,
-                        label=term.name or curie,
-                        synonyms=synonyms,
-                        synonym_labels=" ".join(synonyms),
-                        definition=str(term.definition) if term.definition else "",
-                        obsolete=bool(term.obsolete),
-                    )
-                )
-                if len(batch) >= 2000:
-                    OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
-                    batch = []
-            if batch:
-                OntologyTerm.objects.bulk_create(batch, ignore_conflicts=True)
-            count = release.terms.count()
+            if schema_view is not None:
+                count = _load_linkml_terms(release, schema_view, root_terms)
+            else:
+                count = _load_obo_terms(release, content, prefix, root_terms, scope)
             release.term_count = count
             release.status = OntologyRelease.STATUS_READY
             release.save(update_fields=["term_count", "status"])

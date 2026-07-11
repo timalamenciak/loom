@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Upload Ontology — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> ›
+  <a href="{% url 'ontology-manage-list' %}">Ontologies</a> ›
+  Upload
+</div>
+
+<h1>Upload Ontology</h1>
+<p style="color:var(--muted)">
+  Register and load an ad hoc OBO/OWL or LinkML (enum vocabulary) source file
+  that isn't already listed in <code>config/ontologies.yaml</code>.
+</p>
+
+{% if error %}
+<p class="message message-error" style="padding:.75rem">{{ error }}</p>
+{% endif %}
+
+{% if success %}
+<p class="message message-success" style="padding:.75rem">
+  Loaded {{ name }} ({{ prefix }}) — {{ term_count }} terms.
+</p>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <p>
+    <label for="name">Name</label><br>
+    <input type="text" id="name" name="name" value="{{ name }}" required>
+  </p>
+  <p>
+    <label for="prefix">Prefix</label><br>
+    <input type="text" id="prefix" name="prefix" value="{{ prefix }}" maxlength="10" required>
+  </p>
+  <p>
+    <label for="source_file">Source file</label><br>
+    <input type="file" id="source_file" name="source_file" accept=".obo,.owl,.yaml,.yml" required>
+  </p>
+  <button type="submit">Upload</button>
+</form>
+{% endblock %}

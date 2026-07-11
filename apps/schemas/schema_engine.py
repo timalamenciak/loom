@@ -361,7 +361,15 @@ class LoomSchemaView:
         allow_free_text = False
 
         if isinstance(routing, list):
-            sidecar_ontology_prefixes: list[str] = routing
+            # Two list shapes are both "sidecar" (non-conditional) routing:
+            # the original flat prefix-string list (["ENVO", "ELMO"]) and the
+            # form builder's simplified per-item dict list
+            # ([{"prefix": "ENVO"}, {"prefix": "ELMO"}]).
+            sidecar_ontology_prefixes: list[str] = [
+                (item.get("prefix") if isinstance(item, dict) else item)
+                for item in routing
+            ]
+            sidecar_ontology_prefixes = [p for p in sidecar_ontology_prefixes if p]
             wikidata_live: dict | None = None
         elif "condition_slot" in routing:
             # Conditional routing: the widget re-queries with the route
