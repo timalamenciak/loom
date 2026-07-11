@@ -31,7 +31,7 @@ import threading
 
 from linkml_runtime.utils.schemaview import SchemaView
 
-_cache: dict[int, tuple[str, "LoomSchemaView"]] = {}
+_cache: dict[tuple[int, int], tuple[str, "LoomSchemaView"]] = {}
 _lock = threading.Lock()
 
 # Primitive range → widget type
@@ -56,15 +56,44 @@ _PRIMITIVE_WIDGET = {
     "curie": "ontology_autocomplete",
 }
 
+# Every widget type the annotation form renderer (templates/annotation/
+# partials/form_field.html) knows how to draw, keyed by the string that
+# appears in a slot spec's "widget" field. This is the canonical list for
+# any UI that lets an admin pick/override a slot's widget (see
+# apps.schemas.views.FormBuilderView).
+WIDGET_MAP = {
+    "text": "Text",
+    "textarea": "Textarea",
+    "number": "Number",
+    "checkbox": "Checkbox",
+    "date": "Date",
+    "datetime": "Date & time",
+    "select": "Select (dropdown)",
+    "enum_autocomplete": "Enum autocomplete (large enum)",
+    "ontology_autocomplete": "Ontology autocomplete",
+    "fieldset": "Fieldset (nested class)",
+    "node_picker": "Node picker",
+    "coordinate_list": "Coordinate list",
+    "applied_to_list": "Applied-to list",
+    "source_span_picker": "Source span picker",
+}
 
-def get_schema_view(schema_version) -> "LoomSchemaView":
-    """Return a cached LoomSchemaView for *schema_version*."""
+
+def get_schema_view(schema_version, project=None) -> "LoomSchemaView":
+    """Return a cached LoomSchemaView for *schema_version*, bound to *project*.
+
+    Cached per (schema_version.pk, project.pk or 0) — a project-bound view
+    resolves its UI config (layers, ontology routing, hidden slots, ...) from
+    that project's SchemaUIConfig, so views for different projects must not
+    share a cache entry.
+    """
     with _lock:
         digest = schema_version.sha256
-        cached = _cache.get(schema_version.pk)
+        key = (schema_version.pk, project.pk if project is not None else 0)
+        cached = _cache.get(key)
         if cached is None or cached[0] != digest:
-            _cache[schema_version.pk] = (digest, LoomSchemaView(schema_version))
-        return _cache[schema_version.pk][1]
+            _cache[key] = (digest, LoomSchemaView(schema_version, project=project))
+        return _cache[key][1]
 
 
 def invalidate_cache(schema_version_pk: int | None = None):
@@ -73,12 +102,15 @@ def invalidate_cache(schema_version_pk: int | None = None):
         if schema_version_pk is None:
             _cache.clear()
         else:
-            _cache.pop(schema_version_pk, None)
+            for key in [k for k in _cache if k[0] == schema_version_pk]:
+                _cache.pop(key, None)
 
 
 class LoomSchemaView:
-    def __init__(self, schema_version):
+    def __init__(self, schema_version, project=None):
         self._sv = SchemaView(schema_version.linkml_yaml)
+        self._schema_version = schema_version
+        self._project = project
         self.version = schema_version.version
 
     # ── public ──────────────────────────────────────────────────────────────
@@ -92,6 +124,13 @@ class LoomSchemaView:
     def slot_names(self, class_name: str) -> list[str]:
         """All induced field names for *class_name* in schema declaration order."""
         return self._all_slot_names(class_name)
+
+    def all_slots(self) -> list[str]:
+        """Every slot name in the schema, across all classes (schema-wide,
+        not scoped to one class) — the flat namespace loom_ui.yaml-shaped
+        UI config (layers, widget_overrides, ...) references slot names in.
+        """
+        return list(self._sv.all_slots().keys())
 
     def form_spec(
         self,
@@ -115,7 +154,36 @@ class LoomSchemaView:
         it should populate (see loom_ui.yaml for the shape).
         *coordinate_list_fields* maps a `coordinate_list`-widget slot name to
         additional nested range-class slots the widget should collect per entry.
+
+        If this view is project-bound (see __init__) and the caller left all
+        of ui_layers/ontology_routing/widget_overrides/globally_hidden_slots/
+        slot_help_texts unset, they are resolved from
+        SchemaUIConfig.for_schema_version() instead of defaulting to empty —
+        this is what lets a project override layers/hidden slots/etc. without
+        every caller having to look up and thread that config by hand. A
+        caller that passes any of these explicitly opts out of this lookup
+        entirely (used for recursive nested_spec calls, and by callers that
+        already resolved config themselves).
         """
+        if (
+            self._project is not None
+            and ui_layers is None
+            and ontology_routing is None
+            and widget_overrides is None
+            and globally_hidden_slots is None
+            and slot_help_texts is None
+        ):
+            from .models import SchemaUIConfig
+
+            ui_config = SchemaUIConfig.for_schema_version(
+                self._schema_version, project=self._project
+            )
+            ui_layers = ui_config.layers
+            ontology_routing = ui_config.ontology_routing
+            widget_overrides = ui_config.widget_overrides
+            globally_hidden_slots = ui_config.globally_hidden_slots
+            slot_help_texts = ui_config.slot_help_text
+
         if ontology_routing is None:
             ontology_routing = {}
         if widget_overrides is None:

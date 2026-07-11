@@ -98,6 +98,15 @@ def _get_active_schema():
     return sv, get_schema_view(sv)
 
 
+def get_schema_version(project):
+    """The schema a new graph in *project* should be pinned to.
+
+    A project's own `active_schema` override wins; otherwise fall back to
+    whichever SchemaVersion is system-active.
+    """
+    return project.active_schema or SchemaVersion.get_active()
+
+
 def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
 
@@ -335,7 +344,7 @@ class AnnotationView(LoginRequiredMixin, View):
         ensure_canonical_text(document)
 
         existing_graph = _user_graph_queryset(document, request.user).first()
-        new_graph_schema = project.active_schema or SchemaVersion.get_active()
+        new_graph_schema = get_schema_version(project)
         if not new_graph_schema and not existing_graph:
             messages.error(
                 request,
@@ -356,7 +365,7 @@ class AnnotationView(LoginRequiredMixin, View):
             if graph is None:
                 raise Http404("No submitted annotation graph found.")
         schema_version = graph.schema_version
-        lsv = get_schema_view(schema_version)
+        lsv = get_schema_view(schema_version, project=project)
         session = None
         if can_edit:
             # Link this assignment to the graph the workspace will use.
@@ -500,7 +509,7 @@ class NodeFormView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -549,7 +558,7 @@ class NodeCreateView(LoginRequiredMixin, View):
         payload, _managed = _post_payload(
             request, "source_spans", "_source_span_pk", "_source_span_pks"
         )
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
@@ -615,7 +624,7 @@ class NodeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -659,7 +668,7 @@ class NodeEditView(LoginRequiredMixin, View):
         payload, _managed = _post_payload(
             request, "source_spans", "_source_span_pk", "_source_span_pks"
         )
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
@@ -779,7 +788,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -834,7 +843,7 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         payload, _ = _post_payload(request)
         bound = lsv.bind_form_data("SourceDocument", payload)
         ui = _load_ui_config()
@@ -891,7 +900,7 @@ class EdgeFormView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -968,7 +977,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
         subject = get_object_or_404(Node, graph=graph, node_id=subject_id)
         object_node = get_object_or_404(Node, graph=graph, node_id=object_id)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
         )
@@ -1035,7 +1044,7 @@ class EdgeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -1105,7 +1114,7 @@ class EdgeEditView(LoginRequiredMixin, View):
             else None
         )
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
         )

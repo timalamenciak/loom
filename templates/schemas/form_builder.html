@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Form Builder — Schema {{ sv.version }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> ›
+  <a href="{% url 'schema-list' %}">Schemas</a> ›
+  <a href="{% url 'schema-detail' sv.pk %}">{{ sv.version }}</a> ›
+  Form Builder
+</div>
+
+<h1>Form Builder — Schema {{ sv.version }}</h1>
+<p style="color:var(--muted)">
+  Drag slots between sections and the unassigned pool, rename sections, and
+  set per-slot widget / hidden / help-text overrides. Nothing is saved until
+  you click Save.
+</p>
+
+{% csrf_token %}
+
+<script type="application/json" id="form-builder-init">{{ config_json }}</script>
+<script type="application/json" id="form-builder-slot-meta">{{ slot_meta_json }}</script>
+<script type="application/json" id="form-builder-widget-choices">{{ widget_choices_json }}</script>
+
+<div
+  x-data="formBuilder('{% url 'schema-form-builder-save' sv.pk %}', '{% url 'schema-form-builder-import' sv.pk %}')"
+  x-init="init()"
+  @slot-drag-start.window="onDragStart($event)"
+>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:1rem 0;flex-wrap:wrap;gap:.75rem">
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <button type="button" class="btn-sm" @click="addLayer()">+ Add Layer</button>
+      <a href="{% url 'schema-form-builder-export' sv.pk %}" class="btn-sm">Export config (YAML)</a>
+      <input type="file" accept=".yaml,.yml" x-ref="importFile" @change="importConfig($event)" style="font-size:.8rem">
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <span x-show="saveMessage" x-text="saveMessage" style="color:var(--muted)"></span>
+      <span x-show="saveError || importErrors.length" class="message message-error" style="padding:.25rem .5rem">
+        <span x-show="saveError" x-text="saveError"></span>
+        <template x-for="err in importErrors" :key="err">
+          <div x-text="err"></div>
+        </template>
+      </span>
+      <button type="button" class="btn-sm" :disabled="saving" @click="save()">
+        <span x-text="saving ? 'Saving…' : 'Save'"></span>
+      </button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;align-items:start">
+    <div>
+      <template x-for="(layer, li) in layers" :key="li">
+        <div style="border:1px solid var(--border);border-radius:4px;padding:.75rem;margin-bottom:1rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;gap:.5rem">
+            <input
+              type="text"
+              x-model="layer.name"
+              style="font-weight:600;flex:1;padding:.25rem .4rem"
+            >
+            <button type="button" class="btn-sm" @click="removeLayer(li)">Remove Layer</button>
+          </div>
+
+          <div
+            @dragover.prevent
+            @drop.prevent="dropOnLayer(li)"
+            :class="{ 'drop-target': isDragging }"
+            style="min-height:3rem;border:1px dashed var(--border);border-radius:4px;padding:.5rem;display:flex;flex-wrap:wrap;gap:.5rem"
+          >
+            <template x-if="layer.slots.length === 0">
+              <p style="color:var(--muted);font-size:.85rem;margin:0">Drag slots here</p>
+            </template>
+            <template x-for="(slot, si) in layer.slots" :key="slot.name">
+              <div
+                draggable="true"
+                @dragstart="startDrag($event, 'layer', li, si, slot.name)"
+                @dragend="endDrag()"
+                style="border:1px solid var(--border);border-radius:4px;padding:.4rem .5rem;background:var(--surface);cursor:grab;min-width:14rem"
+              >
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+                  <code x-text="slot.name" :title="slotTooltip(slot.name)"></code>
+                  <label style="font-size:.75rem;display:flex;align-items:center;gap:.25rem">
+                    <input type="checkbox" x-model="slot.hidden"> hidden
+                  </label>
+                </div>
+                <select x-model="slot.widget" style="width:100%;margin-top:.3rem;font-size:.8rem">
+                  <option value="">(default widget)</option>
+                  <template x-for="w in widgetChoices" :key="w">
+                    <option :value="w" x-text="w"></option>
+                  </template>
+                </select>
+                <input
+                  type="text"
+                  x-model="slot.help_text"
+                  placeholder="help text"
+                  style="width:100%;margin-top:.3rem;font-size:.8rem;padding:.2rem .3rem"
+                >
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div>
+      <h2 style="margin-top:0">Unassigned</h2>
+      <div
+        @dragover.prevent
+        @drop.prevent="dropOnUnassigned()"
+        :class="{ 'drop-target': isDragging }"
+        style="min-height:4rem;border:1px dashed var(--border);border-radius:4px;padding:.5rem;display:flex;flex-wrap:wrap;gap:.5rem"
+      >
+        <template x-if="unassigned.length === 0">
+          <p style="color:var(--muted);font-size:.85rem;margin:0">Every slot is placed in a section.</p>
+        </template>
+        <template x-for="(name, ui) in unassigned" :key="name">
+          <div
+            draggable="true"
+            @dragstart="startDrag($event, 'unassigned', -1, ui, name)"
+            @dragend="endDrag()"
+            style="border:1px solid var(--border);border-radius:4px;padding:.3rem .5rem;background:var(--surface);cursor:grab"
+          >
+            <code x-text="name" :title="slotTooltip(name)"></code>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .drop-target { outline: 2px dashed var(--accent, #6366f1); outline-offset: 2px; }
+</style>
+
+<script>
+function formBuilder(saveUrl, importUrl) {
+  return {
+    layers: [],
+    unassigned: [],
+    widgetChoices: [],
+    slotMeta: {},
+    dragging: null,
+    isDragging: false,
+    saving: false,
+    saveMessage: '',
+    saveError: '',
+    importErrors: [],
+
+    init() {
+      const initData = JSON.parse(document.getElementById('form-builder-init').textContent);
+      this.layers = initData.layers;
+      this.unassigned = initData.unassigned;
+      this.widgetChoices = JSON.parse(
+        document.getElementById('form-builder-widget-choices').textContent
+      );
+      this.slotMeta = JSON.parse(
+        document.getElementById('form-builder-slot-meta').textContent
+      );
+
+      this.$watch('dragging', (value) => {
+        this.isDragging = value !== null;
+      });
+    },
+
+    slotTooltip(name) {
+      const meta = this.slotMeta[name];
+      if (!meta) return name;
+      return `${meta.range}${meta.required ? ' · required' : ''}${meta.multivalued ? ' · multivalued' : ''}${meta.description ? ' — ' + meta.description : ''}`;
+    },
+
+    startDrag(event, from, layerIndex, slotIndex, name) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', name);
+      this.$dispatch('slot-drag-start', { from, layerIndex, slotIndex, name });
+    },
+
+    onDragStart(event) {
+      this.dragging = event.detail;
+    },
+
+    endDrag() {
+      this.dragging = null;
+    },
+
+    removeDraggedSlot() {
+      const d = this.dragging;
+      if (!d) return null;
+      if (d.from === 'unassigned') {
+        const idx = this.unassigned.indexOf(d.name);
+        if (idx === -1) return null;
+        this.unassigned.splice(idx, 1);
+        return d.name;
+      }
+      const layer = this.layers[d.layerIndex];
+      if (!layer) return null;
+      const idx = layer.slots.findIndex((s) => s.name === d.name);
+      if (idx === -1) return null;
+      layer.slots.splice(idx, 1);
+      return d.name;
+    },
+
+    dropOnLayer(targetLayerIndex) {
+      if (!this.dragging) return;
+      if (this.dragging.from === 'layer' && this.dragging.layerIndex === targetLayerIndex) {
+        this.dragging = null;
+        return;
+      }
+      const name = this.removeDraggedSlot();
+      if (name === null) return;
+      this.layers[targetLayerIndex].slots.push({
+        name,
+        hidden: false,
+        widget: '',
+        help_text: '',
+        required_override: null,
+      });
+      this.dragging = null;
+    },
+
+    dropOnUnassigned() {
+      if (!this.dragging) return;
+      if (this.dragging.from === 'unassigned') {
+        this.dragging = null;
+        return;
+      }
+      const name = this.removeDraggedSlot();
+      if (name === null) return;
+      if (!this.unassigned.includes(name)) {
+        this.unassigned.push(name);
+      }
+      this.dragging = null;
+    },
+
+    addLayer() {
+      this.layers.push({ name: 'New Section', slots: [] });
+    },
+
+    removeLayer(layerIndex) {
+      const layer = this.layers[layerIndex];
+      if (!layer) return;
+      for (const slot of layer.slots) {
+        if (!this.unassigned.includes(slot.name)) {
+          this.unassigned.push(slot.name);
+        }
+      }
+      this.layers.splice(layerIndex, 1);
+    },
+
+    csrfToken() {
+      const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (input?.value) return input.value;
+      const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    },
+
+    async save() {
+      this.saving = true;
+      this.saveMessage = '';
+      this.saveError = '';
+      try {
+        const response = await fetch(saveUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.csrfToken(),
+          },
+          body: JSON.stringify({ layers: this.layers, unassigned: this.unassigned }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error || `Save failed (${response.status})`);
+        }
+        this.saveMessage = 'Saved.';
+      } catch (err) {
+        this.saveError = err.message || 'Save failed.';
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async importConfig(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      this.importErrors = [];
+      const formData = new FormData();
+      formData.append('config_file', file);
+      try {
+        const response = await fetch(importUrl, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': this.csrfToken() },
+          body: formData,
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          this.importErrors = body.errors || [`Import failed (${response.status})`];
+          return;
+        }
+        // Config is saved server-side; reload to show the imported state.
+        window.location.reload();
+      } catch (err) {
+        this.importErrors = [err.message || 'Import failed.'];
+      } finally {
+        this.$refs.importFile.value = '';
+      }
+    },
+  };
+}
+</script>
+{% endblock %}
