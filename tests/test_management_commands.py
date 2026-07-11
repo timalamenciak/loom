@@ -289,40 +289,55 @@ def test_validate_graph_command_valid_invalid_and_missing(graph):
         call_command("validate_graph", 999999)
 
     output = StringIO()
-    with (
-        patch(
-            "apps.export.management.commands.validate_graph.serialize_graph",
-            return_value={},
-        ),
-        patch(
-            "apps.export.management.commands.validate_graph.build_provenance",
-            return_value={},
-        ),
-        patch(
-            "apps.export.management.commands.validate_graph.validate_graph_data",
-            return_value=(True, ["warning"]),
-        ),
+    with patch(
+        "apps.export.management.commands.validate_graph.validate_graph",
+        return_value=(True, ["warning"]),
     ):
         call_command("validate_graph", graph.pk, stdout=output)
     assert "warning" in output.getvalue()
     assert "Valid" in output.getvalue()
 
-    with (
-        patch(
-            "apps.export.management.commands.validate_graph.serialize_graph",
-            return_value={},
-        ),
-        patch(
-            "apps.export.management.commands.validate_graph.build_provenance",
-            return_value={},
-        ),
-        patch(
-            "apps.export.management.commands.validate_graph.validate_graph_data",
-            return_value=(False, ["bad graph"]),
-        ),
+    with patch(
+        "apps.export.management.commands.validate_graph.validate_graph",
+        return_value=(False, ["bad graph"]),
     ):
         with pytest.raises(CommandError, match="Validation failed"):
             call_command("validate_graph", graph.pk)
+
+
+def test_validate_graph_command_all_flag(graph, project, operator):
+    second = CausalGraph.objects.create(
+        document=Document.objects.create(
+            project=project,
+            source=Document.SOURCE_MANUAL,
+            title="A second article",
+            canonical_text="C affects D.",
+        ),
+        annotator=operator,
+        schema_version=graph.schema_version,
+    )
+
+    output = StringIO()
+    with patch(
+        "apps.export.management.commands.validate_graph.validate_graph",
+        return_value=(True, []),
+    ):
+        call_command("validate_graph", "--all", stdout=output)
+    result = output.getvalue()
+    assert f"Graph {graph.pk}: Valid" in result
+    assert f"Graph {second.pk}: Valid" in result
+    assert "Validated 2 graph(s), 0 failed." in result
+
+    output = StringIO()
+    with patch(
+        "apps.export.management.commands.validate_graph.validate_graph",
+        side_effect=[(True, []), (False, ["bad graph"])],
+    ):
+        with pytest.raises(CommandError, match=r"Validated 2 graph\(s\), 1 failed\."):
+            call_command("validate_graph", "--all", stdout=output)
+
+    with pytest.raises(CommandError, match="Pass either graph_pk or --all"):
+        call_command("validate_graph", graph.pk, "--all")
 
 
 def test_export_graph_command_stdout_file_invalid_and_missing(graph, tmp_path):

@@ -337,8 +337,12 @@ class AnnotationView(LoginRequiredMixin, View):
             raise
 
     def _get(self, request, pk, doc_pk):
-        project = get_object_or_404(Project, pk=pk)
-        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        project = get_object_or_404(
+            Project.objects.select_related("active_schema"), pk=pk
+        )
+        document = get_object_or_404(
+            Document.objects.select_related("project"), pk=doc_pk, project=project
+        )
         assignment = require_annotation_assignment(document, request.user)
         can_edit = assignment_is_editable(assignment)
         ensure_canonical_text(document)
@@ -407,11 +411,14 @@ class AnnotationView(LoginRequiredMixin, View):
         if document.canonical_markdown:
             try:
                 import markdown as _md
+                import nh3
 
                 markdown_html = mark_safe(
-                    _md.markdown(
-                        document.canonical_markdown,
-                        extensions=["tables", "fenced_code"],
+                    nh3.clean(
+                        _md.markdown(
+                            document.canonical_markdown,
+                            extensions=["tables", "fenced_code"],
+                        )
                     )
                 )
             except Exception:

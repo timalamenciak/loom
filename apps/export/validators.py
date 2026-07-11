@@ -13,6 +13,21 @@ def validate_graph_data(data: dict, schema_yaml: str) -> tuple[bool, list[str]]:
     return validate_instance_data(data, schema_yaml, target_class="CausalGraph")
 
 
+def validate_graph(graph) -> tuple[bool, list[str]]:
+    """Serialize *graph* (with provenance) and validate it against the schema
+    it's pinned to (``graph.schema_version``, not necessarily whatever is
+    currently active). Shared by the ``validate_graph`` management command
+    and ``scripts/check_migration_readiness.py`` so the export+validate
+    pipeline for "is this graph exportable" only lives in one place.
+    """
+    from apps.export.serializer import build_provenance, serialize_graph
+
+    data = serialize_graph(graph)
+    pre_yaml = yaml.safe_dump(data, allow_unicode=True, sort_keys=True)
+    data["provenance"] = build_provenance(graph, pre_yaml.encode())
+    return validate_graph_data(data, graph.schema_version.linkml_yaml)
+
+
 def validate_instance_data(
     data: dict, schema_yaml: str, *, target_class: str
 ) -> tuple[bool, list[str]]:

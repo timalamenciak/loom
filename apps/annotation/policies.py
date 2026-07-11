@@ -26,7 +26,7 @@ def require_annotation_assignment(document, user) -> Assignment:
     ).exists():
         raise PermissionDenied("You are not a member of this project.")
     try:
-        return Assignment.objects.select_related("graph").get(
+        return Assignment.objects.select_related("graph__schema_version").get(
             document=document,
             project=document.project,
             annotator=user,

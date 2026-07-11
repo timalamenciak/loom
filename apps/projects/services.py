@@ -3,6 +3,7 @@
 import hashlib
 import io
 import re
+import threading
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 import rispy
 from django.conf import settings
 from django.core.files.base import File
-from django.db import transaction
+from django.db import connections, transaction
 
 from apps.annotation.models import Edge, Node
 from apps.audit.models import AuditEvent
@@ -376,7 +377,28 @@ def assign_document(
             "status": Assignment.STATUS_ASSIGNED,
         },
     )
+    llm_config = getattr(project, "llm_config", None)
+    if llm_config and llm_config.is_enabled and llm_config.trigger == "on_assignment":
+        _trigger_llm_proposals_in_background(document, project)
     return assignment
+
+
+def _trigger_llm_proposals_in_background(document: Document, project: Project) -> None:
+    """Fire-and-forget the LLM proposal trigger on a daemon thread.
+
+    Django's per-thread DB connection is normally closed by the
+    request_finished signal, which a thread spawned off a view never gets —
+    without this, each background trigger leaks a connection.
+    """
+    from apps.llm.triggers import propose_for_document
+
+    def _run():
+        try:
+            propose_for_document(document, project)
+        finally:
+            connections.close_all()
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def delete_project(project: Project, actor) -> dict:

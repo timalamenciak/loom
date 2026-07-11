@@ -25,6 +25,20 @@ DATABASES["default"].update(  # noqa: F405
     }
 )
 
+# Redis cache backend — replaces the default per-process LocMemCache so the
+# schema/ontology update-check debounce (apps/schemas/views.py:
+# _maybe_trigger_update_check, cache.add(...)) is actually shared across
+# gunicorn workers instead of each worker getting its own 12-hour window.
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": os.environ.get("REDIS_URL", "redis://cache:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
 # Enforce HTTPS in production
 SECURE_SSL_REDIRECT = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

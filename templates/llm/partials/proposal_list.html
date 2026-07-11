@@ -1,0 +1,48 @@
+<div id="proposal-list">
+  {% if proposals %}
+  <ul class="gp-list">
+    {% for edge in proposals %}
+    <li class="gp-item" id="proposal-{{ edge.pk }}">
+      <div class="gp-item-main">
+        <span class="gp-item-label">{{ edge.subject.name }} &rarr; {{ edge.object.name }}</span>
+        {% if edge.predicate %}<span class="badge badge-assigned">{{ edge.predicate }}</span>{% endif %}
+        <span class="badge badge-draft">{{ edge.get_status_display }}</span>
+      </div>
+      {% with source_text=edge.data.original_sentence %}
+      {% if source_text %}
+      <p class="muted" style="font-size:.85rem;margin:.25rem 0">&ldquo;{{ source_text }}&rdquo;</p>
+      {% endif %}
+      {% endwith %}
+      <p class="muted" style="font-size:.75rem;margin:.25rem 0">
+        {{ edge.graph.document.title }} &middot; proposed {{ edge.created_at }}
+      </p>
+      <div class="gp-item-actions">
+        <a class="action-link"
+           href="{% url 'annotate' pk=edge.graph.document.project_id doc_pk=edge.graph.document_id %}"
+           title="Open the full annotation form for this edge before accepting">Edit before accepting</a>
+        <form method="post"
+              action="{% url 'proposal-accept' edge_pk=edge.pk %}"
+              style="display:inline"
+              hx-post="{% url 'proposal-accept' edge_pk=edge.pk %}"
+              hx-target="#proposal-list"
+              hx-swap="outerHTML">
+          {% csrf_token %}
+          <button type="submit" class="action-link" title="Accept this proposal">&#10003; Accept</button>
+        </form>
+        <form method="post"
+              action="{% url 'proposal-reject' edge_pk=edge.pk %}"
+              style="display:inline"
+              hx-post="{% url 'proposal-reject' edge_pk=edge.pk %}"
+              hx-target="#proposal-list"
+              hx-swap="outerHTML">
+          {% csrf_token %}
+          <button type="submit" class="action-link" title="Reject and delete this proposal">&#10007; Reject</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty muted">No draft proposals to review.</p>
+  {% endif %}
+</div>

@@ -18,6 +18,7 @@ urlpatterns = [
     path("reader/", include("apps.documents.urls")),
     path("ontology/", include("apps.ontology.urls")),
     path("export/", include("apps.export.urls")),
+    path("", include("apps.llm.urls")),
     path(
         "docs/",
         login_required(TemplateView.as_view(template_name="docs/index.html")),

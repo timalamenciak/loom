@@ -244,6 +244,23 @@ class SchemaUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                 {"error": "Choose a schema YAML file to upload."},
             )
 
+        ext = Path(upload.name).suffix.lower()
+        if ext not in {".yaml", ".yml"}:
+            return render(
+                request,
+                "schemas/upload.html",
+                {
+                    "error": f"Unsupported file type {ext or upload.name!r}. Allowed: .yaml, .yml."
+                },
+            )
+        if upload.size > settings.MAX_SCHEMA_UPLOAD_BYTES:
+            limit_mb = settings.MAX_SCHEMA_UPLOAD_BYTES // (1024 * 1024)
+            return render(
+                request,
+                "schemas/upload.html",
+                {"error": f"Schema files may not exceed {limit_mb} MB."},
+            )
+
         yaml_bytes = upload.read()
         try:
             yaml_str = yaml_bytes.decode("utf-8")
@@ -384,10 +401,10 @@ class FormBuilderView(LoginRequiredMixin, UserPassesTestMixin, View):
             "schemas/form_builder.html",
             {
                 "sv": sv,
-                "config_json": json.dumps(_builder_state(config, list(slot_meta))),
-                "slot_meta_json": json.dumps(slot_meta),
-                "widget_choices_json": json.dumps(list(WIDGET_MAP.keys())),
-                "ontology_choices_json": json.dumps(_ontology_choices()),
+                "builder_state": _builder_state(config, list(slot_meta)),
+                "slot_meta": slot_meta,
+                "widget_choices": list(WIDGET_MAP.keys()),
+                "ontology_choices": _ontology_choices(),
             },
         )
 

@@ -18,10 +18,10 @@
 
 {% csrf_token %}
 
-<script type="application/json" id="form-builder-init">{{ config_json }}</script>
-<script type="application/json" id="form-builder-slot-meta">{{ slot_meta_json }}</script>
-<script type="application/json" id="form-builder-widget-choices">{{ widget_choices_json }}</script>
-<script type="application/json" id="form-builder-ontology-choices">{{ ontology_choices_json }}</script>
+{{ builder_state|json_script:"form-builder-init" }}
+{{ slot_meta|json_script:"form-builder-slot-meta" }}
+{{ widget_choices|json_script:"form-builder-widget-choices" }}
+{{ ontology_choices|json_script:"form-builder-ontology-choices" }}
 
 <div
   x-data="formBuilder('{% url 'schema-form-builder-save' sv.pk %}', '{% url 'schema-form-builder-import' sv.pk %}')"

@@ -7,7 +7,8 @@ the Causal Mosaic (CAMO) schema.
 
 The [annotator guide](user-guide/index.md) follows a complete assignment from
 the queue through submission. Start there if you are using Loom to annotate an
-article.
+article. The one-page [annotator guide](annotator-guide.md) covers what the
+multi-page guide doesn't yet: reviewing and accepting LLM proposals.
 
 The core workflow is:
 
@@ -21,5 +22,10 @@ The core workflow is:
 
 ## Administrators and developers
 
-The technical reference covers Loom's architecture, data model, operations,
-and service layer. It is separate from the task-focused annotator guide.
+The [admin guide](admin-guide.md) covers day-to-day admin tasks: loading and
+activating schemas, tuning the form builder, loading ontologies, and
+configuring the LLM pipeline. [`operations.md`](operations.md) covers
+deployment, backups, and health checks; [`migration-v0-to-v1.md`](migration-v0-to-v1.md)
+covers upgrading from v0.x. The rest of the technical reference covers
+Loom's architecture, data model, and service layer, separate from the
+task-focused guides above.

@@ -28,11 +28,19 @@ dependencies = [
     "rispy>=0.9",
     "gunicorn>=22.0",
     "whitenoise>=6.7",
+    # Redis cache backend for production (loom.settings.prod) — makes the
+    # schema/ontology update-check debounce (apps/schemas/views.py) actually
+    # shared across gunicorn workers instead of one 12-hour window each.
+    "django-redis>=5.4",
     # PDF extraction and Markdown generation: pdfplumber (MIT)
     # layout=True mode preserves multi-column reading order without ML models
     "pdfplumber>=0.11",
     # Server-side markdown rendering for canonical_markdown in annotation view
     "markdown>=3.6",
+    # HTML sanitizer for markdown-rendered output before it's marked safe —
+    # canonical_markdown can originate from an uploaded ZIP bundle sidecar
+    # (apps/projects/services.py) or PDF extraction, so it's not trusted input.
+    "nh3>=0.2",
     # Claude API client for the (disabled-by-default) LLM proposal seam
     "anthropic>=0.40",
 ]

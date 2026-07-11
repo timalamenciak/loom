@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Review LLM proposals — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<h2>Review LLM proposals</h2>
+<p class="muted">{{ project.name }}</p>
+<p class="muted" style="font-size:.85rem">
+  These are draft causal-edge proposals an LLM drafted for this project. Nothing here is
+  final until you accept it — accepting marks the edge complete under your name; rejecting
+  deletes it.
+</p>
+
+{% include "llm/partials/proposal_list.html" %}
+{% endblock %}

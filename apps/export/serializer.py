@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 
+from django.db.models import Prefetch
 from linkml_runtime.utils.schemaview import SchemaView
 
 from loom import __version__
@@ -95,7 +96,9 @@ def _serialize_node(node, slot_ranges: dict[str, str]) -> dict:
 
 def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
     out = []
-    for s in edge.spans.all().order_by("start_char"):
+    # Ordering is already baked into the Prefetch queryset in serialize_graph()
+    # — re-ordering here would bypass the prefetch cache and issue a query per edge.
+    for s in edge.spans.all():
         span = _clean(
             {"start_char": s.start_char, "end_char": s.end_char, "span_text": s.text},
             slot_ranges,
@@ -187,6 +190,8 @@ def serialize_graph(graph) -> dict:
     Does not include provenance — caller adds it with build_provenance() after
     serializing to YAML and computing the SHA-256.
     """
+    from apps.documents.models import TextSpan
+
     slot_ranges, edge_has_sd = _schema_info(graph.schema_version.linkml_yaml)
     nodes = [
         _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
@@ -200,7 +205,9 @@ def serialize_graph(graph) -> dict:
             source_document=source_document if edge_has_sd else None,
         )
         for e in graph.edges.select_related("subject", "object")
-        .all()
+        .prefetch_related(
+            Prefetch("spans", queryset=TextSpan.objects.order_by("start_char"))
+        )
         .order_by("-created_at")
     ]
     return {

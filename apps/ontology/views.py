@@ -4,6 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
@@ -356,6 +357,16 @@ class OntologyUploadView(LoginRequiredMixin, UserPassesTestMixin, View):
                 f"Allowed: {', '.join(sorted(_UPLOAD_EXTENSIONS))}."
             )
             return render(request, "ontology/ontology_upload.html", ctx)
+        if upload.size > settings.MAX_ONTOLOGY_UPLOAD_BYTES:
+            limit_mb = settings.MAX_ONTOLOGY_UPLOAD_BYTES // (1024 * 1024)
+            ctx["error"] = f"Ontology source files may not exceed {limit_mb} MB."
+            return render(request, "ontology/ontology_upload.html", ctx)
+        if ext == ".obo":
+            header = upload.read(2048)
+            upload.seek(0)
+            if b"format-version:" not in header:
+                ctx["error"] = "The uploaded file is not a valid OBO file."
+                return render(request, "ontology/ontology_upload.html", ctx)
 
         tmp_path = None
         try:

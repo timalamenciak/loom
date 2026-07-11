@@ -258,6 +258,13 @@ def delete_node(node: Node, actor) -> None:
     node.delete()
 
 
+@transaction.atomic
+def delete_edge(edge: Edge, actor) -> None:
+    """Delete a single edge, leaving its endpoint nodes untouched."""
+    emit_audit(actor, "edge.delete", "Edge", edge.pk)
+    edge.delete()
+
+
 def advance_edge_status(edge: Edge, actor) -> Edge:
     """Human-only status advancement: draft→complete."""
     transitions = {

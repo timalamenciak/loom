@@ -11,6 +11,8 @@ schema's form_spec() — no code change here.
 
 from __future__ import annotations
 
+import json
+
 
 def _slot_lines(slots: list[dict], indent: str = "") -> list[str]:
     lines = []
@@ -100,3 +102,30 @@ def build_system_prompt(class_specs: dict[str, list[dict]]) -> str:
     )
 
     return "\n".join(lines)
+
+
+def serialize_example(edge) -> dict:
+    """Render *edge* in the same JSON shape the model is asked to produce —
+    see the "## Output format" section build_system_prompt() emits."""
+    return {
+        "subject": {"name": edge.subject.name, **edge.subject.data},
+        "object": {"name": edge.object.name, **edge.object.data},
+        "edge": {**edge.data},
+        "source_text": edge.data.get("original_sentence", ""),
+    }
+
+
+def build_few_shot_messages(examples: list) -> list[dict]:
+    """Turn approved FewShotExamples into alternating user/assistant turns
+    a caller prepends before the main extraction request."""
+    messages: list[dict] = []
+    for example in examples:
+        edge = example.edge
+        source_text = edge.data.get("original_sentence", "")
+        messages.append(
+            {"role": "user", "content": f"Extract claims from: {source_text}"}
+        )
+        messages.append(
+            {"role": "assistant", "content": json.dumps(serialize_example(edge))}
+        )
+    return messages

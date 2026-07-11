@@ -25,8 +25,8 @@ import os
 
 import anthropic
 
-from .models import ProposerConfig
-from .prompt_builder import build_system_prompt
+from .models import FewShotExample, ProposerConfig
+from .prompt_builder import build_few_shot_messages, build_system_prompt
 from .proposer import ProposedEdge, ProposedNode
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,13 @@ class ClaudeProposer:
         if len(doc_text) > _MAX_DOCUMENT_CHARS:
             doc_text = doc_text[:_MAX_DOCUMENT_CHARS] + _TRUNCATION_NOTICE
 
+        examples = list(
+            FewShotExample.objects.filter(project=document.project)
+            .order_by("display_order")
+            .select_related("edge__subject", "edge__object")[: self.config.max_shots]
+        )
+        few_shot_messages = build_few_shot_messages(examples)
+
         client = anthropic.Anthropic(
             api_key=os.environ.get(self.config.api_key_env_var, "")
         )
@@ -75,7 +82,8 @@ class ClaudeProposer:
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
                 system=system_prompt,
-                messages=[
+                messages=few_shot_messages
+                + [
                     {
                         "role": "user",
                         "content": f"Extract causal claims from:\n\n{doc_text}",

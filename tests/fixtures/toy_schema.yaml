@@ -1,0 +1,181 @@
+## =============================================================================
+## Toy Schema — schema-agnosticism smoke-test fixture
+## =============================================================================
+## Deliberately non-CAMO vocabulary (name/description/strength/source_text/
+## confidence instead of entity_type/claim_strength/philosophical_account/...)
+## used by tests/e2e/test_full_annotation_workflow.py to prove Loom's forms,
+## validation, and export are driven by the active LinkML schema rather than
+## hardcoded to Causal Mosaic's own field names (CLAUDE.md's "one defining
+## constraint").
+##
+## Two things below are NOT free for this test to invent, and are not CAMO
+## vocabulary either — they're Loom's own fixed structural contract with any
+## schema it's pointed at:
+##
+##  1. The three class names (CausalGraph, CausalNode, CausalEdge). Loom's
+##     annotation views hardcode them (apps/schemas/services.py:
+##     REQUIRED_CAMO_CLASSES; apps/annotation/views.py's NodeCreateView/
+##     EdgeCreateView call lsv.bind_form_data("CausalNode", ...) / "CausalEdge"
+##     literally) — the same deliberate, documented exception CLAUDE.md
+##     carves out for SourceDocument.
+##
+##  2. A handful of Loom-managed bookkeeping slots that
+##     apps/export/serializer.py always writes into the exported instance
+##     regardless of active schema — node_id/edge_id/id (Loom-assigned
+##     identifiers), annotator (populated by
+##     apps.annotation.services._annotate_with_orcid), subject/object (the
+##     edge's endpoint node ids), source_document + provenance (graph-level
+##     bookkeeping objects apps/export/serializer.py always attaches). LinkML
+##     validation is closed-by-default, so any schema this pipeline validates
+##     against — CAMO included — has to declare these or export fails with
+##     "Additional properties are not allowed". This mirrors exactly what
+##     config/schema/camo-*.yaml itself declares for the same slots.
+##
+## Every field NOT in that list (name, description, strength, source_text,
+## confidence) is invented for this test and shares no vocabulary with CAMO.
+## =============================================================================
+
+id: https://example.org/toy
+name: toy-schema
+title: Toy Schema for Loom End-to-End Testing
+description: >-
+  A minimal non-CAMO-vocabulary LinkML schema used only to prove the Loom
+  annotation pipeline is schema-driven.
+license: CC0
+version: 1.0.0
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  toy: https://example.org/toy/
+
+default_prefix: toy
+default_range: string
+
+imports:
+  - linkml:types
+
+enums:
+  StrengthEnum:
+    permissible_values:
+      strong:
+        description: A strong effect.
+      moderate:
+        description: A moderate effect.
+      weak:
+        description: A weak effect.
+
+classes:
+  GraphProvenance:
+    description: >-
+      Export provenance metadata. Loom-managed (apps/export/serializer.py
+      build_provenance()) — not schema-specific, present regardless of the
+      active schema.
+    attributes:
+      schema_version_str:
+        range: string
+      ontology_snapshot_id:
+        range: string
+      exporter_version:
+        range: string
+      export_sha256:
+        range: string
+      exported_at:
+        range: string
+
+  SourceDocument:
+    description: >-
+      Bibliographic metadata for the source document. Loom-managed
+      (apps/export/serializer.py _serialize_source_document()) — see
+      CLAUDE.md's documented SourceDocument schema-agnosticism exception.
+    attributes:
+      doc_title:
+        range: string
+      doc_authors:
+        range: string
+        multivalued: true
+      doc_year:
+        range: integer
+      doc_doi:
+        range: string
+      doc_journal:
+        range: string
+
+  CausalGraph:
+    description: Top-level graph container.
+    tree_root: true
+    attributes:
+      graph_id:
+        description: Unique identifier for this graph.
+        range: string
+        required: true
+        identifier: true
+      provenance:
+        range: GraphProvenance
+      source_document:
+        range: SourceDocument
+      nodes:
+        description: All toy entity nodes.
+        range: CausalNode
+        multivalued: true
+        inlined_as_list: true
+      edges:
+        description: All toy causal relationships.
+        range: CausalEdge
+        multivalued: true
+        inlined_as_list: true
+
+  CausalNode:
+    description: A toy entity node.
+    attributes:
+      id:
+        description: Loom-assigned unique node identifier.
+        range: string
+        identifier: true
+      node_id:
+        description: Loom-assigned stable node id (mirrors id).
+        range: string
+      annotator:
+        description: Annotator identifier, populated by Loom.
+        range: string
+      name:
+        description: Human-readable label for this node.
+        range: string
+        required: true
+      description:
+        description: Free-text description of this node.
+        range: string
+
+  CausalEdge:
+    description: A toy causal relationship between two nodes.
+    attributes:
+      id:
+        description: Loom-assigned unique edge identifier.
+        range: string
+        identifier: true
+      edge_id:
+        description: Loom-assigned stable edge id (mirrors id).
+        range: string
+      subject:
+        description: The causal subject node.
+        range: CausalNode
+      object:
+        description: The causal object node.
+        range: CausalNode
+      annotator:
+        description: Annotator identifier, populated by Loom.
+        range: string
+      name:
+        description: Human-readable label for this edge.
+        range: string
+      strength:
+        description: How strong the causal effect is.
+        range: StrengthEnum
+        required: true
+      source_text:
+        description: The exact sentence from the source text supporting this claim.
+        range: string
+      confidence:
+        description: Numeric confidence score for this claim, from 0.0 to 1.0.
+        range: float
+        minimum_value: 0.0
+        maximum_value: 1.0

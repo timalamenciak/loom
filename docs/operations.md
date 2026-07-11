@@ -10,6 +10,24 @@ Run Loom with `DJANGO_SETTINGS_MODULE=loom.settings.prod`. Production startup
 requires `SECRET_KEY` and `ALLOWED_HOSTS`; set `CSRF_TRUSTED_ORIGINS` when Loom
 is served from an HTTPS origin behind a reverse proxy. Use unique database
 credentials and keep PostgreSQL and uploaded media on persistent storage.
+`loom.settings.prod` also requires a reachable Redis instance
+(`REDIS_URL`, default `redis://cache:6379/1`) — it's the cache backend for
+the schema/ontology update-check debounce, and without it that check would
+run independently per gunicorn worker instead of once per instance. See
+`.env.example` for every production-only variable.
+
+`docker-compose.prod.yml` is the reference deployment: `db` (Postgres 16,
+matching dev — not 15, so migrations and query behavior are never tested
+against one version and run against another), `cache` (Redis), `migrate`
+(runs once, gates `web`/`ontology-worker` via `depends_on:
+condition: service_completed_successfully`), `web` (gunicorn, from the
+Dockerfile's default `CMD` — unlike the dev compose it does not bind-mount
+the repo or override the command with the dev server), and
+`ontology-worker`. Bring it up with:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+```
 
 Before starting a release:
 
