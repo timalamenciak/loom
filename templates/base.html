@@ -107,6 +107,57 @@
     .message-warning { background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; }
     .message-info    { background: #dcfce7; color: #14532d; border: 1px solid #bbf7d0; }
 
+    /* ── Update notification banner ── */
+    .update-banners { padding: .5rem 1.5rem 0; }
+    .update-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      background: #fef3c7;
+      color: #78350f;
+      border: 1px solid #fde68a;
+      border-radius: var(--radius-sm);
+      padding: .5rem .85rem;
+      margin-bottom: .25rem;
+      font-size: .875rem;
+    }
+    .update-banner-close {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 .25rem;
+    }
+    [x-cloak] { display: none !important; }
+
+    /* ── Update diff / apply-confirm pages ── */
+    .diff-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .diff-table th, .diff-table td {
+      text-align: left;
+      vertical-align: top;
+      padding: .6rem .75rem;
+      border: 1px solid var(--border);
+      width: 33.33%;
+    }
+    .diff-table th.diff-added   { background: #d1fae5; color: #065f46; }
+    .diff-table th.diff-removed { background: #fee2e2; color: #7f1d1d; }
+    .diff-table th.diff-changed { background: #fef3c7; color: #92400e; }
+    .diff-table ul { margin: 0; padding-left: 1.1rem; }
+    .diff-table li { font-family: monospace; font-size: .85rem; }
+    .release-notes {
+      white-space: pre-wrap;
+      background: var(--brand-pale);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: .75rem 1rem;
+      font-size: .85rem;
+    }
+    .apply-confirm-checkbox { display: flex; align-items: center; gap: .4rem; margin: 1rem 0; font-size: .9rem; }
+    .update-actions { margin-top: 1.5rem; display: flex; gap: .6rem; }
+
     /* ── Layout ── */
     .main { padding: 1.75rem 1.5rem; max-width: 1260px; }
 
@@ -320,6 +371,26 @@
     <button type="submit">Log out</button>
   </form>
 </nav>
+{% endif %}
+
+{% if user.is_staff and pending_updates %}
+<div class="update-banners">
+  {% for u in pending_updates %}
+  <div class="update-banner" x-data="{ dismissed: false }" x-show="!dismissed" x-cloak>
+    <span>
+      {{ u.module_type|title }} update available: <strong>{{ u.module_name }}</strong>
+      {% if u.available_version %}&mdash; {{ u.available_version }}{% endif %}
+      &middot; <a href="{% url 'update-diff' u.pk %}">View diff</a>
+    </span>
+    <form method="post" action="{% url 'dismiss-update' u.pk %}"
+          hx-post="{% url 'dismiss-update' u.pk %}" hx-swap="none" style="margin:0">
+      {% csrf_token %}
+      <button type="submit" class="update-banner-close" @click="dismissed = true"
+              aria-label="Dismiss update notification">&times;</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
 {% endif %}
 
 {% if messages %}

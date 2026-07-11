@@ -1,0 +1,50 @@
+{% if record.module_type == "schema" %}
+  <table class="diff-table">
+    <thead>
+      <tr>
+        <th class="diff-added">Added slots</th>
+        <th class="diff-removed">Removed slots</th>
+        <th class="diff-changed">Changed enums</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          {% if record.diff_summary.added_slots %}
+            <ul>{% for slot in record.diff_summary.added_slots %}<li>{{ slot }}</li>{% endfor %}</ul>
+          {% else %}
+            <span class="muted">None</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if record.diff_summary.removed_slots %}
+            <ul>{% for slot in record.diff_summary.removed_slots %}<li>{{ slot }}</li>{% endfor %}</ul>
+          {% else %}
+            <span class="muted">None</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if record.diff_summary.changed_enums %}
+            <ul>{% for enum in record.diff_summary.changed_enums %}<li>{{ enum }}</li>{% endfor %}</ul>
+          {% else %}
+            <span class="muted">None</span>
+          {% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if record.release_notes %}
+  <h2>Release notes</h2>
+  <div class="release-notes">{{ record.release_notes }}</div>
+  {% endif %}
+{% else %}
+  <div class="ontology-diff">
+    {% if record.diff_summary.etag_changed %}
+    <p>Upstream content has changed (ETag/Last-Modified mismatch) since this ontology was last loaded.</p>
+    {% endif %}
+    {% if record.download_url %}
+    <p class="muted" style="font-size:.85rem">Source: {{ record.download_url }}</p>
+    {% endif %}
+  </div>
+{% endif %}

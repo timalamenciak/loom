@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    ApplyUpdateView,
+    DismissUpdateView,
     FormBuilderExportView,
     FormBuilderImportView,
     FormBuilderSaveView,
@@ -9,11 +11,27 @@ from .views import (
     SchemaDetailView,
     SchemaListView,
     SchemaUploadView,
+    UpdateDiffView,
 )
 
 urlpatterns = [
     path("", SchemaListView.as_view(), name="schema-list"),
     path("upload/", SchemaUploadView.as_view(), name="schema-upload"),
+    path(
+        "updates/<int:pk>/dismiss/",
+        DismissUpdateView.as_view(),
+        name="dismiss-update",
+    ),
+    path(
+        "updates/<int:pk>/diff/",
+        UpdateDiffView.as_view(),
+        name="update-diff",
+    ),
+    path(
+        "updates/<int:pk>/apply/",
+        ApplyUpdateView.as_view(),
+        name="apply-update",
+    ),
     path("<int:pk>/", SchemaDetailView.as_view(), name="schema-detail"),
     path("<int:pk>/activate/", SchemaActivateView.as_view(), name="schema-activate"),
     path(

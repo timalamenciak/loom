@@ -97,3 +97,39 @@ class SchemaUIConfig(models.Model):
             globally_hidden_slots=raw.get("globally_hidden_slots") or [],
             slot_help_text=raw.get("slot_help_text") or {},
         )
+
+
+class UpdateCheckRecord(models.Model):
+    MODULE_SCHEMA = "schema"
+    MODULE_ONTOLOGY = "ontology"
+    MODULE_TYPE_CHOICES = [
+        (MODULE_SCHEMA, "Schema"),
+        (MODULE_ONTOLOGY, "Ontology"),
+    ]
+
+    module_type = models.CharField(max_length=20, choices=MODULE_TYPE_CHOICES)
+    module_name = models.CharField(max_length=100)
+    current_version = models.CharField(max_length=50)
+    available_version = models.CharField(max_length=50, blank=True)
+    is_update_available = models.BooleanField(default=False)
+    checked_at = models.DateTimeField(auto_now=True)
+    release_notes = models.TextField(blank=True)
+    diff_summary = models.JSONField(default=dict)
+    download_url = models.URLField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [("module_type", "module_name")]
+
+    def __str__(self):
+        flag = " [update available]" if self.is_update_available else ""
+        return f"{self.module_type}:{self.module_name} {self.current_version}{flag}"
+
+    def dismiss_session_key(self) -> str:
+        """Session key a user's Dismiss click sets to hide this record's
+        banner. Scoped to available_version (not just pk): this row is
+        upserted in place on every check, so once a *different* update is
+        detected the old dismissal no longer matches and the banner reappears
+        — a bare per-pk key would otherwise hide every future update to this
+        module forever after one dismissal.
+        """
+        return f"dismissed_update_{self.pk}_{self.available_version}"

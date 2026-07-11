@@ -33,6 +33,8 @@ dependencies = [
     "pdfplumber>=0.11",
     # Server-side markdown rendering for canonical_markdown in annotation view
     "markdown>=3.6",
+    # Claude API client for the (disabled-by-default) LLM proposal seam
+    "anthropic>=0.40",
 ]
 
 [project.optional-dependencies]

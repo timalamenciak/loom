@@ -1,13 +1,15 @@
 import hashlib
 import json
+import threading
 from pathlib import Path
 
 import yaml
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
-from django.db import IntegrityError
+from django.db import IntegrityError, connections
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
@@ -16,8 +18,17 @@ from linkml_runtime.utils.schemaview import SchemaView
 
 from apps.ontology.models import OntologyRelease
 
-from .models import SchemaUIConfig, SchemaVersion
+from .models import SchemaUIConfig, SchemaVersion, UpdateCheckRecord
 from .schema_engine import WIDGET_MAP, LoomSchemaView, get_schema_view, invalidate_cache
+from .update_service import (
+    apply_ontology_update,
+    apply_schema_update,
+    check_all_updates,
+)
+from .upstream import UpstreamCheckError
+
+_UPDATE_CHECK_CACHE_KEY = "loom:update_check_last_run"
+_UPDATE_CHECK_INTERVAL_SECONDS = 60 * 60 * 12  # 12 hours
 
 
 def _load_ui_config():
@@ -34,11 +45,146 @@ def _require_superuser(request):
         raise PermissionDenied
 
 
+def _run_in_background(target, *args):
+    """Fire-and-forget *target(*args)* on a daemon thread.
+
+    Django's per-thread DB connection is normally closed by the
+    request_finished signal, which a thread spawned off a view never gets —
+    without this, each background trigger leaks a connection. Closing it
+    here, in the same thread that opened it, is the standard fix.
+    """
+
+    def _wrapped():
+        try:
+            target(*args)
+        finally:
+            connections.close_all()
+
+    threading.Thread(target=_wrapped, daemon=True).start()
+
+
+def _maybe_trigger_update_check():
+    """Kick off a background schema/ontology update check at most once per
+    12-hour window, without Celery.
+
+    A daemon thread running check_all_updates() is fire-and-forget: it never
+    blocks this request, and it persists its results to UpdateCheckRecord for
+    the *next* page load to read. cache.add() (not get-then-set) is what
+    debounces repeat triggers — it's atomic, so two requests racing on a cold
+    cache can't both win and both spawn a check. Note this debounce is only
+    as global as the cache backend: with the default per-process LocMemCache
+    under multiple worker processes, each worker gets its own 12-hour window.
+    """
+    if not cache.add(_UPDATE_CHECK_CACHE_KEY, True, _UPDATE_CHECK_INTERVAL_SECONDS):
+        return
+    _run_in_background(check_all_updates)
+
+
 class SchemaListView(LoginRequiredMixin, View):
     def get(self, request):
         _require_superuser(request)
+        _maybe_trigger_update_check()
         schemas = SchemaVersion.objects.all().order_by("-loaded_at")
         return render(request, "schemas/schema_list.html", {"schemas": schemas})
+
+
+class DismissUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Staff-only: suppress one UpdateCheckRecord's banner for this user's
+    session. Per-session, not per-record: the update-check itself isn't
+    touched, so the next scheduled check still runs and other admins still
+    see the banner until they dismiss it too.
+
+    Called from two places that need different responses: the base.html
+    banner posts via hx-swap="none" and just wants the row gone client-side
+    (204, no body), while the update-diff page's plain Dismiss button is a
+    normal form submit that needs a real redirect to go anywhere. HTMX tags
+    every request it makes with HX-Request, so that header is what tells the
+    two apart.
+    """
+
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff
+
+    def post(self, request, pk):
+        record = get_object_or_404(UpdateCheckRecord, pk=pk)
+        request.session[record.dismiss_session_key()] = True
+        if request.headers.get("HX-Request"):
+            return HttpResponse(status=204)
+        return redirect("schema-list")
+
+
+class UpdateDiffView(LoginRequiredMixin, View):
+    """Superuser-only, matching every other schema-admin view in this app
+    (SchemaListView, SchemaActivateView, SchemaDetailView) — this is where
+    Apply/Dismiss redirect back to, so gating it any looser than schema-list
+    itself would just move the 403 one click later instead of avoiding it.
+    The notification banner (staff-visible, per apps/schemas/context_processors.py)
+    can link here even for staff-non-superuser users; they'll hit the same
+    403 a superuser-only page always gives them, same as any other admin link
+    in the nav.
+    """
+
+    def get(self, request, pk):
+        _require_superuser(request)
+        record = get_object_or_404(UpdateCheckRecord, pk=pk)
+        return render(request, "schemas/update_diff.html", {"record": record})
+
+
+class ApplyUpdateView(LoginRequiredMixin, View):
+    """Superuser-only — see UpdateDiffView's docstring.
+
+    GET renders a confirmation page (the diff again, plus an "activate
+    immediately" checkbox for schema updates) rather than applying anything.
+    POST only acts when confirm=1 is present in the body, so a bare/replayed
+    POST — someone re-submitting a form, a proxy retry — bounces back to the
+    confirmation page instead of silently re-applying.
+
+    Schema updates are one small YAML file, so they're applied synchronously
+    and the admin gets an immediate success/failure message. Ontology
+    reloads can be large, so they're kicked off on a background daemon
+    thread instead — the same no-Celery pattern
+    _maybe_trigger_update_check() already uses for the check itself — and
+    the admin is told to check back shortly rather than waiting on it.
+    """
+
+    def get(self, request, pk):
+        _require_superuser(request)
+        record = get_object_or_404(UpdateCheckRecord, pk=pk)
+        return render(request, "schemas/apply_update.html", {"record": record})
+
+    def post(self, request, pk):
+        _require_superuser(request)
+        record = get_object_or_404(UpdateCheckRecord, pk=pk)
+
+        if request.POST.get("confirm") != "1":
+            return redirect("apply-update", pk=pk)
+
+        if record.module_type == UpdateCheckRecord.MODULE_SCHEMA:
+            activate = request.POST.get("activate") == "on"
+            try:
+                schema, created = apply_schema_update(record, activate=activate)
+            except UpstreamCheckError as exc:
+                messages.error(request, f"Could not apply update: {exc}")
+                return redirect("apply-update", pk=pk)
+            if not created:
+                messages.info(request, f"CAMO {schema.version} was already loaded.")
+            elif schema.is_active:
+                messages.success(
+                    request, f"CAMO {schema.version} loaded and activated."
+                )
+            else:
+                messages.success(request, f"CAMO {schema.version} loaded.")
+        else:
+            _run_in_background(apply_ontology_update, record)
+            messages.success(
+                request,
+                f"Reloading {record.module_name} in the background — "
+                "check back shortly.",
+            )
+
+        return redirect("schema-list")
 
 
 class SchemaActivateView(LoginRequiredMixin, View):

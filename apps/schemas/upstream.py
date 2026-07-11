@@ -1,11 +1,14 @@
 """Client for the causalmosaic GitHub Releases API — the CAMO schema's
 upstream release channel (see the causalmosaic AGENTS.md release checklist).
 
-This is an opt-in admin convenience used only by the check_schema_updates and
-update_schema management commands. It must never sit on a request-serving
-code path: Loom explicitly targets network-restricted deployments, so every
-network call here fails soft with UpstreamCheckError rather than raising a
-raw connection error.
+This is an opt-in admin convenience: the check_schema_updates and
+update_schema management commands call it directly and synchronously, and
+apps.schemas.update_service.check_schema_update() calls it from a background
+daemon thread spawned by SchemaListView (see apps.schemas.views) — never
+inline in a request/response cycle, so a page load is never blocked or
+delayed by it. Loom explicitly targets network-restricted deployments, so
+every network call here fails soft with UpstreamCheckError rather than
+raising a raw connection error.
 
 Uses only the standard library (urllib) — no new dependency for what is,
 today, a handful of infrequent admin-triggered HTTP calls.

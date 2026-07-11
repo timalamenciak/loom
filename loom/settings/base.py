@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     "apps.documents",  # Phase 3
     "apps.ontology",  # Phase 4
     "apps.export",  # Phase 6
-    # "apps.llm",        # Phase 12 (seam only, disabled by flag)
+    "apps.llm",  # Phase 12 (seam + ProposerConfig; LLM_PROPOSALS_ENABLED gates it off)
     "apps.audit",  # Phase 5
 ]
 
@@ -66,6 +66,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.schemas.context_processors.pending_updates",
             ],
         },
     },
