@@ -43,6 +43,7 @@
         </form>
         {% endif %}
         <a href="{% url 'schema-detail' sv.pk %}" class="btn-sm">Preview spec</a>
+        <a href="{% url 'schema-form-builder' sv.pk %}" class="btn-sm">Edit form</a>
       </td>
     </tr>
     {% endfor %}

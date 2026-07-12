@@ -87,15 +87,18 @@ source of truth.
 
 8. **`SourceDocument` is a deliberate schema-agnosticism exception.**
    `SourceDocument` is the only CAMO class that receives special treatment in
-   Loom code: it is stored once per `CausalGraph` (not per edge), pre-populated
-   from `Document` bibliographic fields, and can act as a **rollup target** for
-   node/edge JSONB attributes. Project admins configure rollup rules in
-   `Project.source_document_rollup` (a JSONField list of
-   `{slot, source, attribute, operation}` dicts); the engine in
-   `apps/annotation/rollup.py` aggregates values at form-display time and at
-   export time. This breaks the "any LinkML schema" principle intentionally —
-   CAMO always has a `SourceDocument` class. Do not extend this special-casing
-   to any other class without a documented rationale.
+   Loom code: it is stored once per `CausalGraph` (not per edge) and
+   pre-populated from `Document` bibliographic fields. This breaks the
+   "any LinkML schema" principle intentionally — CAMO always has a
+   `SourceDocument` class. Do not extend this special-casing to any other
+   class without a documented rationale.
+
+   Loom previously offered per-project rollup rules (`Project
+   .source_document_rollup` + `apps/annotation/rollup.py`) to aggregate
+   node/edge JSONB attributes into `SourceDocument` slots. That was removed:
+   aggregating attributes across nodes/edges connected to a graph (e.g. every
+   taxon entity referenced by an edge) is now expected to happen at the
+   schema/export level rather than as per-project configuration state.
 
 ---
 

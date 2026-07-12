@@ -90,20 +90,6 @@ def _require_owner(request, project):
     raise PermissionDenied
 
 
-def _sd_slots(project) -> list[str]:
-    """Return SourceDocument slot names from the project's active schema."""
-    sv = project.active_schema
-    if not sv:
-        return []
-    try:
-        from apps.schemas.schema_engine import get_schema_view
-
-        lsv = get_schema_view(sv)
-        return [s.name for s in lsv._sv.class_induced_slots("SourceDocument")]
-    except Exception:
-        return []
-
-
 # ---------------------------------------------------------------------------
 # Queue (annotator-facing, no project scope)
 # ---------------------------------------------------------------------------
@@ -249,21 +235,12 @@ class ProjectSettingsView(LoginRequiredMixin, View):
             else {"matched": [], "unresolved": []}
         )
         latest_load = project.ontology_load_requests.first()
-        from apps.annotation.models import CausalGraph
-
-        sample_graphs = list(
-            CausalGraph.objects.filter(document__project=project)
-            .select_related("document", "annotator")
-            .order_by("-updated_at")[:10]
-        )
         return {
             "project": project,
             "form": form,
             "inferred": inferred,
             "latest_load": latest_load,
             "ontology_statuses": project_ontology_status(project),
-            "sd_slots": _sd_slots(project),
-            "sample_graphs": sample_graphs,
         }
 
     def get(self, request, pk):
@@ -783,131 +760,6 @@ class RegisterOntologySourceView(LoginRequiredMixin, View):
             f'Registered "{name}" ({prefix}); download and indexing are queued.',
         )
         return redirect("project-settings", pk=project.pk)
-
-
-# ---------------------------------------------------------------------------
-# Source document rollup configuration
-# ---------------------------------------------------------------------------
-
-
-class RollupAddRuleView(LoginRequiredMixin, View):
-    """POST: append a rollup rule to the project; redirect back to settings."""
-
-    def post(self, request, pk):
-        project = _require_owner(request, get_object_or_404(Project, pk=pk))
-        slot = request.POST.get("slot", "").strip()
-        source = request.POST.get("source", "").strip()
-        attribute = request.POST.get("attribute", "").strip()
-        operation = request.POST.get("operation", "list_unique").strip()
-
-        rules = list(project.source_document_rollup or [])
-        errors = []
-        if not slot:
-            errors.append("Slot is required.")
-        elif any(r.get("slot") == slot for r in rules):
-            errors.append(f"A rule for slot '{slot}' already exists.")
-        if source not in ("node", "edge"):
-            errors.append("Source must be 'node' or 'edge'.")
-        if not attribute:
-            errors.append("Attribute path is required.")
-        if operation not in ("list_unique", "list_all"):
-            errors.append("Invalid operation.")
-
-        if errors:
-            for error in errors:
-                messages.error(request, error)
-        else:
-            rules.append(
-                {
-                    "slot": slot,
-                    "source": source,
-                    "attribute": attribute,
-                    "operation": operation,
-                }
-            )
-            project.source_document_rollup = rules
-            project.save(update_fields=["source_document_rollup", "updated_at"])
-            AuditEvent.objects.create(
-                actor=request.user,
-                action="project.rollup.add",
-                target_type="Project",
-                target_id=str(project.pk),
-                diff={
-                    "slot": slot,
-                    "source": source,
-                    "attribute": attribute,
-                    "operation": operation,
-                },
-            )
-            messages.success(request, f"Rollup rule for '{slot}' added.")
-
-        return redirect("project-settings", pk=project.pk)
-
-
-class RollupRemoveRuleView(LoginRequiredMixin, View):
-    """POST: remove a rollup rule by slot name; redirect back to settings."""
-
-    def post(self, request, pk, slot):
-        project = _require_owner(request, get_object_or_404(Project, pk=pk))
-        rules = [
-            r for r in (project.source_document_rollup or []) if r.get("slot") != slot
-        ]
-        project.source_document_rollup = rules
-        project.save(update_fields=["source_document_rollup", "updated_at"])
-        AuditEvent.objects.create(
-            actor=request.user,
-            action="project.rollup.remove",
-            target_type="Project",
-            target_id=str(project.pk),
-            diff={"slot": slot},
-        )
-        messages.success(request, f"Rollup rule for '{slot}' removed.")
-        return redirect("project-settings", pk=project.pk)
-
-
-class RollupPreviewView(LoginRequiredMixin, View):
-    """POST: apply rollup rules to a selected graph and return a preview partial."""
-
-    def post(self, request, pk):
-        project = _require_owner(request, get_object_or_404(Project, pk=pk))
-        from apps.annotation.models import CausalGraph
-
-        graph_pk = request.POST.get("graph_pk", "").strip()
-        if not graph_pk:
-            return render(
-                request,
-                "projects/partials/rollup_preview.html",
-                {"error": "No graph selected."},
-            )
-
-        graph = get_object_or_404(CausalGraph, pk=graph_pk, document__project=project)
-        rules = project.source_document_rollup or []
-        if not rules:
-            return render(
-                request,
-                "projects/partials/rollup_preview.html",
-                {"error": "No rollup rules configured."},
-            )
-
-        from apps.annotation.rollup import roll_up_source_document
-
-        nodes_data = list(graph.nodes.values_list("data", flat=True))
-        edges_data = list(graph.edges.values_list("data", flat=True))
-        rolled = roll_up_source_document(nodes_data, edges_data, rules)
-
-        # Pre-pair rules with their resulting values for the template
-        rule_results = [
-            {"rule": rule, "values": rolled.get(rule["slot"], [])} for rule in rules
-        ]
-
-        return render(
-            request,
-            "projects/partials/rollup_preview.html",
-            {
-                "graph": graph,
-                "rule_results": rule_results,
-            },
-        )
 
 
 # ---------------------------------------------------------------------------

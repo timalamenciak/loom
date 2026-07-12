@@ -154,8 +154,8 @@ def _serialize_source_document(document, slot_ranges: dict[str, str]) -> dict:
 
 def _build_graph_source_document(graph, slot_ranges: dict[str, str]) -> dict:
     """
-    Merge doc bib fields, project rollup values, and annotator-supplied data.
-    Priority (highest wins): annotator saved > rolled up > doc bib fields.
+    Merge doc bib fields and annotator-supplied data.
+    Priority (highest wins): annotator saved > doc bib fields.
     """
     document = graph.document
     doc_bib: dict = {}
@@ -170,17 +170,8 @@ def _build_graph_source_document(graph, slot_ranges: dict[str, str]) -> dict:
     if document.journal:
         doc_bib["journal"] = document.journal
 
-    rules = getattr(document.project, "source_document_rollup", None) or []
-    rolled: dict = {}
-    if rules:
-        from apps.annotation.rollup import roll_up_source_document
-
-        nodes_data = list(graph.nodes.values_list("data", flat=True))
-        edges_data = list(graph.edges.values_list("data", flat=True))
-        rolled = roll_up_source_document(nodes_data, edges_data, rules)
-
     annotator_data = graph.source_document or {}
-    return _clean({**doc_bib, **rolled, **annotator_data}, slot_ranges)
+    return _clean({**doc_bib, **annotator_data}, slot_ranges)
 
 
 def serialize_graph(graph) -> dict:
