@@ -91,14 +91,21 @@ def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
 def _serialize_node(node, slot_ranges: dict[str, str]) -> dict:
     base = {"node_id": node.node_id, "name": node.name}
     merged = {**node.data, **base}
-    return _clean(merged, slot_ranges)
+    result = _clean(merged, slot_ranges)
+
+    # DB-linked spans are authoritative; replace any JSONB source_spans
+    spans = _serialize_spans(node, slot_ranges)
+    if spans:
+        result["source_spans"] = spans
+
+    return result
 
 
-def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
+def _serialize_spans(entity, slot_ranges: dict[str, str]) -> list[dict]:
     out = []
     # Ordering is already baked into the Prefetch queryset in serialize_graph()
-    # — re-ordering here would bypass the prefetch cache and issue a query per edge.
-    for s in edge.spans.all():
+    # — re-ordering here would bypass the prefetch cache and issue a query per node/edge.
+    for s in entity.spans.all():
         span = _clean(
             {"start_char": s.start_char, "end_char": s.end_char, "span_text": s.text},
             slot_ranges,
@@ -185,7 +192,10 @@ def serialize_graph(graph) -> dict:
 
     slot_ranges, edge_has_sd = _schema_info(graph.schema_version.linkml_yaml)
     nodes = [
-        _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
+        _serialize_node(n, slot_ranges)
+        for n in graph.nodes.prefetch_related(
+            Prefetch("spans", queryset=TextSpan.objects.order_by("start_char"))
+        ).order_by("name")
     ]
     # Build source_document once; inject into edges only when the schema supports it
     source_document = _build_graph_source_document(graph, slot_ranges)

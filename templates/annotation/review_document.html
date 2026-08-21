@@ -85,11 +85,11 @@
       <tbody>
         {% for edge in row.edges %}
         <tr style="border-bottom:1px solid #f3f4f6">
-          <td style="padding:.3rem .75rem">{{ edge.subject.name|truncatechars:30 }}</td>
+          <td style="padding:.3rem .75rem" title="{{ edge.subject.name }}">{{ edge.subject.name }}</td>
           <td style="padding:.3rem .5rem">
             <span class="tag" style="font-size:.72rem">{{ edge.predicate|default:"—" }}</span>
           </td>
-          <td style="padding:.3rem .75rem">{{ edge.object.name|truncatechars:30 }}</td>
+          <td style="padding:.3rem .75rem" title="{{ edge.object.name }}">{{ edge.object.name }}</td>
           <td style="padding:.3rem .5rem;color:#6b7280">{{ edge.claim_strength|default:"—" }}</td>
           <td style="padding:.3rem .5rem">
             <span class="badge badge-{{ edge.status }}">{{ edge.get_status_display }}</span>

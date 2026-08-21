@@ -123,7 +123,7 @@ def _graph_panel_ctx(project, document, graph, assignment):
     nodes, edges = _graph_nodes_edges(graph)
     spans = list(
         TextSpan.objects.filter(document=document, created_by=assignment.annotator)
-        .select_related("node", "edge")
+        .prefetch_related("nodes", "edges")
         .order_by("start_char")
     )
     return {
@@ -203,45 +203,50 @@ def _grounding_options(
     target=None,
     selected_ids=None,
 ):
+    """Build the excerpt checkbox list for a node/edge form.
+
+    A span may ground any number of nodes and edges at once, so every span is
+    always selectable here — `other_link_count` is purely informational,
+    surfacing how many *other* nodes/edges (of the same kind) already use it.
+    """
     has_explicit_selection = selected_ids is not None
     selected = set(selected_ids or [])
     target_id = getattr(target, "pk", None)
     options = []
     spans = (
         TextSpan.objects.filter(document=document, created_by=user)
-        .select_related("node", "edge")
+        .prefetch_related("nodes", "edges")
         .order_by("start_char")
     )
     for span in spans:
-        linked_id = span.node_id if target_kind == "node" else span.edge_id
-        unavailable = linked_id is not None and linked_id != target_id
+        related = span.nodes.all() if target_kind == "node" else span.edges.all()
+        linked_ids = {obj.pk for obj in related}
+        currently_linked = target_id in linked_ids
         options.append(
             {
                 "span": span,
-                "selected": not unavailable
-                and (
-                    span.pk in selected
-                    if has_explicit_selection
-                    else linked_id == target_id
+                "selected": (
+                    span.pk in selected if has_explicit_selection else currently_linked
                 ),
-                "unavailable": unavailable,
+                "other_link_count": len(linked_ids - {target_id}),
             }
         )
     return options
 
 
 def _selected_spans(document, user, span_ids, *, target_kind, target=None):
-    target_id = getattr(target, "pk", None)
-    spans = list(
+    """Return the requested spans the user may reference.
+
+    Under the many-to-many grounding model there's nothing to exclude by
+    target — any visible span the user selected is valid for any node/edge.
+    """
+    return list(
         TextSpan.objects.filter(
             pk__in=span_ids,
             document=document,
             created_by=user,
         ).order_by("start_char")
     )
-    if target_kind == "node":
-        return [span for span in spans if span.node_id in {None, target_id}]
-    return [span for span in spans if span.edge_id in {None, target_id}]
 
 
 def _excerpt_text(spans) -> str:
@@ -396,7 +401,7 @@ class AnnotationView(LoginRequiredMixin, View):
         # Canonical text with span highlights
         spans = list(
             TextSpan.objects.filter(document=document, created_by=request.user)
-            .select_related("node", "edge")
+            .prefetch_related("nodes", "edges")
             .order_by("start_char")
         )
         highlighted_text = ""

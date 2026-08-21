@@ -116,6 +116,60 @@ class TestProposalReviewView:
 
         assert response.status_code == 403
 
+    def test_annotator_only_sees_own_document_proposals(
+        self, client, project, graph, assignment
+    ):
+        """An annotator assigned elsewhere in the project must not see (or
+        act on) another annotator's document proposals."""
+        from django.contrib.auth import get_user_model
+
+        edge = _make_proposed_edge(graph)
+
+        other_annotator = get_user_model().objects.create_user(
+            "proposal-review-other-annotator", password="x"
+        )
+        ProjectMembership.objects.create(
+            project=project, user=other_annotator, role=ProjectMembership.ROLE_ANNOTATOR
+        )
+        other_document = Document.objects.create(
+            project=project, source=Document.SOURCE_RIS_IMPORT, title="Other paper"
+        )
+        Assignment.objects.create(
+            project=project,
+            document=other_document,
+            annotator=other_annotator,
+            assigned_by=assignment.assigned_by,
+            status=Assignment.STATUS_ASSIGNED,
+        )
+        client.force_login(other_annotator)
+
+        response = client.get(reverse("proposal-review", args=[project.pk]))
+        assert response.status_code == 200
+        assert f"proposal-{edge.pk}" not in response.content.decode()
+
+        response = client.post(reverse("proposal-accept", args=[edge.pk]))
+        assert response.status_code == 403
+        edge.refresh_from_db()
+        assert edge.status == Edge.STATUS_DRAFT
+
+    def test_reviewer_role_can_access_without_assignment(
+        self, client, project, graph, assignment
+    ):
+        from django.contrib.auth import get_user_model
+
+        edge = _make_proposed_edge(graph)
+        reviewer = get_user_model().objects.create_user(
+            "proposal-review-reviewer", password="x"
+        )
+        ProjectMembership.objects.create(
+            project=project, user=reviewer, role=ProjectMembership.ROLE_REVIEWER
+        )
+        client.force_login(reviewer)
+
+        response = client.get(reverse("proposal-review", args=[project.pk]))
+        assert response.status_code == 200
+        assert f"proposal-{edge.pk}" in response.content.decode()
+
 
 class TestProposalActions:
     def test_accept_advances_status(self, client, project, graph, assignment):

@@ -317,16 +317,19 @@ def test_annotation_services_reject_cross_graph_endpoints_and_audit(workspace):
     assert AuditEvent.objects.filter(action="edge.delete").exists()
 
 
-def test_annotation_span_linking_does_not_steal_grounding(workspace):
+def test_annotation_span_linking_is_many_to_many(workspace):
+    """A span may ground multiple nodes/edges; linking one target never
+    disturbs another target's independent link to the same span."""
     span_one = TextSpan.objects.create(
         document=workspace.document,
         start_char=0,
         end_char=5,
         text="Alpha",
         created_by=workspace.user,
-        node=workspace.first,
-        edge=workspace.edge,
     )
+    span_one.nodes.set([workspace.first])
+    span_one.edges.set([workspace.edge])
+
     span_two = TextSpan.objects.create(
         document=workspace.document,
         start_char=6,
@@ -334,28 +337,37 @@ def test_annotation_span_linking_does_not_steal_grounding(workspace):
         text="causes",
         created_by=workspace.user,
     )
-    occupied = TextSpan.objects.create(
+
+    shared = TextSpan.objects.create(
         document=workspace.document,
         start_char=13,
         end_char=17,
         text="beta",
         created_by=workspace.user,
-        node=workspace.second,
     )
+    shared.nodes.set([workspace.second])
 
-    set_node_source_spans(workspace.first, [span_two, occupied], actor=workspace.user)
-    span_one.refresh_from_db()
-    span_two.refresh_from_db()
-    occupied.refresh_from_db()
-    assert span_one.node is None
-    assert span_two.node == workspace.first
-    assert occupied.node == workspace.second
+    # Linking `first` to span_two and shared adds a *second* node to `shared`
+    # without displacing its existing link to `second`.
+    set_node_source_spans(workspace.first, [span_two, shared], actor=workspace.user)
+    assert set(span_two.nodes.values_list("pk", flat=True)) == {workspace.first.pk}
+    assert set(shared.nodes.values_list("pk", flat=True)) == {
+        workspace.second.pk,
+        workspace.first.pk,
+    }
 
-    set_edge_source_spans(workspace.edge, [span_two], actor=workspace.user)
+    # span_one was not requested for `first`, so it's unlinked from `first` —
+    # but its independent edge grounding is untouched.
+    set_node_source_spans(workspace.first, [span_two, shared], actor=workspace.user)
     span_one.refresh_from_db()
-    span_two.refresh_from_db()
-    assert span_one.edge is None
-    assert span_two.edge == workspace.edge
+    assert span_one.nodes.count() == 0
+    assert span_one.edges.filter(pk=workspace.edge.pk).exists()
+
+    set_edge_source_spans(workspace.edge, [span_one, span_two], actor=workspace.user)
+    assert set(workspace.edge.spans.values_list("pk", flat=True)) == {
+        span_one.pk,
+        span_two.pk,
+    }
 
 
 class FakeSchemaView:

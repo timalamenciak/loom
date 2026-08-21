@@ -24,19 +24,37 @@ from .forms import ProposerConfigForm
 from .models import FewShotExample, ProposalOutcome, ProposerConfig
 
 
-def _can_review_proposals(user, project) -> bool:
+def _reviewer_role(user, project) -> bool:
+    """Project-wide review access: superuser, project admin, or reviewer."""
     if user.is_superuser:
         return True
-    if ProjectMembership.objects.filter(
-        project=project, user=user, role=ProjectMembership.ROLE_ADMIN
-    ).exists():
-        return True
-    return Assignment.objects.filter(project=project, annotator=user).exists()
+    return ProjectMembership.objects.filter(
+        project=project,
+        user=user,
+        role__in=(ProjectMembership.ROLE_ADMIN, ProjectMembership.ROLE_REVIEWER),
+    ).exists()
 
 
-def _require_review_access(user, project) -> None:
-    if not _can_review_proposals(user, project):
-        raise PermissionDenied("You may not review proposals for this project.")
+def _assigned_document_ids(user, project):
+    return Assignment.objects.filter(project=project, annotator=user).values_list(
+        "document_id", flat=True
+    )
+
+
+def _require_review_access(user, project, document=None) -> None:
+    """Deny unless *user* has project-wide review access, or — when checking
+    a specific *document* — is the annotator assigned to it. A plain
+    annotator must never act on another annotator's document proposals."""
+    if _reviewer_role(user, project):
+        return
+    if (
+        document is not None
+        and Assignment.objects.filter(
+            project=project, document=document, annotator=user
+        ).exists()
+    ):
+        return
+    raise PermissionDenied("You may not review proposals for this project.")
 
 
 def _require_project_admin(user, project) -> None:
@@ -49,26 +67,42 @@ def _require_project_admin(user, project) -> None:
     raise PermissionDenied("Only project admins may configure the LLM seam.")
 
 
-def _draft_proposals(project):
-    return (
-        Edge.objects.filter(
-            graph__document__project=project,
-            origin=Edge.ORIGIN_LLM_PROPOSED,
-            status=Edge.STATUS_DRAFT,
-        )
-        .select_related("subject", "object", "graph__document")
-        .order_by("created_at")[:50]
+def _draft_proposals(project, *, document_ids=None):
+    qs = Edge.objects.filter(
+        graph__document__project=project,
+        origin=Edge.ORIGIN_LLM_PROPOSED,
+        status=Edge.STATUS_DRAFT,
     )
+    if document_ids is not None:
+        qs = qs.filter(graph__document_id__in=document_ids)
+    return qs.select_related("subject", "object", "graph__document").order_by(
+        "created_at"
+    )[:50]
+
+
+def _visible_proposals(user, project):
+    """Draft proposals *user* may see: every document for project-wide
+    reviewers, or only their own assigned documents for a plain annotator."""
+    if _reviewer_role(user, project):
+        return _draft_proposals(project)
+    return _draft_proposals(project, document_ids=_assigned_document_ids(user, project))
 
 
 class ProposalReviewView(LoginRequiredMixin, View):
     def get(self, request, project_pk):
         project = get_object_or_404(Project, pk=project_pk)
-        _require_review_access(request.user, project)
+        if not (
+            _reviewer_role(request.user, project)
+            or _assigned_document_ids(request.user, project).exists()
+        ):
+            raise PermissionDenied("You may not review proposals for this project.")
         return render(
             request,
             "llm/proposal_review.html",
-            {"project": project, "proposals": _draft_proposals(project)},
+            {
+                "project": project,
+                "proposals": _visible_proposals(request.user, project),
+            },
         )
 
 
@@ -85,12 +119,15 @@ class _ProposalActionView(LoginRequiredMixin, View):
         )
         document = edge.graph.document
         project = document.project
-        _require_review_access(request.user, project)
+        _require_review_access(request.user, project, document=document)
         self.act_on(edge, request.user, project, document)
         return render(
             request,
             "llm/partials/proposal_list.html",
-            {"project": project, "proposals": _draft_proposals(project)},
+            {
+                "project": project,
+                "proposals": _visible_proposals(request.user, project),
+            },
         )
 
 
