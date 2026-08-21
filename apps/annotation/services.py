@@ -177,8 +177,8 @@ def create_edge(
 def update_edge(
     edge: Edge,
     data: dict,
-    subject: Node = None,
-    object_node: Node = None,
+    subject: Node | None = None,
+    object_node: Node | None = None,
     actor=None,
 ) -> Edge:
     pin_graph_ontology_snapshot(edge.graph, actor)
@@ -346,7 +346,7 @@ def close_session(session) -> None:
 
 
 def emit_audit(
-    actor, action: str, target_type: str, target_id="", diff: dict = None
+    actor, action: str, target_type: str, target_id="", diff: dict | None = None
 ) -> None:
     from apps.audit.models import AuditEvent
 

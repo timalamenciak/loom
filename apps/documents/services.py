@@ -3,6 +3,7 @@
 import html as _html
 import logging as _logging
 import os as _os
+from collections.abc import Iterable
 from pathlib import Path as _Path
 
 from django.conf import settings as _django_settings
@@ -282,12 +283,12 @@ def delete_span(span: TextSpan, actor) -> None:
 # ---------------------------------------------------------------------------
 
 
-def render_highlighted_text(canonical_text: str, spans) -> str:
+def render_highlighted_text(canonical_text: str, spans: Iterable[TextSpan]) -> str:
     """Return escaped HTML with valid, non-nested marks for span regions."""
     if not canonical_text:
         return ""
 
-    valid_spans: list[tuple[int, int, object]] = []
+    valid_spans: list[tuple[int, int, TextSpan]] = []
     boundaries = {0, len(canonical_text)}
     for span in spans:
         s, e = span.start_char, span.end_char

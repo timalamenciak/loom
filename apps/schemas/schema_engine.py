@@ -313,7 +313,7 @@ class LoomSchemaView:
         geonames_autofill: dict | None = None,
         coordinate_list_fields: dict | None = None,
         globally_hidden_slots: frozenset | None = None,
-    ) -> dict:
+    ) -> dict | None:
         slot = self._sv.induced_slot(slot_name, class_name)
         slot_range = (slot.range or "string").lower()
 
@@ -366,10 +366,11 @@ class LoomSchemaView:
             # form builder's simplified per-item dict list
             # ([{"prefix": "ENVO"}, {"prefix": "ELMO"}]).
             sidecar_ontology_prefixes: list[str] = [
-                (item.get("prefix") if isinstance(item, dict) else item)
+                prefix
                 for item in routing
+                for prefix in [item.get("prefix") if isinstance(item, dict) else item]
+                if prefix
             ]
-            sidecar_ontology_prefixes = [p for p in sidecar_ontology_prefixes if p]
             wikidata_live: dict | None = None
         elif "condition_slot" in routing:
             # Conditional routing: the widget re-queries with the route

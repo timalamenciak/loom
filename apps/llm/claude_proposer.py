@@ -22,8 +22,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import cast
 
 import anthropic
+from anthropic.types import MessageParam
 
 from .models import FewShotExample, ProposerConfig
 from .prompt_builder import build_few_shot_messages, build_system_prompt
@@ -82,19 +84,23 @@ class ClaudeProposer:
                 model=self.config.model,
                 max_tokens=self.config.max_tokens,
                 system=system_prompt,
-                messages=few_shot_messages
-                + [
-                    {
-                        "role": "user",
-                        "content": f"Extract causal claims from:\n\n{doc_text}",
-                    }
-                ],
+                messages=cast(
+                    "list[MessageParam]",
+                    few_shot_messages
+                    + [
+                        {
+                            "role": "user",
+                            "content": f"Extract causal claims from:\n\n{doc_text}",
+                        }
+                    ],
+                ),
             )
         except anthropic.APIError as exc:
             logger.warning("ClaudeProposer: API call failed: %s", exc)
             return [], []
 
-        raw_text = response.content[0].text if response.content else ""
+        first_block = response.content[0] if response.content else None
+        raw_text = getattr(first_block, "text", "")
         try:
             claims = json.loads(raw_text)
         except json.JSONDecodeError as exc:

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import anthropic
-import httpx
+import httpx2
 import pytest
 
 from apps.annotation.models import Edge
@@ -172,7 +172,7 @@ class TestClaudeProposerPropose:
     def test_propose_api_error_returns_empty(self, monkeypatch, project):
         monkeypatch.setenv("LOOM_TEST_ANTHROPIC_KEY", "sk-test")
         mock_client = MagicMock()
-        request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+        request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
         mock_client.messages.create.side_effect = anthropic.APIError(
             "boom", request, body=None
         )

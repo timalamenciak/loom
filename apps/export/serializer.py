@@ -69,18 +69,18 @@ def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
             if cleaned:
                 out[k] = cleaned
         elif isinstance(v, list):
-            cleaned = []
+            cleaned_list = []
             for item in v:
                 if isinstance(item, dict):
                     nested = _clean(item, slot_ranges)
                     if nested:
-                        cleaned.append(nested)
+                        cleaned_list.append(nested)
                 else:
                     casted = _cast(k, item, slot_ranges)
                     if casted is not None and casted != "":
-                        cleaned.append(casted)
-            if cleaned:
-                out[k] = cleaned
+                        cleaned_list.append(casted)
+            if cleaned_list:
+                out[k] = cleaned_list
         else:
             casted = _cast(k, v, slot_ranges)
             if casted is not None and casted != "":
