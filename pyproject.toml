@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = [
     "django>=5.1",
-    "psycopg[binary]>=3.1",
+    "psycopg[binary]>=3.3.4",
     "linkml-runtime>=1.7",
     "linkml>=1.7",
     "pronto>=2.5",
