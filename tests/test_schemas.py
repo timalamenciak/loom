@@ -181,6 +181,32 @@ classes:
 
         assert slots["term"]["ontology_prefixes"] == ["PATO"]
 
+    def test_ontology_prefixes_accept_form_builder_dict_list(self):
+        """The form builder persists per-slot ontology sources as
+        [{"prefix": "ENVO"}, ...] rather than the older flat ["ENVO", ...]
+        string list — form_spec() must parse both shapes identically."""
+        schema = """
+id: https://example.org/ontology-routing
+name: ontology-routing
+imports: [linkml:types]
+classes:
+  Example:
+    attributes:
+      term:
+        range: uriorcurie
+"""
+        stub = type("StubSchemaVersion", (), {"linkml_yaml": schema, "version": "x"})()
+        lsv = LoomSchemaView(stub)
+
+        spec = lsv.form_spec(
+            "Example",
+            ontology_routing={"term": [{"prefix": "ENVO"}, {"prefix": "ELMO"}]},
+        )
+        slots = {slot["name"]: slot for layer in spec for slot in layer["slots"]}
+
+        assert slots["term"]["widget"] == "ontology_autocomplete"
+        assert slots["term"]["ontology_prefixes"] == ["ENVO", "ELMO"]
+
     def test_any_of_uriorcurie_string_still_gets_ontology_widget(self):
         """A slot declared `any_of: [uriorcurie, string]` (CAMO's "ontology
         term or free text" pattern) must still resolve to the ontology

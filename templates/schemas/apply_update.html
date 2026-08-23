@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Confirm update: {{ record.module_name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> ›
+  <a href="{% url 'schema-list' %}">Schema Versions</a> ›
+  <a href="{% url 'update-diff' record.pk %}">{{ record.module_name }} update</a> ›
+  Confirm
+</div>
+
+<div class="page-header">
+  <div>
+    <h1>Confirm {{ record.module_type }} update: {{ record.module_name }}</h1>
+    <p>
+      Current: <strong>{{ record.current_version|default:"—" }}</strong>
+      &rarr;
+      Available: <strong>{{ record.available_version|default:"—" }}</strong>
+    </p>
+  </div>
+</div>
+
+{% include "schemas/partials/diff_summary.html" %}
+
+<form method="post" action="{% url 'apply-update' record.pk %}">
+  {% csrf_token %}
+  <input type="hidden" name="confirm" value="1">
+
+  {% if record.module_type == "schema" %}
+  <label class="apply-confirm-checkbox">
+    <input type="checkbox" name="activate" checked>
+    Activate new schema immediately
+  </label>
+  {% endif %}
+
+  <div class="update-actions">
+    <button type="submit" class="btn btn-primary">Confirm Update</button>
+    <a href="{% url 'update-diff' record.pk %}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}

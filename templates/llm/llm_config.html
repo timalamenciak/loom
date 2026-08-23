@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}LLM configuration — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> / LLM configuration</div>
+<div class="page-header"><h1>LLM configuration</h1></div>
+
+<p class="muted">
+  Disabled by default. When enabled, the LLM only drafts proposals for an
+  annotator to accept, edit, or reject — see the <a href="{% url 'proposal-review' project.pk %}">review queue</a>.
+  It never writes a completed or gold edge on its own.
+</p>
+<p class="muted">
+  <a href="{% url 'llm-few-shot-selector' project.pk %}">Choose few-shot examples</a>
+  drawn from this project's own approved annotations to steer proposal quality.
+</p>
+<p class="muted">
+  <a href="{% url 'llm-metrics' project.pk %}">View metrics</a> —
+  acceptance rate, edit distance, and review time for this project's proposals.
+</p>
+
+<form method="post" class="settings-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="message message-error">{{ form.non_field_errors }}</div>{% endif %}
+
+  <section class="settings-card">
+    <div class="field checkbox-field">
+      {{ form.is_enabled }}
+      <label for="{{ form.is_enabled.id_for_label }}">Enable LLM proposals for this project</label>
+      {% if form.is_enabled.errors %}<div class="field-error">{{ form.is_enabled.errors }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.model.id_for_label }}">Model</label>
+      {{ form.model }}
+      {% if form.model.errors %}<div class="field-error">{{ form.model.errors }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.api_key_env_var.id_for_label }}">API key environment variable name</label>
+      {{ form.api_key_env_var }}
+      <div class="help">
+        Name of the environment variable holding the API key on the server —
+        never the key itself.
+      </div>
+      <div id="env-var-status" style="margin-top:.25rem"></div>
+      {% if form.api_key_env_var.errors %}<div class="field-error">{{ form.api_key_env_var.errors }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.trigger.id_for_label }}">Trigger</label>
+      {{ form.trigger }}
+      {% if form.trigger.errors %}<div class="field-error">{{ form.trigger.errors }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.max_proposals_per_document.id_for_label }}">Max proposals per document</label>
+      {{ form.max_proposals_per_document }}
+      {% if form.max_proposals_per_document.errors %}<div class="field-error">{{ form.max_proposals_per_document.errors }}</div>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.max_shots.id_for_label }}">Max few-shot examples per prompt</label>
+      {{ form.max_shots }}
+      {% if form.max_shots.errors %}<div class="field-error">{{ form.max_shots.errors }}</div>{% endif %}
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save</button>
+  </div>
+</form>
+{% endblock %}

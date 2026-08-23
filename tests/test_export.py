@@ -478,6 +478,27 @@ class TestSerializeGraph:
         assert node["name"] == "Buckthorn"
         assert node["entity_type"] == "biotic"
 
+    def test_node_source_spans_included(self, populated_graph, export_user):
+        from apps.documents.models import TextSpan
+        from apps.export.serializer import serialize_graph
+
+        user, _ = export_user
+        node_a = populated_graph.nodes.get(node_id="node-a")
+        span = TextSpan.objects.create(
+            document=populated_graph.document,
+            start_char=0,
+            end_char=7,
+            text="Rhamnus",
+            created_by=user,
+        )
+        span.nodes.add(node_a)
+
+        data = serialize_graph(populated_graph)
+        node = next(n for n in data["nodes"] if n["node_id"] == "node-a")
+        assert node["source_spans"] == [
+            {"start_char": 0, "end_char": 7, "span_text": "Rhamnus"}
+        ]
+
     def test_edge_subject_object_are_node_ids(self, populated_graph):
         from apps.export.serializer import serialize_graph
 

@@ -3,7 +3,7 @@ title: "Loom: A Schema-Driven Annotation Workbench for Causal Mosaic Graphs"
 message: "If you use Loom in your research, please cite it using the metadata in this file."
 type: software
 license: MIT
-version: "0.3.0"
+version: "1.0.0"
 repository-code: "https://github.com/timalamenciak/loom"
 abstract: >
   Loom is a self-hosted web application for annotating scientific literature

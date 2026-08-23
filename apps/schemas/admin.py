@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SchemaVersion
+from .models import SchemaVersion, UpdateCheckRecord
 
 
 @admin.register(SchemaVersion)
@@ -25,3 +25,17 @@ class SchemaVersionAdmin(admin.ModelAdmin):
         sv.is_active = True
         sv.save()
         self.message_user(request, f"CAMO {sv.version} is now active.")
+
+
+@admin.register(UpdateCheckRecord)
+class UpdateCheckRecordAdmin(admin.ModelAdmin):
+    list_display = [
+        "module_type",
+        "module_name",
+        "current_version",
+        "available_version",
+        "is_update_available",
+        "checked_at",
+    ]
+    list_filter = ["module_type", "is_update_available"]
+    readonly_fields = ["checked_at"]

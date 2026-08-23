@@ -6,6 +6,128 @@ versions.
 
 ---
 
+## [1.0.0] — 2026-07-11
+
+Schema/ontology administration UI, an LLM pre-annotation seam with few-shot
+examples and acceptance-rate metrics, and a release-hardening pass covering
+end-to-end schema-agnosticism testing, a security review, N+1 query fixes,
+admin/annotator documentation, a production Docker Compose stack, and a
+pre-upgrade readiness check.
+
+### Schema administration and form builder
+
+**Schema upload and activation.** Staff can upload a LinkML YAML file
+(`.yaml`/`.yml`, size-limited, parse-validated) as a new `SchemaVersion` and
+activate it; exactly one schema is active at a time, and existing graphs stay
+pinned to whichever version they were created under.
+
+**Form builder.** A drag-and-drop editor (`SchemaUIConfig`, keyed to
+`(schema_version, project)`) lets a project admin regroup slots into layers,
+hide fields, override widgets, set help text, and map each slot to its
+ontology autocomplete source(s) — all without touching the LinkML file or
+`config/loom_ui.yaml`. Config exports/imports as YAML.
+
+**Upstream update checks.** `check_all_updates` (and a periodic background
+trigger) compares the active schema and loaded ontologies against upstream
+CAMO releases; staff see a dismissible banner and can view a diff and apply
+an update from the UI or `update_schema`/management commands.
+
+### Ontology manager
+
+Staff-only ontology management UI (`/ontology/manage/`): upload an
+`.obo`/`.owl`/`.yaml`/`.yml` source directly (extension-allowlisted,
+size-limited, and — for `.obo` — checked for a `format-version:` header
+before parsing), browse and search what actually loaded, reload a release
+from its source URL, or delete one. Project admins can additionally request
+project-scoped ontology loads, processed asynchronously by
+`process_ontology_loads --watch` and surfaced as live status in project
+settings.
+
+### LLM proposal seam (off by default, per project)
+
+**`ProposerConfig` and `ClaudeProposer`.** Each project independently opts in
+via its own `ProposerConfig` — model choice, a *named* environment variable
+holding the API key (never the key itself), a manual-or-on-assignment
+trigger, and a cap on proposals per document. `ClaudeProposer` builds its
+system prompt entirely from the active schema's `form_spec()` — no CAMO slot
+name is hardcoded — and returns `([], [])` on any API error or malformed
+response rather than raising.
+
+**Few-shot examples.** A project admin selects from that project's own
+`complete`/`gold` edges as worked examples (`FewShotExample`, with an
+optional label and display order); `ClaudeProposer` prepends them to the
+prompt as alternating user/assistant turns, capped at `max_shots`.
+
+**Review queue.** Proposals land as `origin=llm_proposed`, `status=draft`
+edges — inert until a human acts. The review queue lets an assigned
+annotator or project admin accept (advances to `complete` under their name),
+edit-then-accept (opens the normal annotation workspace), or reject (deletes
+the draft). Nothing but that explicit human action ever promotes a proposal.
+
+**Acceptance-rate metrics.** Every proposal's outcome (`ProposalOutcome`) is
+recorded automatically on accept/reject — accepted/rejected timestamps, edit
+distance between what was proposed and what was ultimately accepted, and
+time-to-review. A project admin's metrics dashboard shows acceptance rate, a
+per-document accepted/rejected breakdown, and average edit distance/review
+time. `ProposalOutcome` intentionally survives edge deletion (`SET_NULL`, not
+`CASCADE`) so a rejected proposal's outcome isn't lost the instant it's
+rejected.
+
+### Release hardening
+
+**Schema-agnosticism end-to-end test.** A single Django `TestClient` test
+walks the complete annotator journey — schema upload/activation, ontology
+upload, project/document/assignment setup, annotation, export, and LinkML
+validation — against a hand-written, non-CAMO-vocabulary LinkML schema
+(`tests/fixtures/toy_schema.yaml`), proving the pipeline is driven by the
+active schema rather than hardcoded CAMO field names.
+
+**Security review.** Fixed a stored-XSS gap where Markdown rendered from
+`canonical_markdown` (settable via an uploaded ZIP bundle's `.md` sidecar)
+was marked safe with no sanitization; now sanitized with `nh3` before
+`mark_safe()`. Added extension/size validation to schema and ontology
+uploads (`LOOM_MAX_SCHEMA_UPLOAD_MB`, `LOOM_MAX_ONTOLOGY_UPLOAD_MB`, both
+default 1024MB). Converted a hand-written `<script type="application/json">`
+block in the form builder to Django's `json_script` filter. Full findings in
+`docs/security-review-v1.0.md`.
+
+**Query-count fixes.** Fixed an N+1 in `serialize_graph()` (one query per
+edge for grounding spans — now `prefetch_related`) and redundant
+`Project`/`SchemaVersion` refetches on the annotation page load (now
+`select_related`). Full findings in `docs/performance-review-v1.0.md`.
+
+**Documentation.** Added `docs/admin-guide.md` (schema/ontology/form-builder/
+LLM administration) and `docs/annotator-guide.md` (reviewing LLM proposals;
+links to the existing multi-page annotator workflow guide for everything
+else), and `docs/migration-v0-to-v1.md` for upgrading a v0.x deployment.
+
+**Production Docker Compose.** `docker-compose.prod.yml` adds a `cache`
+(Redis) service and a `django-redis` cache backend in `loom.settings.prod`,
+replacing the default per-process cache so the schema/ontology update-check
+debounce is actually shared across gunicorn workers. Verified end-to-end
+(`docker compose -f docker-compose.prod.yml up`): `db`, `cache`, `migrate`,
+`web`, and `ontology-worker` all start and reach a healthy state, including a
+live Redis round-trip from inside the running container.
+
+**Migration readiness.** `scripts/check_migration_readiness.py` checks that
+an active `SchemaVersion` and at least one `OntologySnapshot` exist, that no
+`Node`/`Edge` references a graph with a missing `schema_version`, and that
+every existing `CausalGraph` still exports without LinkML validation errors
+— exits 0 if every check passes, 1 with descriptive messages otherwise. The
+`validate_graph` management command gained an `--all` flag sharing the same
+underlying check.
+
+> **Known issue carried into this release:** `apps/export/serializer.py`
+> emits a few bookkeeping keys (`node_id`, `edge_id`, `id`, `annotator`, a
+> graph-level `source_document`) that the *current* CAMO schema no longer
+> declares at the class level it's written to, so `validate_graph_data()` can
+> fail closed-schema validation for graphs annotated under the current active
+> schema. Discovered while building the schema-agnosticism end-to-end test;
+> tracked, not fixed, in this release — see `docs/migration-v0-to-v1.md` and
+> `docs/performance-review-v1.0.md`.
+
+---
+
 ## [0.3.0] — 2026-07-10
 
 First stable release of Loom, the self-hosted annotation workbench for the

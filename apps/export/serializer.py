@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 
+from django.db.models import Prefetch
 from linkml_runtime.utils.schemaview import SchemaView
 
 from loom import __version__
@@ -68,18 +69,18 @@ def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
             if cleaned:
                 out[k] = cleaned
         elif isinstance(v, list):
-            cleaned = []
+            cleaned_list = []
             for item in v:
                 if isinstance(item, dict):
                     nested = _clean(item, slot_ranges)
                     if nested:
-                        cleaned.append(nested)
+                        cleaned_list.append(nested)
                 else:
                     casted = _cast(k, item, slot_ranges)
                     if casted is not None and casted != "":
-                        cleaned.append(casted)
-            if cleaned:
-                out[k] = cleaned
+                        cleaned_list.append(casted)
+            if cleaned_list:
+                out[k] = cleaned_list
         else:
             casted = _cast(k, v, slot_ranges)
             if casted is not None and casted != "":
@@ -90,12 +91,21 @@ def _clean(d: dict, slot_ranges: dict[str, str] | None = None) -> dict:
 def _serialize_node(node, slot_ranges: dict[str, str]) -> dict:
     base = {"node_id": node.node_id, "name": node.name}
     merged = {**node.data, **base}
-    return _clean(merged, slot_ranges)
+    result = _clean(merged, slot_ranges)
+
+    # DB-linked spans are authoritative; replace any JSONB source_spans
+    spans = _serialize_spans(node, slot_ranges)
+    if spans:
+        result["source_spans"] = spans
+
+    return result
 
 
-def _serialize_spans(edge, slot_ranges: dict[str, str]) -> list[dict]:
+def _serialize_spans(entity, slot_ranges: dict[str, str]) -> list[dict]:
     out = []
-    for s in edge.spans.all().order_by("start_char"):
+    # Ordering is already baked into the Prefetch queryset in serialize_graph()
+    # — re-ordering here would bypass the prefetch cache and issue a query per node/edge.
+    for s in entity.spans.all():
         span = _clean(
             {"start_char": s.start_char, "end_char": s.end_char, "span_text": s.text},
             slot_ranges,
@@ -151,8 +161,8 @@ def _serialize_source_document(document, slot_ranges: dict[str, str]) -> dict:
 
 def _build_graph_source_document(graph, slot_ranges: dict[str, str]) -> dict:
     """
-    Merge doc bib fields, project rollup values, and annotator-supplied data.
-    Priority (highest wins): annotator saved > rolled up > doc bib fields.
+    Merge doc bib fields and annotator-supplied data.
+    Priority (highest wins): annotator saved > doc bib fields.
     """
     document = graph.document
     doc_bib: dict = {}
@@ -167,17 +177,8 @@ def _build_graph_source_document(graph, slot_ranges: dict[str, str]) -> dict:
     if document.journal:
         doc_bib["journal"] = document.journal
 
-    rules = getattr(document.project, "source_document_rollup", None) or []
-    rolled: dict = {}
-    if rules:
-        from apps.annotation.rollup import roll_up_source_document
-
-        nodes_data = list(graph.nodes.values_list("data", flat=True))
-        edges_data = list(graph.edges.values_list("data", flat=True))
-        rolled = roll_up_source_document(nodes_data, edges_data, rules)
-
     annotator_data = graph.source_document or {}
-    return _clean({**doc_bib, **rolled, **annotator_data}, slot_ranges)
+    return _clean({**doc_bib, **annotator_data}, slot_ranges)
 
 
 def serialize_graph(graph) -> dict:
@@ -187,9 +188,14 @@ def serialize_graph(graph) -> dict:
     Does not include provenance — caller adds it with build_provenance() after
     serializing to YAML and computing the SHA-256.
     """
+    from apps.documents.models import TextSpan
+
     slot_ranges, edge_has_sd = _schema_info(graph.schema_version.linkml_yaml)
     nodes = [
-        _serialize_node(n, slot_ranges) for n in graph.nodes.all().order_by("name")
+        _serialize_node(n, slot_ranges)
+        for n in graph.nodes.prefetch_related(
+            Prefetch("spans", queryset=TextSpan.objects.order_by("start_char"))
+        ).order_by("name")
     ]
     # Build source_document once; inject into edges only when the schema supports it
     source_document = _build_graph_source_document(graph, slot_ranges)
@@ -200,7 +206,9 @@ def serialize_graph(graph) -> dict:
             source_document=source_document if edge_has_sd else None,
         )
         for e in graph.edges.select_related("subject", "object")
-        .all()
+        .prefetch_related(
+            Prefetch("spans", queryset=TextSpan.objects.order_by("start_char"))
+        )
         .order_by("-created_at")
     ]
     return {

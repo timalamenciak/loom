@@ -10,12 +10,11 @@ class TextSpanAdmin(admin.ModelAdmin):
         "start_char",
         "end_char",
         "text_excerpt",
-        "node",
-        "edge",
         "created_at",
     ]
     search_fields = ["text", "document__title"]
-    raw_id_fields = ["document", "node", "edge", "created_by"]
+    raw_id_fields = ["document", "created_by"]
+    filter_horizontal = ["nodes", "edges"]
     readonly_fields = ["created_at"]
 
     @admin.display(description="Text")

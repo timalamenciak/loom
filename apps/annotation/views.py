@@ -98,6 +98,15 @@ def _get_active_schema():
     return sv, get_schema_view(sv)
 
 
+def get_schema_version(project):
+    """The schema a new graph in *project* should be pinned to.
+
+    A project's own `active_schema` override wins; otherwise fall back to
+    whichever SchemaVersion is system-active.
+    """
+    return project.active_schema or SchemaVersion.get_active()
+
+
 def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
 
@@ -114,7 +123,7 @@ def _graph_panel_ctx(project, document, graph, assignment):
     nodes, edges = _graph_nodes_edges(graph)
     spans = list(
         TextSpan.objects.filter(document=document, created_by=assignment.annotator)
-        .select_related("node", "edge")
+        .prefetch_related("nodes", "edges")
         .order_by("start_char")
     )
     return {
@@ -194,45 +203,50 @@ def _grounding_options(
     target=None,
     selected_ids=None,
 ):
+    """Build the excerpt checkbox list for a node/edge form.
+
+    A span may ground any number of nodes and edges at once, so every span is
+    always selectable here — `other_link_count` is purely informational,
+    surfacing how many *other* nodes/edges (of the same kind) already use it.
+    """
     has_explicit_selection = selected_ids is not None
     selected = set(selected_ids or [])
     target_id = getattr(target, "pk", None)
     options = []
     spans = (
         TextSpan.objects.filter(document=document, created_by=user)
-        .select_related("node", "edge")
+        .prefetch_related("nodes", "edges")
         .order_by("start_char")
     )
     for span in spans:
-        linked_id = span.node_id if target_kind == "node" else span.edge_id
-        unavailable = linked_id is not None and linked_id != target_id
+        related = span.nodes.all() if target_kind == "node" else span.edges.all()
+        linked_ids = {obj.pk for obj in related}
+        currently_linked = target_id in linked_ids
         options.append(
             {
                 "span": span,
-                "selected": not unavailable
-                and (
-                    span.pk in selected
-                    if has_explicit_selection
-                    else linked_id == target_id
+                "selected": (
+                    span.pk in selected if has_explicit_selection else currently_linked
                 ),
-                "unavailable": unavailable,
+                "other_link_count": len(linked_ids - {target_id}),
             }
         )
     return options
 
 
 def _selected_spans(document, user, span_ids, *, target_kind, target=None):
-    target_id = getattr(target, "pk", None)
-    spans = list(
+    """Return the requested spans the user may reference.
+
+    Under the many-to-many grounding model there's nothing to exclude by
+    target — any visible span the user selected is valid for any node/edge.
+    """
+    return list(
         TextSpan.objects.filter(
             pk__in=span_ids,
             document=document,
             created_by=user,
         ).order_by("start_char")
     )
-    if target_kind == "node":
-        return [span for span in spans if span.node_id in {None, target_id}]
-    return [span for span in spans if span.edge_id in {None, target_id}]
 
 
 def _excerpt_text(spans) -> str:
@@ -328,14 +342,18 @@ class AnnotationView(LoginRequiredMixin, View):
             raise
 
     def _get(self, request, pk, doc_pk):
-        project = get_object_or_404(Project, pk=pk)
-        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        project = get_object_or_404(
+            Project.objects.select_related("active_schema"), pk=pk
+        )
+        document = get_object_or_404(
+            Document.objects.select_related("project"), pk=doc_pk, project=project
+        )
         assignment = require_annotation_assignment(document, request.user)
         can_edit = assignment_is_editable(assignment)
         ensure_canonical_text(document)
 
         existing_graph = _user_graph_queryset(document, request.user).first()
-        new_graph_schema = project.active_schema or SchemaVersion.get_active()
+        new_graph_schema = get_schema_version(project)
         if not new_graph_schema and not existing_graph:
             messages.error(
                 request,
@@ -356,7 +374,7 @@ class AnnotationView(LoginRequiredMixin, View):
             if graph is None:
                 raise Http404("No submitted annotation graph found.")
         schema_version = graph.schema_version
-        lsv = get_schema_view(schema_version)
+        lsv = get_schema_view(schema_version, project=project)
         session = None
         if can_edit:
             # Link this assignment to the graph the workspace will use.
@@ -383,7 +401,7 @@ class AnnotationView(LoginRequiredMixin, View):
         # Canonical text with span highlights
         spans = list(
             TextSpan.objects.filter(document=document, created_by=request.user)
-            .select_related("node", "edge")
+            .prefetch_related("nodes", "edges")
             .order_by("start_char")
         )
         highlighted_text = ""
@@ -398,11 +416,14 @@ class AnnotationView(LoginRequiredMixin, View):
         if document.canonical_markdown:
             try:
                 import markdown as _md
+                import nh3
 
                 markdown_html = mark_safe(
-                    _md.markdown(
-                        document.canonical_markdown,
-                        extensions=["tables", "fenced_code"],
+                    nh3.clean(
+                        _md.markdown(
+                            document.canonical_markdown,
+                            extensions=["tables", "fenced_code"],
+                        )
                     )
                 )
             except Exception:
@@ -500,7 +521,7 @@ class NodeFormView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -549,7 +570,7 @@ class NodeCreateView(LoginRequiredMixin, View):
         payload, _managed = _post_payload(
             request, "source_spans", "_source_span_pk", "_source_span_pks"
         )
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
@@ -615,7 +636,7 @@ class NodeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         node = get_object_or_404(Node, pk=node_pk, graph=graph)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -659,7 +680,7 @@ class NodeEditView(LoginRequiredMixin, View):
         payload, _managed = _post_payload(
             request, "source_spans", "_source_span_pk", "_source_span_pks"
         )
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalNode", payload, excluded_slots=_NODE_MANAGED_SLOTS
         )
@@ -779,7 +800,7 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -799,17 +820,6 @@ class SourceDocumentFormView(LoginRequiredMixin, View):
             coordinate_list_fields=ui.get("coordinate_list_fields", {}),
         )
         initial = _source_doc_initial(document, graph)
-        rules = document.project.source_document_rollup or []
-        if rules:
-            from apps.annotation.rollup import roll_up_source_document
-
-            nodes_data = list(graph.nodes.values_list("data", flat=True))
-            edges_data = list(graph.edges.values_list("data", flat=True))
-            rolled = roll_up_source_document(nodes_data, edges_data, rules)
-            saved = graph.source_document or {}
-            for slot, value in rolled.items():
-                if slot not in saved:
-                    initial.setdefault(slot, value)
         return render(
             request,
             "annotation/partials/source_document_form.html",
@@ -834,7 +844,7 @@ class SourceDocumentSaveView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         payload, _ = _post_payload(request)
         bound = lsv.bind_form_data("SourceDocument", payload)
         ui = _load_ui_config()
@@ -891,7 +901,7 @@ class EdgeFormView(LoginRequiredMixin, View):
         assignment = require_editable_assignment(document, request.user)
         graph = _get_user_graph_or_404(document, request.user, assignment)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -968,7 +978,7 @@ class EdgeCreateView(LoginRequiredMixin, View):
         subject = get_object_or_404(Node, graph=graph, node_id=subject_id)
         object_node = get_object_or_404(Node, graph=graph, node_id=object_id)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
         )
@@ -1035,7 +1045,7 @@ class EdgeEditView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         edge = get_object_or_404(Edge, pk=edge_pk, graph=graph)
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         if not lsv:
             from django.http import HttpResponse
 
@@ -1105,7 +1115,7 @@ class EdgeEditView(LoginRequiredMixin, View):
             else None
         )
 
-        lsv = get_schema_view(graph.schema_version)
+        lsv = get_schema_view(graph.schema_version, project=project)
         bound = lsv.bind_form_data(
             "CausalEdge", payload, excluded_slots=_EDGE_MANAGED_SLOTS
         )

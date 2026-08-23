@@ -22,8 +22,8 @@
       <div class="excerpt-meta">
         <button type="button" class="action-link"
                 onclick="ExcerptBin.reveal({{ span.pk }})">Show in text</button>
-        {% if span.node %}<span class="badge badge-draft">node: {{ span.node.name|truncatechars:24 }}</span>{% endif %}
-        {% if span.edge %}<span class="badge badge-complete">edge grounded</span>{% endif %}
+        {% for node in span.nodes.all %}<span class="badge badge-draft" title="{{ node.name }}">node: {{ node.name }}</span>{% endfor %}
+        {% if span.edges.all %}<span class="badge badge-complete">{{ span.edges.all|length }} edge{{ span.edges.all|length|pluralize }} grounded</span>{% endif %}
         {% if can_edit_spans %}
         <form method="post"
               action="{% url 'span-delete' doc_pk=document.pk span_pk=span.pk %}?surface=excerpt-bin"

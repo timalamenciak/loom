@@ -12,18 +12,14 @@ class TextSpan(models.Model):
     end_char = models.IntegerField()
     text = models.TextField(blank=True)
     text_source = models.CharField(max_length=20, default="canonical_text")
-    node = models.ForeignKey(
+    nodes = models.ManyToManyField(
         "annotation.Node",
-        null=True,
         blank=True,
-        on_delete=models.SET_NULL,
         related_name="spans",
     )
-    edge = models.ForeignKey(
+    edges = models.ManyToManyField(
         "annotation.Edge",
-        null=True,
         blank=True,
-        on_delete=models.SET_NULL,
         related_name="spans",
     )
     created_by = models.ForeignKey(

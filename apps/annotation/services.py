@@ -116,35 +116,22 @@ def update_node(node: Node, data: dict, actor=None) -> Node:
 
 @transaction.atomic
 def set_node_source_spans(node: Node, spans, actor) -> None:
-    """Replace the excerpts grounding *node* without stealing another node's spans."""
-    requested = {span.pk: span for span in spans}
-    current = list(node.spans.all())
+    """Set the excerpts grounding *node* to exactly *spans*.
 
-    for span in current:
-        if span.pk not in requested:
-            span.node = None
-            span.save(update_fields=["node"])
-            emit_audit(
-                actor,
-                "span.unlink",
-                "TextSpan",
-                span.pk,
-                {"node_id": node.pk},
-            )
+    A span may ground any number of nodes at once, so linking/unlinking here
+    only ever touches this node's own membership in each span's `nodes` set —
+    it never affects that span's links to other nodes or to edges.
+    """
+    requested = {span.pk for span in spans}
+    current = set(node.spans.values_list("pk", flat=True))
 
-    for span in requested.values():
-        if span.node_id not in {None, node.pk}:
-            continue
-        if span.node_id != node.pk:
-            span.node = node
-            span.save(update_fields=["node"])
-            emit_audit(
-                actor,
-                "span.link",
-                "TextSpan",
-                span.pk,
-                {"node_id": node.pk},
-            )
+    for span_pk in current - requested:
+        node.spans.remove(span_pk)
+        emit_audit(actor, "span.unlink", "TextSpan", span_pk, {"node_id": node.pk})
+
+    for span_pk in requested - current:
+        node.spans.add(span_pk)
+        emit_audit(actor, "span.link", "TextSpan", span_pk, {"node_id": node.pk})
 
 
 # ── Edges ─────────────────────────────────────────────────────────────────────
@@ -190,8 +177,8 @@ def create_edge(
 def update_edge(
     edge: Edge,
     data: dict,
-    subject: Node = None,
-    object_node: Node = None,
+    subject: Node | None = None,
+    object_node: Node | None = None,
     actor=None,
 ) -> Edge:
     pin_graph_ontology_snapshot(edge.graph, actor)
@@ -214,35 +201,22 @@ def update_edge(
 
 @transaction.atomic
 def set_edge_source_spans(edge: Edge, spans, actor) -> None:
-    """Replace the excerpts grounding *edge* without stealing another edge's spans."""
-    requested = {span.pk: span for span in spans}
-    current = list(edge.spans.all())
+    """Set the excerpts grounding *edge* to exactly *spans*.
 
-    for span in current:
-        if span.pk not in requested:
-            span.edge = None
-            span.save(update_fields=["edge"])
-            emit_audit(
-                actor,
-                "span.unlink",
-                "TextSpan",
-                span.pk,
-                {"edge_id": edge.pk},
-            )
+    A span may ground any number of edges at once, so linking/unlinking here
+    only ever touches this edge's own membership in each span's `edges` set —
+    it never affects that span's links to other edges or to nodes.
+    """
+    requested = {span.pk for span in spans}
+    current = set(edge.spans.values_list("pk", flat=True))
 
-    for span in requested.values():
-        if span.edge_id not in {None, edge.pk}:
-            continue
-        if span.edge_id != edge.pk:
-            span.edge = edge
-            span.save(update_fields=["edge"])
-            emit_audit(
-                actor,
-                "span.link",
-                "TextSpan",
-                span.pk,
-                {"edge_id": edge.pk},
-            )
+    for span_pk in current - requested:
+        edge.spans.remove(span_pk)
+        emit_audit(actor, "span.unlink", "TextSpan", span_pk, {"edge_id": edge.pk})
+
+    for span_pk in requested - current:
+        edge.spans.add(span_pk)
+        emit_audit(actor, "span.link", "TextSpan", span_pk, {"edge_id": edge.pk})
 
 
 @transaction.atomic
@@ -256,6 +230,13 @@ def delete_node(node: Node, actor) -> None:
         edge.delete()
     emit_audit(actor, "node.delete", "Node", node.pk)
     node.delete()
+
+
+@transaction.atomic
+def delete_edge(edge: Edge, actor) -> None:
+    """Delete a single edge, leaving its endpoint nodes untouched."""
+    emit_audit(actor, "edge.delete", "Edge", edge.pk)
+    edge.delete()
 
 
 def advance_edge_status(edge: Edge, actor) -> Edge:
@@ -365,7 +346,7 @@ def close_session(session) -> None:
 
 
 def emit_audit(
-    actor, action: str, target_type: str, target_id="", diff: dict = None
+    actor, action: str, target_type: str, target_id="", diff: dict | None = None
 ) -> None:
     from apps.audit.models import AuditEvent
 

@@ -1,0 +1,24 @@
+{% if not q %}
+<p class="muted">Type at least one character to search.</p>
+{% elif not terms %}
+<p class="muted">No terms match "{{ q }}" in {{ release.prefix }}.</p>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>CURIE</th>
+      <th>Label</th>
+      <th>Definition</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for term in terms %}
+    <tr>
+      <td><code>{{ term.curie }}</code></td>
+      <td>{{ term.label }}</td>
+      <td>{{ term.definition|truncatechars:160 }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

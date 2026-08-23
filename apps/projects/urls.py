@@ -40,21 +40,6 @@ urlpatterns = [
         views.RegisterOntologySourceView.as_view(),
         name="project-register-ontology",
     ),
-    path(
-        "<int:pk>/settings/rollup/add/",
-        views.RollupAddRuleView.as_view(),
-        name="project-rollup-add",
-    ),
-    path(
-        "<int:pk>/settings/rollup/remove/<slug:slot>/",
-        views.RollupRemoveRuleView.as_view(),
-        name="project-rollup-remove",
-    ),
-    path(
-        "<int:pk>/settings/rollup/preview/",
-        views.RollupPreviewView.as_view(),
-        name="project-rollup-preview",
-    ),
     path("<int:pk>/delete/", views.ProjectDeleteView.as_view(), name="project-delete"),
     path(
         "<int:pk>/settings/hidden-slots/",

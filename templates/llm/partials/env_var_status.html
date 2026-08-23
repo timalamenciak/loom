@@ -1,0 +1,7 @@
+{% if not name %}
+<span class="muted" style="font-size:.85rem">Enter an environment variable name to check.</span>
+{% elif is_set %}
+<span style="color:#065f46;font-size:.85rem">&#10003; {{ name }} is set on the server.</span>
+{% else %}
+<span style="color:#7f1d1d;font-size:.85rem">&#9888; {{ name }} is not set on the server.</span>
+{% endif %}

@@ -22,10 +22,10 @@
         {% endif %}
       </div>
       <div style="margin-top:.25rem;font-style:italic">"{{ span.text|truncatechars:120 }}"</div>
-      {% if span.node or span.edge %}
+      {% if span.nodes.all or span.edges.all %}
       <div style="margin-top:.3rem;display:flex;gap:.3rem;flex-wrap:wrap">
-        {% if span.node %}<span class="badge badge-draft">node: {{ span.node.name|truncatechars:30 }}</span>{% endif %}
-        {% if span.edge %}<span class="badge badge-complete">edge linked</span>{% endif %}
+        {% for node in span.nodes.all %}<span class="badge badge-draft" title="{{ node.name }}">node: {{ node.name }}</span>{% endfor %}
+        {% if span.edges.all %}<span class="badge badge-complete">{{ span.edges.all|length }} edge{{ span.edges.all|length|pluralize }} linked</span>{% endif %}
       </div>
       {% endif %}
     </li>

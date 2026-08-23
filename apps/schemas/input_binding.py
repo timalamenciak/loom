@@ -11,7 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from linkml_runtime.utils.schemaview import SchemaView
 
@@ -185,13 +185,16 @@ def _bind_nested_slot(
         _validate_cardinality(slot, field_name, 1 if value else 0, result)
         return value
 
-    indices = sorted(
-        {
-            int(rest.split("__", 1)[0])
-            for key in matching
-            for rest in [key[len(nested_prefix) :]]
-            if rest.split("__", 1)[0].isdigit()
-        }
+    indices = cast(
+        "list[int | None]",
+        sorted(
+            {
+                int(rest.split("__", 1)[0])
+                for key in matching
+                for rest in [key[len(nested_prefix) :]]
+                if rest.split("__", 1)[0].isdigit()
+            }
+        ),
     )
     if not indices:
         indices = [None]

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load annotation_extras %}
+{% block title %}Few-shot examples — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> /
+  <a href="{% url 'llm-config' project.pk %}">LLM configuration</a> /
+  Few-shot examples
+</div>
+<div class="page-header"><h1>Few-shot examples</h1></div>
+
+<p class="muted">
+  Select complete or gold edges to show the model as examples of a good
+  annotation for this project's content. Only human-approved edges are
+  eligible.
+</p>
+
+<form method="post">
+  {% csrf_token %}
+  {% if edges %}
+  <ul class="gp-list">
+    {% for edge in edges %}
+    <li class="gp-item">
+      <div class="gp-item-main">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+          <input type="checkbox" name="selected_{{ edge.pk }}"
+                 {% if edge.pk in selected_edge_ids %}checked{% endif %}>
+          <span>{{ edge.subject.name }} &rarr; {{ edge.object.name }}</span>
+        </label>
+        {% if edge.predicate %}<span class="badge badge-assigned">{{ edge.predicate }}</span>{% endif %}
+        <span class="badge badge-{{ edge.status }}">{{ edge.get_status_display }}</span>
+      </div>
+      {% with source_text=edge.data.original_sentence %}
+      {% if source_text %}
+      <p class="muted" style="font-size:.85rem;margin:.25rem 0">&ldquo;{{ source_text }}&rdquo;</p>
+      {% endif %}
+      {% endwith %}
+      <p class="muted" style="font-size:.75rem;margin:.25rem 0">{{ edge.graph.document.title }}</p>
+      <div class="field">
+        <label for="label_{{ edge.pk }}">Label (optional — why this is a good example)</label>
+        <input type="text" id="label_{{ edge.pk }}" name="label_{{ edge.pk }}"
+               value="{{ selected_labels|dict_get:edge.pk }}"
+               maxlength="200" placeholder="e.g. strong positive effect, survey evidence">
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save selection</button>
+  </div>
+  {% else %}
+  <p class="empty muted">No complete or gold edges yet — annotate and complete some edges first.</p>
+  {% endif %}
+</form>
+{% endblock %}

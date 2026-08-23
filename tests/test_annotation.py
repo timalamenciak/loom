@@ -569,7 +569,7 @@ class TestNodeCreate:
         assert set(node.spans.values_list("pk", flat=True)) == {first.pk, second.pk}
         assert b'hx-swap-oob="true"' in response.content
 
-    def test_excerpt_is_not_stolen_from_another_node(
+    def test_excerpt_can_ground_multiple_nodes(
         self, project_and_user, document, assignment, graph, schema_version
     ):
         from django.test import Client
@@ -582,8 +582,7 @@ class TestNodeCreate:
             graph=graph, name="Existing", data={}, schema_version=schema_version
         )
         span = create_span(document, 0, 18, created_by=user)
-        span.node = existing
-        span.save(update_fields=["node"])
+        span.nodes.set([existing])
         client = Client()
         client.force_login(user)
 
@@ -595,8 +594,11 @@ class TestNodeCreate:
 
         span.refresh_from_db()
         assert response.status_code == 200
-        assert span.node == existing
-        assert Node.objects.exclude(pk=existing.pk).get(graph=graph).spans.count() == 0
+        new_node = Node.objects.exclude(pk=existing.pk).get(graph=graph)
+        assert set(span.nodes.values_list("pk", flat=True)) == {
+            existing.pk,
+            new_node.pk,
+        }
 
     def test_delete_node_also_deletes_connected_edges(
         self, project_and_user, document, assignment, graph, schema_version

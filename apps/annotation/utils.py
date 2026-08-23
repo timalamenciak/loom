@@ -130,7 +130,12 @@ def _reverse_geocode_geonames(latitude: float, longitude: float, username: str) 
     import requests
 
     url = "https://secure.geonames.org/findNearbyPlaceNameJSON"
-    params = {"lat": latitude, "lng": longitude, "username": username, "style": "full"}
+    params: dict[str, str | float] = {
+        "lat": latitude,
+        "lng": longitude,
+        "username": username,
+        "style": "full",
+    }
 
     try:
         response = requests.get(url, params=params, timeout=5)

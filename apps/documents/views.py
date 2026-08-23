@@ -53,7 +53,7 @@ class DocumentReaderView(LoginRequiredMixin, View):
         can_edit_spans = bool(assignment and assignment_is_editable(assignment))
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
-            .select_related("node", "edge")
+            .prefetch_related("nodes", "edges")
             .order_by("start_char")
         )
         text_spans = spans.filter(text_source="canonical_text")
@@ -223,7 +223,7 @@ class SpanCreateView(LoginRequiredMixin, View):
 
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
-            .select_related("node", "edge")
+            .prefetch_related("nodes", "edges")
             .order_by("start_char")
         )
 
@@ -272,7 +272,7 @@ class SpanDeleteView(LoginRequiredMixin, View):
         delete_span(span, request.user)
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
-            .select_related("node", "edge")
+            .prefetch_related("nodes", "edges")
             .order_by("start_char")
         )
 

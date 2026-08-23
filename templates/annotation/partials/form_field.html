@@ -230,16 +230,15 @@
   {% if excerpt_options %}
   <div class="excerpt-grounding-options">
     {% for option in excerpt_options %}
-    <label class="excerpt-grounding-option{% if option.unavailable %} unavailable{% endif %}"
+    <label class="excerpt-grounding-option"
            for="id_{{ field_name }}_{{ option.span.pk }}">
       <input type="checkbox" name="{{ field_name }}" value="{{ option.span.pk }}"
              id="id_{{ field_name }}_{{ option.span.pk }}"
-             {% if option.selected %}checked{% endif %}
-             {% if option.unavailable %}disabled{% endif %}>
+             {% if option.selected %}checked{% endif %}>
       <span>
         <span class="excerpt-grounding-text">{{ option.span.text|truncatechars:220 }}</span>
-        {% if option.unavailable %}
-          <small>Already grounds another {% if edge %}edge{% else %}node{% endif %}.</small>
+        {% if option.other_link_count %}
+          <small>Also grounds {{ option.other_link_count }} other {% if edge %}edge{{ option.other_link_count|pluralize }}{% else %}node{{ option.other_link_count|pluralize }}{% endif %}.</small>
         {% endif %}
       </span>
     </label>

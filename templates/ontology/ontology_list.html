@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Ontologies — Loom{% endblock %}
+
+{% block extra_head %}
+<style>
+  .badge-status-ready   { background: #d1fae5; color: #065f46; }
+  .badge-status-loading { background: #fef3c7; color: #92400e; }
+  .badge-status-failed  { background: #fee2e2; color: #7f1d1d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> › Ontologies
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+  <h1>Ontologies</h1>
+  <a href="{% url 'ontology-manage-upload' %}" class="btn-sm">Upload ontology</a>
+</div>
+
+{% if releases %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Prefix</th>
+      <th>Terms</th>
+      <th>Status</th>
+      <th>Loaded</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for release in releases %}
+    <tr>
+      <td>{{ release.name }}</td>
+      <td><code>{{ release.prefix }}</code></td>
+      <td>{{ release.term_count }}</td>
+      <td>
+        <span class="badge badge-status-{{ release.status }}">{{ release.get_status_display }}</span>
+      </td>
+      <td>{{ release.loaded_at|date:"Y-m-d H:i" }} UTC</td>
+      <td>
+        <form method="post" action="{% url 'ontology-manage-reload' release.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="btn-sm">Reload</button>
+        </form>
+        <a href="{% url 'ontology-manage-browse' release.pk %}" class="btn-sm">Browse</a>
+        <form method="post" action="{% url 'ontology-manage-delete' release.pk %}" style="display:inline"
+              onsubmit="return confirm('Delete all terms for this ontology?')">
+          {% csrf_token %}
+          <button type="submit" class="btn-sm">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No ontologies loaded yet. Run <code>python manage.py load_ontology --preload</code> or upload one above.</p>
+{% endif %}
+{% endblock %}

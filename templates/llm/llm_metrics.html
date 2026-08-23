@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}LLM metrics — {{ project.name }} — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+  <a href="{% url 'project-detail' project.pk %}">{{ project.name }}</a> /
+  <a href="{% url 'llm-config' project.pk %}">LLM configuration</a> /
+  Metrics
+</div>
+<div class="page-header"><h1>LLM metrics</h1></div>
+
+{% if total == 0 %}
+<p class="empty muted">No LLM proposals have been generated for this project yet.</p>
+{% else %}
+
+<table class="data-table" style="max-width:32rem">
+  <tbody>
+    <tr>
+      <th style="text-align:left">Total proposals generated</th>
+      <td>{{ total }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left">Accepted</th>
+      <td>{{ accepted }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left">Rejected</th>
+      <td>{{ rejected }}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left">Awaiting review</th>
+      <td>{{ pending }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 style="margin-top:1.5rem">Acceptance rate</h2>
+<div style="max-width:32rem;background:#e5e7eb;border-radius:4px;overflow:hidden;height:1.5rem">
+  <div style="width:{{ acceptance_rate }}%;background:{{ acceptance_rate_color }};height:100%;
+              display:flex;align-items:center;justify-content:flex-end;padding-right:.4rem;
+              color:#fff;font-size:.8rem;box-sizing:border-box;min-width:2.5rem">
+    {{ acceptance_rate }}%
+  </div>
+</div>
+<p class="muted" style="font-size:.85rem">{{ accepted }} of {{ total }} proposals accepted.</p>
+
+<h2 style="margin-top:1.5rem">Edit distance &amp; review time</h2>
+<table class="data-table" style="max-width:32rem">
+  <tbody>
+    <tr>
+      <th style="text-align:left">Average edit distance (accepted proposals)</th>
+      <td>{% if avg_edit_distance is not None %}{{ avg_edit_distance }} field(s){% else %}&mdash;{% endif %}</td>
+    </tr>
+    <tr>
+      <th style="text-align:left">Average time to review</th>
+      <td>{% if avg_review_minutes is not None %}{{ avg_review_minutes }} min{% else %}&mdash;{% endif %}</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 style="margin-top:1.5rem">Proposals per document</h2>
+{% if by_document %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Document</th>
+      <th>Accepted</th>
+      <th>Rejected</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in by_document %}
+    <tr>
+      <td>{{ row.document__title }}</td>
+      <td>{{ row.accepted }}</td>
+      <td>{{ row.rejected }}</td>
+      <td>{{ row.total }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty muted">No document breakdown available.</p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

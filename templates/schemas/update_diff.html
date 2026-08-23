@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ record.module_name }} update — Loom{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+  <a href="{% url 'home' %}">Home</a> › <a href="{% url 'schema-list' %}">Schema Versions</a> › {{ record.module_name }} update
+</div>
+
+<div class="page-header">
+  <div>
+    <h1>{{ record.module_type|title }} update: {{ record.module_name }}</h1>
+    <p>
+      Current: <strong>{{ record.current_version|default:"—" }}</strong>
+      &rarr;
+      Available: <strong>{{ record.available_version|default:"—" }}</strong>
+    </p>
+    <p class="muted" style="font-size:.85rem">
+      Last checked {{ record.checked_at|date:"Y-m-d H:i" }} UTC
+    </p>
+  </div>
+</div>
+
+{% include "schemas/partials/diff_summary.html" %}
+
+<div class="update-actions">
+  <a href="{% url 'apply-update' record.pk %}" class="btn btn-primary">Apply Update</a>
+  <form method="post" action="{% url 'dismiss-update' record.pk %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-secondary">Dismiss</button>
+  </form>
+  <a href="{% url 'schema-list' %}" class="btn btn-secondary">Back</a>
+</div>
+{% endblock %}

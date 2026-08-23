@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -38,7 +39,7 @@ INSTALLED_APPS = [
     "apps.documents",  # Phase 3
     "apps.ontology",  # Phase 4
     "apps.export",  # Phase 6
-    # "apps.llm",        # Phase 12 (seam only, disabled by flag)
+    "apps.llm",  # Phase 12 (seam + ProposerConfig; LLM_PROPOSALS_ENABLED gates it off)
     "apps.audit",  # Phase 5
 ]
 
@@ -66,6 +67,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.schemas.context_processors.pending_updates",
             ],
         },
     },
@@ -73,7 +75,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "loom.wsgi.application"
 
-DATABASES = {
+DATABASES: dict[str, dict[str, Any]] = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("DB_NAME", "loom"),
@@ -122,6 +124,12 @@ MAX_BUNDLE_UNCOMPRESSED_BYTES = (
 )
 MAX_BUNDLE_FILES = _positive_env_int("LOOM_MAX_BUNDLE_FILES", 1000)
 MAX_ZIP_COMPRESSION_RATIO = _positive_env_int("LOOM_MAX_ZIP_COMPRESSION_RATIO", 200)
+MAX_SCHEMA_UPLOAD_BYTES = (
+    _positive_env_int("LOOM_MAX_SCHEMA_UPLOAD_MB", 1024) * 1024 * 1024
+)
+MAX_ONTOLOGY_UPLOAD_BYTES = (
+    _positive_env_int("LOOM_MAX_ONTOLOGY_UPLOAD_MB", 1024) * 1024 * 1024
+)
 
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"

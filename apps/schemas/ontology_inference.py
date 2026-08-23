@@ -88,15 +88,16 @@ def infer_ontologies(schema_version) -> dict:
     except FileNotFoundError:
         pass
 
-    matched = {}
+    matched: dict[str, dict] = {}
     unresolved = []
     for alias, reasons in evidence.items():
-        entry = aliases.get(alias)
-        if entry:
-            matched[entry["name"]] = {
-                **entry,
+        matched_entry = aliases.get(alias)
+        if matched_entry:
+            matched[matched_entry["name"]] = {
+                **matched_entry,
                 "reasons": sorted(
-                    set(matched.get(entry["name"], {}).get("reasons", [])) | reasons
+                    set(matched.get(matched_entry["name"], {}).get("reasons", []))
+                    | reasons
                 ),
             }
         elif reasons - {"declared namespace"} or alias in declared_external:
