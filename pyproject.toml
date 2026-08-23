@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "django>=5.1",
+    "django>=5.2.15",
     "psycopg[binary]>=3.1",
     "linkml-runtime>=1.7",
     "linkml>=1.7",
