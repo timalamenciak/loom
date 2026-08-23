@@ -8,7 +8,7 @@
 
 This is a self-hosted annotation workbench for annotating PDFs with [LinkML](https://linkml.io/) schema. It is currently designed for the [Causal Mosaic (CAMO) schema](https://github.com/timalamenciak/causalmosaic). Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
 
-Current stable version: **0.3.0** 
+Current stable version: **1.0.0** 
 
 Loom is released under the [MIT License](LICENSE).
 
