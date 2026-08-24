@@ -3,10 +3,10 @@
 This guide covers the tasks a Loom **staff/superuser account** and a
 **project admin** perform outside the annotation workspace itself: loading
 the schema and ontologies the whole instance runs on, tuning how a project's
-annotation forms look, and — for projects that opt in — configuring the LLM
-proposal seam. It complements [`operations.md`](operations.md) (deployment,
-backups, health checks) and the [annotator guide](annotator-guide.md) (the
-day-to-day annotation workflow).
+annotation forms look, bulk-editing a graph via Excel/YAML, and — for
+projects that opt in — configuring the LLM proposal seam. It complements
+[`operations.md`](operations.md) (deployment, backups, health checks) and the
+[annotator guide](annotator-guide.md) (the day-to-day annotation workflow).
 
 Two permission tiers matter here:
 
@@ -79,6 +79,65 @@ A narrower, project-only alternative for just hiding fields (no layer/widget/
 ontology editing) is **Project settings → Hidden slots**
 (`/projects/<pk>/settings/hidden-slots/`), scoped to a project admin rather
 than instance staff.
+
+## Bulk import and export
+
+Every graph's **Export** page (`/export/graphs/<pk>/`, reachable from the
+annotation workspace or a document's detail page) offers Excel and YAML
+downloads alongside a bulk **Import / override** flow — useful when a
+project already has structured causal data to load, or when an annotator
+wants to edit many rows in a spreadsheet rather than one at a time in the
+form.
+
+**Who can use it:** the project admin (any status, any edge — including
+`reviewed`/`gold`) or the document's currently assigned annotator, but only
+while their assignment is editable (`assigned`, `in_progress`, or
+`returned`) — the same rule that gates manual edits in the annotation
+workspace. A submitted or reviewed assignment is read-only to its annotator
+until a reviewer returns it.
+
+**Download** (`Download Excel` / `Download YAML` on the Export page, or
+`Download a blank template` on the Import page) gives you the graph's
+current nodes and edges. The Excel workbook has two sheets — **Nodes** and
+**Edges** — with one column per schema slot, so the columns always match
+whatever CAMO version the project is pinned to; the blank template is the
+same workbook with headers but no data rows.
+
+**Import** (`Import / override` on the Export page) is a two-step,
+nothing-happens-until-you-confirm flow:
+
+1. Upload a `.xlsx`, `.yaml`, or `.yml` file. Rows are matched to existing
+   nodes/edges by `node_id`/`edge_id` — a row whose id already exists on the
+   graph **updates** it; a new id **creates** a row. A blank cell/omitted
+   column means "leave this field as it is," not "clear it."
+2. Optionally check **Replace rows missing from this file** (off by
+   default) — this deletes any node or edge already on the graph that the
+   upload doesn't mention. Leave it unchecked for a plain "create/update a
+   few rows" import that doesn't touch anything else.
+3. Review the **preview**: a per-row report (create / update / unchanged /
+   delete / error) and summary counts, with nothing written to the graph
+   yet. An edge that would survive but references a node the upload is about
+   to delete (full-sync mode) is flagged as an error rather than silently
+   orphaned.
+4. Click **Apply** to commit. Rows with errors are skipped; everything else
+   applies inside one transaction. Every created/updated/deleted row gets
+   the normal audit trail, plus one wrapping `graph.import` audit event
+   recording the format, full-sync flag, and row counts, so "was this graph
+   bulk-imported" doesn't require diffing dozens of individual entries.
+
+A stashed preview expires after `LOOM_IMPORT_PLAN_TTL_MIN` minutes (15 by
+default) — re-upload if you take a break between preview and Apply.
+
+Equivalent from the command line (no preview step needed — a single process
+can't straddle a request boundary, so `--apply` builds and commits in one
+call):
+
+```bash
+python manage.py export_import_template <graph_id> -o template.xlsx
+python manage.py import_nodes_edges <graph_id> template.xlsx                    # dry-run report
+python manage.py import_nodes_edges <graph_id> template.xlsx --apply            # commit
+python manage.py import_nodes_edges <graph_id> template.xlsx --apply --full-sync
+```
 
 ## Loading and browsing ontologies
 

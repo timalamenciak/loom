@@ -50,3 +50,28 @@ def validate_ris_upload(file_obj) -> None:
 
 def validate_bundle_upload(file_obj) -> None:
     _validate_size(file_obj, settings.MAX_BUNDLE_UPLOAD_BYTES, "ZIP bundles")
+
+
+def validate_graph_import_upload(file_obj, filename: str) -> None:
+    """Validate size and container signature for a graph bulk-import upload.
+
+    .xlsx files are zip containers (signature ``PK``); .yaml/.yml files have
+    no fixed binary signature to check here — malformed YAML is caught by
+    the parser at import time instead (apps.export.import_yaml).
+    """
+    _validate_size(file_obj, settings.MAX_GRAPH_IMPORT_UPLOAD_BYTES, "Import files")
+    lower = (filename or "").lower()
+    if lower.endswith(".xlsx"):
+        try:
+            position = file_obj.tell()
+            file_obj.seek(0)
+            header = file_obj.read(4)
+            file_obj.seek(position)
+        except (AttributeError, OSError) as exc:
+            raise UploadValidationError("The Excel upload could not be read.") from exc
+        if header[:2] != b"PK":
+            raise UploadValidationError(
+                "The uploaded file is not a valid .xlsx workbook."
+            )
+    elif not lower.endswith((".yaml", ".yml")):
+        raise UploadValidationError("Import files must be .xlsx, .yaml, or .yml.")

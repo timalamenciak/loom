@@ -8,7 +8,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "100.86.124.18:${DB_PORT:-5432}:5432"
     healthcheck:
       test:
         ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -41,7 +41,7 @@ services:
       - loom_media:/opt/loom/media
       - loom_staticfiles:/opt/loom/staticfiles
     ports:
-      - "8000:8000"
+      - "100.86.124.18:8000:8000"
     environment:
       PYSTOW_HOME: /tmp/pystow
       APP_DIR: /opt/loom

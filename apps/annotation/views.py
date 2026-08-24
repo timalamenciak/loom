@@ -31,6 +31,8 @@ from .policies import (
     require_annotation_assignment,
     require_editable_assignment,
 )
+from .services import EDGE_MANAGED_SLOTS as _EDGE_MANAGED_SLOTS
+from .services import NODE_MANAGED_SLOTS as _NODE_MANAGED_SLOTS
 from .services import (
     _preprocess_source_document,
     adjudicate_edge,
@@ -52,9 +54,6 @@ from .services import (
 )
 
 logger = logging.getLogger(__name__)
-
-_NODE_MANAGED_SLOTS = frozenset({"node_id", "source_spans", "id"})
-_EDGE_MANAGED_SLOTS = frozenset({"edge_id", "subject", "object", "source_spans", "id"})
 
 
 def _auto_node_id(data: dict) -> str:

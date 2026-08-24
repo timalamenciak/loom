@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Import preview — {{ document.title|truncatechars:60 }}{% endblock %}
+
+{% block content %}
+<div style="max-width:860px;margin:0 auto">
+
+  <div style="margin-bottom:1.25rem">
+    <a href="{% url 'import-graph' graph_pk=graph.pk %}" class="muted">&larr; Re-upload</a>
+    <h1 style="margin:.5rem 0 .2rem;font-size:1.4rem">Import preview</h1>
+    <p class="muted" style="margin:0">
+      {{ document.title }} &mdash; {{ plan.format|upper }}{% if plan.full_sync %}, full sync{% endif %}
+    </p>
+  </div>
+
+  <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:1rem;margin-bottom:1.5rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.75rem;font-size:.85rem">
+      <div><div class="muted" style="font-size:.75rem">Nodes: create</div><strong>{{ counts.nodes_create }}</strong></div>
+      <div><div class="muted" style="font-size:.75rem">Nodes: update</div><strong>{{ counts.nodes_update }}</strong></div>
+      <div><div class="muted" style="font-size:.75rem">Nodes: unchanged</div><strong>{{ counts.nodes_noop }}</strong></div>
+      <div><div class="muted" style="font-size:.75rem">Nodes: error</div><strong style="color:#991b1b">{{ counts.nodes_error }}</strong></div>
+      {% if plan.full_sync %}
+      <div><div class="muted" style="font-size:.75rem">Nodes: delete</div><strong>{{ counts.nodes_would_delete }}</strong></div>
+      {% endif %}
+      <div><div class="muted" style="font-size:.75rem">Edges: create</div><strong>{{ counts.edges_create }}</strong></div>
+      <div><div class="muted" style="font-size:.75rem">Edges: update</div><strong>{{ counts.edges_update }}</strong></div>
+      <div><div class="muted" style="font-size:.75rem">Edges: unchanged</div><strong>{{ counts.edges_noop }}</strong></div>
+      <div><div class="muted" style="font-size:.75rem">Edges: error</div><strong style="color:#991b1b">{{ counts.edges_error }}</strong></div>
+      {% if plan.full_sync %}
+      <div><div class="muted" style="font-size:.75rem">Edges: delete</div><strong>{{ counts.edges_would_delete }}</strong></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <section style="margin-bottom:1.5rem">
+    <h2 style="font-size:1rem;margin:0 0 .6rem;color:#374151">Row-by-row report</h2>
+    <pre style="background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:6px;
+      font-size:.76rem;line-height:1.5;overflow-x:auto;max-height:520px;overflow-y:auto;
+      white-space:pre-wrap">{{ report }}</pre>
+  </section>
+
+  {% if counts.nodes_error or counts.edges_error %}
+  <p class="muted" style="font-size:.85rem;margin-bottom:1rem">
+    Rows with errors are skipped on Apply — everything else can still be applied.
+  </p>
+  {% endif %}
+
+  <form method="post" action="{% url 'import-graph-apply' graph_pk=graph.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"
+        onclick="return confirm('Apply this import? This will create/update{% if plan.full_sync %}/delete{% endif %} annotations on this graph.');">
+        Apply
+      </button>
+      <a href="{% url 'import-graph' graph_pk=graph.pk %}" class="btn btn-secondary">Start over</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

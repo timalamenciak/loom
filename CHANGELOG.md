@@ -6,6 +6,36 @@ versions.
 
 ---
 
+## [Unreleased]
+
+### Bulk import/export (Excel and YAML)
+
+A graph's Export page now offers Excel (`.xlsx`) download alongside the
+existing YAML download, and a web-based bulk **Import / override** flow for
+both the project admin and the document's assigned annotator (while their
+assignment is editable). Rows upsert by `node_id`/`edge_id` — a matching id
+updates the existing row, a new id creates one — with an optional "replace
+rows missing from this file" full-sync mode that deletes anything the
+upload doesn't mention. Import is a two-step upload → preview (per-row
+diff, zero writes) → apply flow; a stashed preview expires after
+`LOOM_IMPORT_PLAN_TTL_MIN` minutes (default 15).
+
+Column discovery, per-row validation, and writes all route through the same
+schema-driven machinery the live annotation form uses (`bind_form_data`
+against the graph's pinned `SchemaView`, `apps/annotation/services.py`'s
+create/update functions) — the importer never hardcodes a CAMO slot name,
+and every write still emits the normal `AuditEvent` trail plus one wrapping
+`graph.import` event per applied import.
+
+CLI equivalents: `export_import_template` (write a blank, schema-driven
+template) and `import_nodes_edges` (`--apply`/`--full-sync`), both thin
+wrappers over the same core the web views use. See
+[`docs/roadmap/v1.1.0-excel-import.md`](docs/roadmap/v1.1.0-excel-import.md)
+for the design and [the admin guide](docs/admin-guide.md#bulk-import-and-export)
+for usage.
+
+---
+
 ## [1.0.0] — 2026-07-11
 
 Schema/ontology administration UI, an LLM pre-annotation seam with few-shot

@@ -8,6 +8,13 @@ from django.db.models import Q
 
 from .models import CausalGraph, Edge, Node, WorkSession
 
+# Slots managed by Loom itself (identity/linking), never posted by a form or
+# accepted from an import row. Shared by the live annotation form
+# (apps/annotation/views.py) and the bulk importer (apps/export/graph_import.py)
+# so there is exactly one definition to keep in sync with bind_form_data calls.
+NODE_MANAGED_SLOTS = frozenset({"node_id", "source_spans", "id"})
+EDGE_MANAGED_SLOTS = frozenset({"edge_id", "subject", "object", "source_spans", "id"})
+
 # ── Graph ─────────────────────────────────────────────────────────────────────
 
 
@@ -85,12 +92,13 @@ def create_node(
     data: dict,
     origin: str = Node.ORIGIN_HUMAN,
     actor=None,
+    node_id: str | None = None,
 ) -> Node:
     pin_graph_ontology_snapshot(graph, actor)
     name = data.get("name", "").strip() or _derive_name(data)
     category = data.get("entity_type", "")
     data = _annotate_with_orcid(data, actor or graph.annotator)
-    node = Node.objects.create(
+    kwargs = dict(
         graph=graph,
         name=name,
         category=category,
@@ -98,6 +106,9 @@ def create_node(
         origin=origin,
         schema_version=graph.schema_version,
     )
+    if node_id:
+        kwargs["node_id"] = node_id
+    node = Node.objects.create(**kwargs)
     emit_audit(actor or graph.annotator, "node.create", "Node", node.pk, data)
     return node
 
@@ -154,12 +165,13 @@ def create_edge(
     data: dict,
     origin: str = Edge.ORIGIN_HUMAN,
     actor=None,
+    edge_id: str | None = None,
 ) -> Edge:
     pin_graph_ontology_snapshot(graph, actor)
     if subject.graph_id != graph.pk or object_node.graph_id != graph.pk:
         raise ValueError("Edge endpoints must belong to the edge graph.")
     data = _annotate_with_orcid(data, actor or graph.annotator)
-    edge = Edge.objects.create(
+    kwargs = dict(
         graph=graph,
         subject=subject,
         object=object_node,
@@ -169,6 +181,9 @@ def create_edge(
         origin=origin,
         schema_version=graph.schema_version,
     )
+    if edge_id:
+        kwargs["edge_id"] = edge_id
+    edge = Edge.objects.create(**kwargs)
     emit_audit(actor or graph.annotator, "edge.create", "Edge", edge.pk, data)
     return edge
 
@@ -356,6 +371,24 @@ def emit_audit(
         target_type=target_type,
         target_id=str(target_id),
         diff=diff or {},
+    )
+
+
+def emit_import_audit(
+    actor, graph: CausalGraph, *, format: str, full_sync: bool, counts: dict
+) -> None:
+    """One wrapping audit event per applied bulk import.
+
+    Individual node/edge create/update/delete calls already emit their own
+    events via emit_audit() above — this just makes "was this graph
+    bulk-imported" discoverable without diffing hundreds of them.
+    """
+    emit_audit(
+        actor,
+        "graph.import",
+        "CausalGraph",
+        graph.pk,
+        {"format": format, "full_sync": full_sync, **counts},
     )
 
 

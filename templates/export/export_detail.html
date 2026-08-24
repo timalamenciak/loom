@@ -13,6 +13,8 @@
   {# Action bar #}
   <div style="display:flex;gap:.6rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center">
     <a href="?download=1" class="btn btn-primary">Download YAML</a>
+    <a href="{% url 'export-graph-xlsx' graph_pk=graph.pk %}" class="btn btn-secondary">Download Excel</a>
+    <a href="{% url 'import-graph' graph_pk=graph.pk %}" class="btn btn-secondary">Import / override</a>
     <a href="{% url 'validate-graph' graph_pk=graph.pk %}" class="btn btn-secondary">Validate</a>
     <a href="{% url 'annotate' pk=project.pk doc_pk=document.pk %}" class="btn btn-secondary">
       Back to annotation

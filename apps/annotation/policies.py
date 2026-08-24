@@ -50,3 +50,22 @@ def require_editable_assignment(document, user) -> Assignment:
             "Submitted or reviewed annotations are read-only unless returned."
         )
     return assignment
+
+
+def require_import_access(document, user) -> tuple[Assignment | None, bool]:
+    """Authorize a bulk graph import (Excel/YAML). Return (assignment, is_admin).
+
+    Admins/superusers bypass Assignment status entirely — they may import
+    into reviewed/gold edges. Everyone else must hold an editable
+    Assignment for this document, identical to the rule manual node/edge
+    edits already enforce via require_editable_assignment().
+    """
+    membership = ProjectMembership.objects.filter(
+        project=document.project, user=user
+    ).first()
+    is_admin = user.is_superuser or (
+        membership is not None and membership.role == ProjectMembership.ROLE_ADMIN
+    )
+    if is_admin:
+        return None, True
+    return require_editable_assignment(document, user), False

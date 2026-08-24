@@ -9,7 +9,10 @@ The bar at the top contains:
 - the project and article title;
 - your active annotation time;
 - **Pause timer** or **Resume**;
-- **Export YAML**, when a graph exists; and
+- **Export YAML**, when a graph exists;
+- **Import**, to bulk-create or override nodes and edges from an Excel or
+  YAML file — see [the admin guide](../admin-guide.md#bulk-import-and-export)
+  for the full upload → preview → apply flow; and
 - **Submit for review**, while the assignment is editable.
 
 The timer counts active work, not simply how long the tab is open. It pauses
