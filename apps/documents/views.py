@@ -39,7 +39,7 @@ def _user_spans(document, user):
     return (
         TextSpan.objects.filter(document=document, created_by=user)
         .prefetch_related("nodes", "edges")
-        .order_by("start_char")
+        .order_by("start_char", "created_at")
     )
 
 
@@ -83,7 +83,7 @@ class DocumentReaderView(LoginRequiredMixin, View):
         spans = (
             TextSpan.objects.filter(document=document, created_by=request.user)
             .prefetch_related("nodes", "edges")
-            .order_by("start_char")
+            .order_by("start_char", "created_at")
         )
         text_spans = spans.filter(text_source="canonical_text")
         highlighted = render_highlighted_text(document.canonical_text or "", text_spans)
@@ -328,6 +328,20 @@ class SpanUpdateView(LoginRequiredMixin, View):
             if request.headers.get("HX-Request"):
                 return HttpResponseBadRequest("Excerpt text is required.")
             messages.error(request, "Excerpt text is required.")
+            return redirect("document-read", doc_pk=doc_pk)
+
+        if (
+            span.text_source != "free_text"
+            and len(text) != span.end_char - span.start_char
+        ):
+            error = (
+                "Edited text must be the same length as the original highlight "
+                f"({span.end_char - span.start_char} characters). Delete this "
+                "excerpt and re-select the passage if you need different text."
+            )
+            if request.headers.get("HX-Request"):
+                return HttpResponseBadRequest(error)
+            messages.error(request, error)
             return redirect("document-read", doc_pk=doc_pk)
 
         update_span(span, text, request.user)

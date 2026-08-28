@@ -224,6 +224,23 @@ covered from the annotator's side in the
 Nothing an LLM proposes ever lands as `complete` or `gold` without a human
 explicitly accepting it there.
 
+## Reviewing submitted work
+
+Project admins and reviewers see every annotator's progress on a document at
+**Project → [document] → Review** (`/projects/<pk>/documents/<pk>/review/`):
+each annotator's assignment status, active annotation time, and full node/edge
+list, with **Return for changes** to send a submitted assignment back for
+further editing.
+
+Final submission never blocks on schema validation — an annotator's graph
+always reaches **Submitted** even if it fails LinkML validation against its
+pinned schema, so a validation error is never shown to the annotator as
+inscrutable schema text. Instead, an assignment whose graph didn't validate at
+submission time carries a **⚠ Flagged** badge on the project document table
+and on the review page, where the underlying validation messages are listed
+under **Validation issues**. Treat a flagged assignment as needing a closer
+look before returning it or adjudicating its edges further.
+
 ## Reviewing update notifications and applying updates
 
 Loom can periodically check whether newer CAMO schema releases or ontology

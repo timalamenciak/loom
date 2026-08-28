@@ -8,7 +8,7 @@
 
 This is a self-hosted annotation workbench for annotating PDFs with [LinkML](https://linkml.io/) schema. It is currently designed for the [Causal Mosaic (CAMO) schema](https://github.com/timalamenciak/causalmosaic). Annotators open PDFs, highlight evidence, decompose entities into ELMO nodes, and annotate causal edges across CAMO's four layers. Loom exports LinkML-validated CAMO instance graphs for downstream EcoWeaver pipelines.
 
-Current stable version: **0.3.0** 
+Current stable version: **1.1.0**
 
 Loom is released under the [MIT License](LICENSE).
 
@@ -24,7 +24,9 @@ Loom is released under the [MIT License](LICENSE).
   preview-before-apply diff and an optional full-sync (delete-missing) mode
 - Deterministic Rosetta statements and fuzzy cognitive map weights
 
-Full graph validation runs before submission and export.
+Full graph validation runs on export; final submission always succeeds for
+the annotator, and any validation issues are flagged for reviewer/admin
+follow-up instead of blocking.
 
 ## Requirements
 
@@ -52,7 +54,7 @@ make migrate
 make superuser
 
 # 5. Load a bundled CAMO schema
-docker compose exec web python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
+docker compose exec web python manage.py load_schema config/schema/camo-0.7.4.yaml --activate
 
 # 6. (Optional) Preload ontologies
 docker compose exec web python manage.py load_ontology --all
@@ -102,7 +104,7 @@ pip install -e ".[dev]"
 python manage.py migrate
 
 # Load a schema and (optionally) ontologies
-python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
+python manage.py load_schema config/schema/camo-0.7.4.yaml --activate
 python manage.py load_ontology --all
 
 # Create admin user
@@ -116,7 +118,7 @@ python manage.py runserver
 
 ```bash
 # Schema
-python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
+python manage.py load_schema config/schema/camo-0.7.4.yaml --activate
 python manage.py list_schemas
 
 # Projects and documents
@@ -305,8 +307,6 @@ SHA-256 provenance and schema pinning on every export for reproducibility.
 - **No real-time collaborative editing.** Two annotators can work on the same
   project simultaneously but not on the same document at the same time without
   risking conflicting graph states.
-- **Pre-1.0 API stability.** Minor version bumps may revise annotation
-  workflows or management command interfaces before v1.0.
 - **PDF display only.** Loom uses PDF.js for document display; span offsets
   are derived from extracted canonical text, not PDF coordinates. Heavily
   scanned or image-only PDFs may have reduced extraction quality.
@@ -315,10 +315,13 @@ SHA-256 provenance and schema pinning on every export for reproducibility.
 
 ## Versioning
 
-Loom follows semantic versioning while it is pre-1.0:
+Loom follows semantic versioning:
 
 - Patch releases fix behavior without changing supported workflows.
-- Minor releases may add or revise application workflows.
+- Minor releases add or revise application workflows without breaking
+  existing ones.
+- Major releases may break annotation workflows or management command
+  interfaces.
 - The CAMO schema has its own independently pinned version on every graph.
 
 Update `loom/__init__.py` for an application release. Do not manually change

@@ -25,6 +25,9 @@
                 gap:1rem;border-bottom:1px solid #e5e7eb;flex-wrap:wrap">
       <strong style="font-size:.9rem">{{ a.annotator.username }}</strong>
       <span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span>
+      {% if a.has_validation_issues %}
+      <span class="badge badge-flag" title="Schema validation found issues on submission">&#9888; Flagged</span>
+      {% endif %}
       <span class="muted" style="font-size:.8rem">
         Active: {{ row.active_minutes }}&thinsp;min
       </span>
@@ -48,6 +51,15 @@
       </form>
       {% endif %}
     </div>
+
+    {% if a.has_validation_issues %}
+    <details style="margin:0;padding:.5rem 1rem;border-bottom:1px solid #f3f4f6;font-size:.8rem">
+      <summary class="muted" style="cursor:pointer">Validation issues ({{ a.validation_issues|length }})</summary>
+      <ul style="margin:.3rem 0 0 1.2rem">
+        {% for issue in a.validation_issues %}<li>{{ issue }}</li>{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
 
     {% if not graph %}
     <p class="muted" style="padding:.75rem 1rem;margin:0">No graph created yet.</p>

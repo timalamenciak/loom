@@ -244,6 +244,77 @@ class TestUpdateSpan:
             action="span.update", target_type="TextSpan", target_id=str(span.pk)
         ).exists()
 
+    def test_rejects_length_change_for_canonical_span(self, document, user):
+        from apps.documents.services import update_span
+
+        document.canonical_text = "The quikc brown fox."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        with pytest.raises(ValueError):
+            update_span(span, "quicker", user)
+        span.refresh_from_db()
+        assert span.text == "quikc"
+        assert (span.start_char, span.end_char) == (4, 9)
+
+    def test_resyncs_offsets_for_free_text_span(self, document, user):
+        from apps.documents.services import update_span
+
+        span = create_span(
+            document,
+            0,
+            len("A typed passage."),
+            created_by=user,
+            text_source="free_text",
+            text="A typed passage.",
+        )
+
+        update_span(span, "A much longer typed passage.", user)
+        span.refresh_from_db()
+        assert span.text == "A much longer typed passage."
+        assert (span.start_char, span.end_char) == (
+            0,
+            len("A much longer typed passage."),
+        )
+
+
+class TestExcerptBinTemplate:
+    def test_show_in_text_available_to_read_only_viewers(self, document, user):
+        """Reviewers viewing another annotator's excerpt bin (can_edit_spans
+        False) must still be able to locate a highlight in the document."""
+        from django.template.loader import render_to_string
+
+        document.canonical_text = "The quick brown fox jumps."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        html = render_to_string(
+            "annotation/partials/excerpt_bin.html",
+            {"spans": [span], "document": document, "can_edit_spans": False},
+        )
+
+        assert "Show in text" in html
+        assert "Edit" not in html
+
+    def test_show_in_text_hidden_for_free_text_excerpts(self, document, user):
+        from django.template.loader import render_to_string
+
+        span = create_span(
+            document,
+            0,
+            len("A typed passage."),
+            created_by=user,
+            text_source="free_text",
+            text="A typed passage.",
+        )
+
+        html = render_to_string(
+            "annotation/partials/excerpt_bin.html",
+            {"spans": [span], "document": document, "can_edit_spans": False},
+        )
+
+        assert "Show in text" not in html
+
 
 class TestDocumentReaderView:
     def test_reader_returns_200_for_abstract_doc(self, db, user, document):
@@ -382,6 +453,29 @@ class TestDocumentReaderView:
         # A free-text span is never rendered as an in-text highlight.
         assert b'id="excerpt-bin"' in response.content
 
+    def test_free_text_spans_keep_creation_order(self, db, user, document):
+        """Two free-text excerpts share start_char=0; the list must not
+        reorder between requests (start_char is not a unique tiebreaker)."""
+        from django.test import Client
+
+        self._assign(user, document)
+        client = Client()
+        client.force_login(user)
+
+        client.post(
+            f"/reader/{document.pk}/spans/?surface=excerpt-bin",
+            {"text_source": "free_text", "source_text": "First excerpt."},
+            HTTP_HX_REQUEST="true",
+        )
+        response = client.post(
+            f"/reader/{document.pk}/spans/?surface=excerpt-bin",
+            {"text_source": "free_text", "source_text": "Second excerpt."},
+            HTTP_HX_REQUEST="true",
+        )
+
+        content = response.content.decode()
+        assert content.index("First excerpt.") < content.index("Second excerpt.")
+
     def test_free_text_span_rejects_empty(self, db, user, document):
         from django.test import Client
 
@@ -440,6 +534,27 @@ class TestDocumentReaderView:
         assert response.status_code == 400
         span.refresh_from_db()
         assert span.text == "quick"
+
+    def test_span_edit_rejects_length_change(self, db, user, document):
+        from django.test import Client
+
+        self._assign(user, document)
+        document.canonical_text = "The quikc brown fox."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            f"/reader/{document.pk}/spans/{span.pk}/edit/?surface=excerpt-bin",
+            {"text": "quicker"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 400
+        span.refresh_from_db()
+        assert span.text == "quikc"
+        assert (span.start_char, span.end_char) == (4, 9)
 
     def test_span_edit_rejects_other_users_span(self, db, user, document):
         from django.contrib.auth import get_user_model

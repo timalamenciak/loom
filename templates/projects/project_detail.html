@@ -65,6 +65,9 @@
       <td>
         {% if a %}
           <span class="badge badge-{{ a.status }}">{{ a.get_status_display }}</span>
+          {% if a.has_validation_issues %}
+          <span class="badge badge-flag" title="Schema validation found issues on submission — see Review page">&#9888; Flagged</span>
+          {% endif %}
         {% else %}—{% endif %}
       </td>
       <td class="muted" style="font-size:.8rem">

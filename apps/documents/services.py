@@ -273,11 +273,23 @@ def create_span(
 def update_span(span: TextSpan, text: str, actor) -> TextSpan:
     """Edit a span's snippet text through the audited service boundary.
 
-    Character offsets and ``text_source`` are left untouched — an annotator
-    corrects imperfect extracted text without moving the in-text highlight.
+    A free-text excerpt has no position in the document — its dummy offsets
+    (``0..len(text)``) are recomputed to match the new length. A span anchored
+    to canonical text keeps ``start_char``/``end_char`` fixed so the in-text
+    highlight doesn't move; that only stays consistent if the edit preserves
+    the highlighted length, so a length-changing edit is rejected rather than
+    silently letting offsets and text drift apart (offsets are exported
+    verbatim as the span's position — see CAMO's ``TextSpan`` slots).
     """
+    if span.text_source == "free_text":
+        span.end_char = span.start_char + len(text)
+    elif len(text) != span.end_char - span.start_char:
+        raise ValueError(
+            "Edited text must be the same length as the original highlight "
+            f"({span.end_char - span.start_char} characters)."
+        )
     span.text = text
-    span.save(update_fields=["text"])
+    span.save(update_fields=["text", "start_char", "end_char"])
     from apps.annotation.services import emit_audit
 
     emit_audit(

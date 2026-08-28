@@ -123,7 +123,7 @@ def _graph_panel_ctx(project, document, graph, assignment):
     spans = list(
         TextSpan.objects.filter(document=document, created_by=assignment.annotator)
         .prefetch_related("nodes", "edges")
-        .order_by("start_char")
+        .order_by("start_char", "created_at")
     )
     return {
         "project": project,
@@ -215,7 +215,7 @@ def _grounding_options(
     spans = (
         TextSpan.objects.filter(document=document, created_by=user)
         .prefetch_related("nodes", "edges")
-        .order_by("start_char")
+        .order_by("start_char", "created_at")
     )
     for span in spans:
         related = span.nodes.all() if target_kind == "node" else span.edges.all()
@@ -244,7 +244,7 @@ def _selected_spans(document, user, span_ids, *, target_kind, target=None):
             pk__in=span_ids,
             document=document,
             created_by=user,
-        ).order_by("start_char")
+        ).order_by("start_char", "created_at")
     )
 
 
@@ -401,7 +401,7 @@ class AnnotationView(LoginRequiredMixin, View):
         spans = list(
             TextSpan.objects.filter(document=document, created_by=request.user)
             .prefetch_related("nodes", "edges")
-            .order_by("start_char")
+            .order_by("start_char", "created_at")
         )
         highlighted_text = ""
         if document.canonical_text:
@@ -1261,23 +1261,19 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk, project=project)
         assignment = require_annotation_assignment(document, request.user)
 
-        if assignment.status in {
+        submittable = {
             Assignment.STATUS_ASSIGNED,
             Assignment.STATUS_IN_PROGRESS,
             Assignment.STATUS_RETURNED,
-        }:
+        }
+
+        valid = True
+        validation_messages = []
+        if assignment.status in submittable:
             graph = _get_user_graph_or_404(document, request.user, assignment)
             valid, validation_messages = validate_graph_data(
                 serialize_graph(graph), graph.schema_version.linkml_yaml
             )
-            if not valid:
-                messages.warning(
-                    request,
-                    "Submission blocked: schema validation errors must be resolved first.",
-                )
-                for message in validation_messages[:5]:
-                    messages.warning(request, message)
-                return redirect("my-queue")
 
         # Close all open sessions
         for s in WorkSession.objects.filter(
@@ -1285,21 +1281,24 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         ):
             close_session(s)
 
-        submittable = {
-            Assignment.STATUS_ASSIGNED,
-            Assignment.STATUS_IN_PROGRESS,
-            Assignment.STATUS_RETURNED,
-        }
         if assignment.status in submittable:
             old_status = assignment.status
             assignment.status = Assignment.STATUS_SUBMITTED
-            assignment.save(update_fields=["status"])
+            assignment.has_validation_issues = not valid
+            assignment.validation_issues = [] if valid else validation_messages
+            assignment.save(
+                update_fields=["status", "has_validation_issues", "validation_issues"]
+            )
             emit_audit(
                 request.user,
                 "assignment.submit",
                 "Assignment",
                 assignment.pk,
-                {"from": old_status, "to": assignment.status},
+                {
+                    "from": old_status,
+                    "to": assignment.status,
+                    "validation_valid": valid,
+                },
             )
             messages.success(request, "Work submitted for review.")
         else:

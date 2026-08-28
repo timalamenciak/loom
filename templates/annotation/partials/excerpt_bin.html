@@ -20,6 +20,10 @@
         <span class="excerpt-text">{{ span.text|truncatechars:180 }}</span>
       </label>
       <div class="excerpt-meta">
+        {% if span.text_source != "free_text" %}
+        <button type="button" class="action-link"
+                onclick="ExcerptBin.reveal({{ span.pk }})">Show in text</button>
+        {% endif %}
         {% if can_edit_spans %}
         <button type="button" class="action-link" @click="editing = !editing"
                 x-text="editing ? 'Cancel' : 'Edit'">Edit</button>

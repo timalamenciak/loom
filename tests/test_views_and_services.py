@@ -550,9 +550,9 @@ def test_llm_app_config_remains_installable():
     assert config.label == "llm"
 
 
-def test_submit_refuses_invalid_graph_and_reports_terminal_assignment(
-    client, workspace
-):
+def test_submit_flags_invalid_graph_but_still_submits(client, workspace):
+    """An invalid graph must never block or be shown to the annotator; it
+    should still submit, and the flag/messages are recorded for reviewers."""
     client.force_login(workspace.user)
     submit_url = reverse(
         "submit-annotation", args=[workspace.project.pk, workspace.document.pk]
@@ -564,10 +564,33 @@ def test_submit_refuses_invalid_graph_and_reports_terminal_assignment(
             return_value=(False, ["missing predicate"]),
         ),
     ):
+        response = client.post(submit_url, follow=True)
+    assert response.status_code == 200
+    workspace.assignment.refresh_from_db()
+    assert workspace.assignment.status == Assignment.STATUS_SUBMITTED
+    assert workspace.assignment.has_validation_issues is True
+    assert workspace.assignment.validation_issues == ["missing predicate"]
+
+    messages_text = [str(m) for m in response.context["messages"]]
+    assert messages_text == ["Work submitted for review."]
+
+    assert client.post(submit_url).status_code == 302
+
+
+def test_submit_records_no_issues_for_valid_graph(client, workspace):
+    client.force_login(workspace.user)
+    submit_url = reverse(
+        "submit-annotation", args=[workspace.project.pk, workspace.document.pk]
+    )
+    with (
+        patch("apps.annotation.views.serialize_graph", return_value={}),
+        patch(
+            "apps.annotation.views.validate_graph_data",
+            return_value=(True, []),
+        ),
+    ):
         assert client.post(submit_url).status_code == 302
     workspace.assignment.refresh_from_db()
-    assert workspace.assignment.status == Assignment.STATUS_IN_PROGRESS
-
-    workspace.assignment.status = Assignment.STATUS_SUBMITTED
-    workspace.assignment.save(update_fields=["status"])
-    assert client.post(submit_url).status_code == 302
+    assert workspace.assignment.status == Assignment.STATUS_SUBMITTED
+    assert workspace.assignment.has_validation_issues is False
+    assert workspace.assignment.validation_issues == []

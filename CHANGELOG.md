@@ -8,6 +8,30 @@ versions.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-28
+
+### Submission never blocked by validation errors
+
+Final submission (**Submit for review**) now always succeeds for the
+annotator — a graph that fails LinkML validation against its pinned schema no
+longer blocks submission or surfaces raw schema-validation text, which was
+unreadable to annotators unfamiliar with LinkML. The assignment still records
+the outcome (`Assignment.has_validation_issues`, `validation_issues`) and
+reviewers/admins see a **⚠ Flagged** badge on the project document table and
+the review page, with the underlying messages available there for follow-up.
+
+### Free-text excerpts and inline excerpt correction
+
+Annotators can pin a manually typed passage as an excerpt bin entry with no
+in-document position, alongside PDF/canonical-text highlights, and correct
+imperfect extracted text in place from the excerpt bin. A canonical-text or
+markdown excerpt keeps its offsets anchored to the original highlight — an
+edit there must preserve the highlighted length, since the schema exports
+that span's `start_char`/`end_char` alongside its text — while a free-text
+excerpt's offsets track its edited length. Reviewers viewing another
+annotator's excerpt bin can still jump to a highlight's position in the
+document without edit rights.
+
 ### Bulk import/export (Excel and YAML)
 
 A graph's Export page now offers Excel (`.xlsx`) download alongside the

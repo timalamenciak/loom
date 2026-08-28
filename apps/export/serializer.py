@@ -194,7 +194,9 @@ def serialize_graph(graph) -> dict:
     nodes = [
         _serialize_node(n, slot_ranges)
         for n in graph.nodes.prefetch_related(
-            Prefetch("spans", queryset=TextSpan.objects.order_by("start_char"))
+            Prefetch(
+                "spans", queryset=TextSpan.objects.order_by("start_char", "created_at")
+            )
         ).order_by("name")
     ]
     # Build source_document once; inject into edges only when the schema supports it
@@ -207,7 +209,9 @@ def serialize_graph(graph) -> dict:
         )
         for e in graph.edges.select_related("subject", "object")
         .prefetch_related(
-            Prefetch("spans", queryset=TextSpan.objects.order_by("start_char"))
+            Prefetch(
+                "spans", queryset=TextSpan.objects.order_by("start_char", "created_at")
+            )
         )
         .order_by("-created_at")
     ]

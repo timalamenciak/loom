@@ -104,6 +104,21 @@
         });
     }
 
+    function reveal(spanId) {
+        showDocumentView('text');
+        const marks = Array.from(document.querySelectorAll('#canonical-text mark[data-span-pks]'));
+        const mark = marks.find((candidate) =>
+            (candidate.dataset.spanPks || '').split(',').includes(String(spanId))
+        );
+        document.querySelectorAll('mark.excerpt-active').forEach((candidate) => {
+            candidate.classList.remove('excerpt-active');
+        });
+        if (mark) {
+            mark.classList.add('excerpt-active');
+            mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
     function flash(message) {
         const header = document.querySelector('#excerpt-bin .excerpt-bin-header p');
         if (!header) return;
@@ -138,6 +153,7 @@
     window.ExcerptBin = {
         init,
         refreshFromHtml,
+        reveal,
         selectedIds,
         showDocumentView,
         useSelected,
