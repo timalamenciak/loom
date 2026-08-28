@@ -6,7 +6,12 @@ import unicodedata
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import (
+    FileResponse,
+    Http404,
+    HttpResponseBadRequest,
+    JsonResponse,
+)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils.decorators import method_decorator
@@ -26,7 +31,31 @@ from .services import (
     delete_span,
     ensure_canonical_text,
     render_highlighted_text,
+    update_span,
 )
+
+
+def _user_spans(document, user):
+    return (
+        TextSpan.objects.filter(document=document, created_by=user)
+        .prefetch_related("nodes", "edges")
+        .order_by("start_char")
+    )
+
+
+def _spans_partial_response(request, document, spans):
+    """Re-render the surface that issued a span create/update/delete request."""
+    if request.GET.get("surface") == "excerpt-bin":
+        return render(
+            request,
+            "annotation/partials/excerpt_bin.html",
+            {"spans": spans, "document": document, "can_edit_spans": True},
+        )
+    return render(
+        request,
+        "documents/partials/span_list.html",
+        {"spans": spans, "document": document, "can_edit_spans": True},
+    )
 
 
 def _require_member(request, document):
@@ -163,11 +192,25 @@ class SpanCreateView(LoginRequiredMixin, View):
         require_editable_assignment(document, request.user)
 
         text_source = request.POST.get("text_source", "canonical_text")
-        if text_source not in ("canonical_text", "canonical_markdown"):
+        if text_source not in ("canonical_text", "canonical_markdown", "free_text"):
             text_source = "canonical_text"
 
         source_text = request.POST.get("source_text", "").strip()
-        if source_text and text_source == "canonical_markdown":
+        if text_source == "free_text":
+            # Manually typed excerpt — no position in the article. Dummy offsets
+            # (0..len) satisfy the DB constraint; span.text is the payload.
+            if not source_text:
+                return HttpResponseBadRequest("Excerpt text is required.")
+            span = create_span(
+                document,
+                0,
+                len(source_text),
+                created_by=request.user,
+                text_source=text_source,
+                text=source_text,
+            )
+            start, end = 0, len(source_text)
+        elif source_text and text_source == "canonical_markdown":
             # Markdown-view selection: the user highlighted rendered HTML, so the
             # selected text won't match the raw markdown (which has ** / ## / etc.).
             # Try a best-effort position search so offsets aren't completely bogus,
@@ -221,14 +264,11 @@ class SpanCreateView(LoginRequiredMixin, View):
                 document, start, end, created_by=request.user, text_source=text_source
             )
 
-        spans = (
-            TextSpan.objects.filter(document=document, created_by=request.user)
-            .prefetch_related("nodes", "edges")
-            .order_by("start_char")
-        )
+        spans = _user_spans(document, request.user)
 
         if request.headers.get("HX-Request"):
-            # The annotation surface wants JSON so it can refresh its excerpt bin.
+            # The span-select flow wants JSON so it can refresh its excerpt bin
+            # and mark the new range client-side.
             if request.headers.get("X-Span-Select") == "true":
                 return JsonResponse(
                     {
@@ -246,15 +286,7 @@ class SpanCreateView(LoginRequiredMixin, View):
                         ),
                     }
                 )
-            return render(
-                request,
-                "documents/partials/span_list.html",
-                {
-                    "spans": spans,
-                    "document": document,
-                    "can_edit_spans": True,
-                },
-            )
+            return _spans_partial_response(request, document, spans)
 
         return redirect("document-read", doc_pk=doc_pk)
 
@@ -270,31 +302,38 @@ class SpanDeleteView(LoginRequiredMixin, View):
             created_by=request.user,
         )
         delete_span(span, request.user)
-        spans = (
-            TextSpan.objects.filter(document=document, created_by=request.user)
-            .prefetch_related("nodes", "edges")
-            .order_by("start_char")
-        )
+        spans = _user_spans(document, request.user)
 
         if request.headers.get("HX-Request"):
-            if request.GET.get("surface") == "excerpt-bin":
-                return render(
-                    request,
-                    "annotation/partials/excerpt_bin.html",
-                    {
-                        "spans": spans,
-                        "document": document,
-                        "can_edit_spans": True,
-                    },
-                )
-            return render(
-                request,
-                "documents/partials/span_list.html",
-                {
-                    "spans": spans,
-                    "document": document,
-                    "can_edit_spans": True,
-                },
-            )
+            return _spans_partial_response(request, document, spans)
+
+        return redirect("document-read", doc_pk=doc_pk)
+
+
+class SpanUpdateView(LoginRequiredMixin, View):
+    """Edit a span's snippet text (offsets and highlight are left in place)."""
+
+    def post(self, request, doc_pk, span_pk):
+        document = get_object_or_404(Document, pk=doc_pk)
+        require_editable_assignment(document, request.user)
+        span = get_object_or_404(
+            TextSpan,
+            pk=span_pk,
+            document=document,
+            created_by=request.user,
+        )
+
+        text = request.POST.get("text", "").strip()
+        if not text:
+            if request.headers.get("HX-Request"):
+                return HttpResponseBadRequest("Excerpt text is required.")
+            messages.error(request, "Excerpt text is required.")
+            return redirect("document-read", doc_pk=doc_pk)
+
+        update_span(span, text, request.user)
+        spans = _user_spans(document, request.user)
+
+        if request.headers.get("HX-Request"):
+            return _spans_partial_response(request, document, spans)
 
         return redirect("document-read", doc_pk=doc_pk)

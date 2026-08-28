@@ -270,6 +270,27 @@ def create_span(
 
 
 @transaction.atomic
+def update_span(span: TextSpan, text: str, actor) -> TextSpan:
+    """Edit a span's snippet text through the audited service boundary.
+
+    Character offsets and ``text_source`` are left untouched — an annotator
+    corrects imperfect extracted text without moving the in-text highlight.
+    """
+    span.text = text
+    span.save(update_fields=["text"])
+    from apps.annotation.services import emit_audit
+
+    emit_audit(
+        actor,
+        "span.update",
+        "TextSpan",
+        span.pk,
+        {"text_source": span.text_source},
+    )
+    return span
+
+
+@transaction.atomic
 def delete_span(span: TextSpan, actor) -> None:
     """Delete a span through the audited document service boundary."""
     from apps.annotation.services import emit_audit

@@ -85,12 +85,17 @@
   .excerpt-meta .badge { font-size: .64rem; }
   .excerpt-delete-form { margin: 0 0 0 auto; }
   .excerpt-delete { color: #b91c1c; }
+  .excerpt-edit-form, .excerpt-add-form { margin: .35rem 0 0; display: flex; flex-direction: column; gap: .3rem; }
+  .excerpt-edit-form textarea, .excerpt-add-form textarea { width: 100%; font: inherit; font-size: .76rem;
+    line-height: 1.35; padding: .35rem .4rem; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical; }
+  .excerpt-edit-form .form-actions, .excerpt-add-form .form-actions { display: flex; gap: .3rem; }
+  .excerpt-add-toggle { margin-top: .5rem; }
   .excerpt-actions { display: flex; gap: .35rem; align-items: center; margin-top: .45rem; }
   .excerpt-selection-count { margin-right: auto; color: #64748b; font-size: .7rem; }
   .excerpt-empty { margin: .4rem 0; color: #64748b; font-size: .76rem; line-height: 1.4; }
 
   /* ── Graph panel ── */
-  .graph-panel-wrap { flex: 1; overflow-y: auto; padding: .75rem; border-bottom: 1px solid #e5e7eb; }
+  .graph-panel-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: .75rem; border-bottom: 1px solid #e5e7eb; }
   #graph-panel { }
   .gp-header { display: flex; justify-content: space-between; align-items: center;
     margin-bottom: .5rem; }
@@ -109,7 +114,7 @@
   .gp-edge-complete .gp-item-label { color: #065f46; }
 
   /* ── Form panel ── */
-  .form-panel-wrap { flex-shrink: 0; max-height: 55vh; overflow-y: auto;
+  .form-panel-wrap { flex: 0 1 auto; min-height: 0; max-height: 55vh; overflow-y: auto;
     border-top: 1px solid #e5e7eb; padding: .75rem; }
   .form-panel-inner h3 { margin: 0 0 .75rem; font-size: .95rem; }
   .form-panel-inner .field { margin-bottom: .7rem; }
@@ -121,7 +126,8 @@
     border-radius: 4px; font-size: .85rem; }
   .form-panel-inner textarea { resize: vertical; }
   .form-panel-inner .help { font-size: .75rem; color: #6b7280; margin-top: .15rem; }
-  .form-panel-inner .form-actions { display: flex; gap: .4rem; }
+  .form-panel-inner .form-actions { display: flex; gap: .4rem; position: sticky; bottom: 0;
+    background: #fff; padding: .5rem 0; margin-top: .5rem; }
   .excerpt-grounding { border: 1px solid #a7f3d0; background: #f0fdf4; border-radius: 5px;
     padding: .6rem; margin: 0 0 .75rem; }
   .excerpt-grounding legend { color: #065f46; font-weight: 700; font-size: .8rem; padding: 0 .25rem; }
@@ -270,10 +276,10 @@
     {# Right: sidebar with graph panel + form panel #}
     <div class="sidebar"
          x-data="{
-           binH: parseInt(localStorage.getItem('loom-excerpt-bin-h') || '260'),
+           binH: Math.max(120, Math.min(Math.round(window.innerHeight * 0.5), parseInt(localStorage.getItem('loom-excerpt-bin-h') || '260'))),
            draggingH: false, startY: 0, startH: 0
          }"
-         @mousemove.window="if (draggingH) { let nh = startH + ($event.clientY - startY); binH = Math.max(120, Math.min(Math.round(window.innerHeight * 0.7), nh)); localStorage.setItem('loom-excerpt-bin-h', binH); }"
+         @mousemove.window="if (draggingH) { let nh = startH + ($event.clientY - startY); binH = Math.max(120, Math.min(Math.round(window.innerHeight * 0.5), nh)); localStorage.setItem('loom-excerpt-bin-h', binH); }"
          @mouseup.window="draggingH = false"
          :class="{'select-none': draggingH}">
 

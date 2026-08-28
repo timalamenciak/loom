@@ -226,6 +226,25 @@ class TestCreateSpan:
             create_span(document, 0, 0)
 
 
+class TestUpdateSpan:
+    def test_edits_text_and_emits_audit(self, document, user):
+        from apps.audit.models import AuditEvent
+        from apps.documents.services import update_span
+
+        document.canonical_text = "The quikc brown fox."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        update_span(span, "quick", user)
+        span.refresh_from_db()
+        assert span.text == "quick"
+        # Offsets and highlight anchor are untouched.
+        assert (span.start_char, span.end_char) == (4, 9)
+        assert AuditEvent.objects.filter(
+            action="span.update", target_type="TextSpan", target_id=str(span.pk)
+        ).exists()
+
+
 class TestDocumentReaderView:
     def test_reader_returns_200_for_abstract_doc(self, db, user, document):
         from django.test import Client
@@ -324,6 +343,136 @@ class TestDocumentReaderView:
         assert payload["span_pk"]
         assert 'id="excerpt-bin"' in payload["excerpt_bin_html"]
         assert "quick" in payload["excerpt_bin_html"]
+
+    def _assign(self, user, document):
+        from apps.projects.models import Assignment, ProjectMembership
+
+        ProjectMembership.objects.get_or_create(
+            project=document.project, user=user, defaults={"role": "annotator"}
+        )
+        Assignment.objects.get_or_create(
+            project=document.project,
+            document=document,
+            annotator=user,
+            defaults={"assigned_by": user},
+        )
+
+    def test_free_text_span_create(self, db, user, document):
+        from django.test import Client
+
+        from apps.documents.models import TextSpan
+
+        self._assign(user, document)
+        document.canonical_text = "Unrelated canonical text."
+        document.save(update_fields=["canonical_text"])
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/reader/{document.pk}/spans/?surface=excerpt-bin",
+            {"text_source": "free_text", "source_text": "A typed passage."},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 200
+        span = TextSpan.objects.get(document=document)
+        assert span.text_source == "free_text"
+        assert span.text == "A typed passage."
+        assert (span.start_char, span.end_char) == (0, len("A typed passage."))
+        # A free-text span is never rendered as an in-text highlight.
+        assert b'id="excerpt-bin"' in response.content
+
+    def test_free_text_span_rejects_empty(self, db, user, document):
+        from django.test import Client
+
+        from apps.documents.models import TextSpan
+
+        self._assign(user, document)
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(
+            f"/reader/{document.pk}/spans/?surface=excerpt-bin",
+            {"text_source": "free_text", "source_text": "   "},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 400
+        assert not TextSpan.objects.filter(document=document).exists()
+
+    def test_span_edit_updates_text(self, db, user, document):
+        from django.test import Client
+
+        self._assign(user, document)
+        document.canonical_text = "The quikc brown fox."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            f"/reader/{document.pk}/spans/{span.pk}/edit/?surface=excerpt-bin",
+            {"text": "quick"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 200
+        span.refresh_from_db()
+        assert span.text == "quick"
+        assert (span.start_char, span.end_char) == (4, 9)
+
+    def test_span_edit_rejects_empty(self, db, user, document):
+        from django.test import Client
+
+        self._assign(user, document)
+        document.canonical_text = "The quick brown fox."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        client = Client()
+        client.force_login(user)
+        response = client.post(
+            f"/reader/{document.pk}/spans/{span.pk}/edit/?surface=excerpt-bin",
+            {"text": ""},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 400
+        span.refresh_from_db()
+        assert span.text == "quick"
+
+    def test_span_edit_rejects_other_users_span(self, db, user, document):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+
+        from apps.projects.models import Assignment, ProjectMembership
+
+        document.canonical_text = "The quick brown fox."
+        document.save(update_fields=["canonical_text"])
+        span = create_span(document, 4, 9, created_by=user)
+
+        other = get_user_model().objects.create_user("other_annotator", password="x")
+        ProjectMembership.objects.create(
+            project=document.project, user=other, role="annotator"
+        )
+        Assignment.objects.create(
+            project=document.project,
+            document=document,
+            annotator=other,
+            assigned_by=other,
+        )
+
+        client = Client()
+        client.force_login(other)
+        response = client.post(
+            f"/reader/{document.pk}/spans/{span.pk}/edit/?surface=excerpt-bin",
+            {"text": "hijacked"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert response.status_code == 404
+        span.refresh_from_db()
+        assert span.text == "quick"
 
     def test_unassigned_member_cannot_create_span(self, db, user, document):
         from django.test import Client

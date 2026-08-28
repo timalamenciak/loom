@@ -9,7 +9,7 @@
   {% if spans %}
   <ul class="excerpt-list">
     {% for span in spans %}
-    <li class="excerpt-item" data-excerpt-id="{{ span.pk }}">
+    <li class="excerpt-item" data-excerpt-id="{{ span.pk }}" x-data="{ editing: false }">
       <label class="excerpt-choice" for="excerpt-choice-{{ span.pk }}">
         {% if can_edit_spans %}
         <input id="excerpt-choice-{{ span.pk }}" type="checkbox"
@@ -20,8 +20,10 @@
         <span class="excerpt-text">{{ span.text|truncatechars:180 }}</span>
       </label>
       <div class="excerpt-meta">
-        <button type="button" class="action-link"
-                onclick="ExcerptBin.reveal({{ span.pk }})">Show in text</button>
+        {% if can_edit_spans %}
+        <button type="button" class="action-link" @click="editing = !editing"
+                x-text="editing ? 'Cancel' : 'Edit'">Edit</button>
+        {% endif %}
         {% for node in span.nodes.all %}<span class="badge badge-draft" title="{{ node.name }}">node: {{ node.name }}</span>{% endfor %}
         {% if span.edges.all %}<span class="badge badge-complete">{{ span.edges.all|length }} edge{{ span.edges.all|length|pluralize }} grounded</span>{% endif %}
         {% if can_edit_spans %}
@@ -34,6 +36,17 @@
         </form>
         {% endif %}
       </div>
+      {% if can_edit_spans %}
+      <form method="post" class="excerpt-edit-form" x-show="editing" x-cloak
+            action="{% url 'span-edit' doc_pk=document.pk span_pk=span.pk %}?surface=excerpt-bin">
+        {% csrf_token %}
+        <textarea name="text" rows="3" aria-label="Edit excerpt text">{{ span.text }}</textarea>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-secondary btn-sm">Save excerpt</button>
+          <button type="button" class="action-link" @click="editing = false">Cancel</button>
+        </div>
+      </form>
+      {% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -49,6 +62,24 @@
     </button>
   </div>{% endif %}
   {% else %}
-  <p class="excerpt-empty">Select one or more passages in <strong>Text from PDF</strong>. Each selection will stay pinned here.</p>
+  <p class="excerpt-empty">Select one or more passages in <strong>Text from PDF</strong>, or add a free-text excerpt below. Each excerpt will stay pinned here.</p>
+  {% endif %}
+
+  {% if can_edit_spans %}
+  <div class="excerpt-add" x-data="{ adding: false }">
+    <button type="button" class="action-link excerpt-add-toggle" @click="adding = !adding"
+            x-text="adding ? 'Cancel' : '＋ Add free-text excerpt'">＋ Add free-text excerpt</button>
+    <form method="post" class="excerpt-add-form" x-show="adding" x-cloak
+          action="{% url 'span-create' doc_pk=document.pk %}?surface=excerpt-bin">
+      {% csrf_token %}
+      <input type="hidden" name="text_source" value="free_text">
+      <textarea name="source_text" rows="3"
+                placeholder="Type or paste a passage to pin as an excerpt"
+                aria-label="Free-text excerpt"></textarea>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-secondary btn-sm">Add excerpt</button>
+      </div>
+    </form>
+  </div>
   {% endif %}
 </section>
