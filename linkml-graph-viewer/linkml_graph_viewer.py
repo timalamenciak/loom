@@ -178,7 +178,9 @@ def search_blob(*values: Any) -> str:
     return json.dumps(json_ready(values), ensure_ascii=False, sort_keys=True).lower()
 
 
-def build_instance_graph(data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+def build_instance_graph(
+    data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     warnings: list[str] = []
     used_node_ids: set[str] = set()
     nodes: list[dict[str, Any]] = []
@@ -186,7 +188,9 @@ def build_instance_graph(data: dict[str, Any]) -> tuple[list[dict[str, Any]], li
 
     for index, raw_node in enumerate(mapping_items(data.get("nodes")), start=1):
         properties = dict(raw_node)
-        original_id = scalar_text(properties.get("id")) or scalar_text(properties.get("name"))
+        original_id = scalar_text(properties.get("id")) or scalar_text(
+            properties.get("name")
+        )
         node_id = unique_id(original_id, used_node_ids, "node")
         node_id_map[original_id or node_id] = node_id
         label = display_name(properties, compact_identifier(node_id))
@@ -245,7 +249,9 @@ def build_instance_graph(data: dict[str, Any]) -> tuple[list[dict[str, Any]], li
                         "displayLabel": wrapped_label(label),
                         "group": "referenced node",
                         "properties": generated_properties,
-                        "searchText": search_blob(endpoint, label, generated_properties),
+                        "searchText": search_blob(
+                            endpoint, label, generated_properties
+                        ),
                     }
                 )
 
@@ -273,7 +279,9 @@ def add_schema_node(
     kind: str,
     properties: dict[str, Any],
 ) -> str:
-    node_id = unique_id(properties.get("id") or properties.get("name"), used_node_ids, kind)
+    node_id = unique_id(
+        properties.get("id") or properties.get("name"), used_node_ids, kind
+    )
     label = display_name(properties, compact_identifier(node_id))
     node_properties = dict(properties)
     node_properties.setdefault("id", node_id)
@@ -314,7 +322,9 @@ def make_schema_edge(
     }
 
 
-def build_schema_graph(data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+def build_schema_graph(
+    data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     warnings: list[str] = []
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
@@ -449,14 +459,20 @@ def build_schema_graph(data: dict[str, Any]) -> tuple[list[dict[str, Any]], list
             )
 
     if not nodes:
-        warnings.append("No nodes were found in top-level nodes, classes, slots, enums, or types.")
+        warnings.append(
+            "No nodes were found in top-level nodes, classes, slots, enums, or types."
+        )
     if not edges:
-        warnings.append("No edges were found from edge records or schema relationships.")
+        warnings.append(
+            "No edges were found from edge records or schema relationships."
+        )
 
     return nodes, edges, warnings
 
 
-def extract_graph(data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str], str]:
+def extract_graph(
+    data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str], str]:
     if "nodes" in data or "edges" in data:
         nodes, edges, warnings = build_instance_graph(data)
         return nodes, edges, warnings, "node_edge"
