@@ -144,6 +144,36 @@
 
   /* ── Span list ── */
   .span-count { font-size: .8rem; color: #6b7280; margin-bottom: .5rem; }
+
+  /* ── Graph preview ── */
+  #graph-preview-toggle.active { background: #193d2e; color: #fff; border-color: #193d2e; }
+  .graph-preview-pane { display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #1f2937; }
+  .graph-preview-toolbar { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center;
+    gap: .4rem; padding: .5rem .65rem; background: #f8fafc; border-bottom: 1px solid #e5e7eb; font-size: .8rem; }
+  .graph-preview-counts { color: #6b7280; margin-right: auto; }
+  .graph-preview-counts strong { color: #111827; }
+  .graph-preview-input, .graph-preview-select { font: inherit; font-size: .78rem; padding: .25rem .4rem;
+    border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; color: #1f2937; max-width: 12rem; }
+  .graph-preview-input { flex: 1 1 9rem; min-width: 7rem; }
+  .graph-preview-warnings { flex: 0 0 auto; margin: 0; padding: .4rem .65rem .4rem 1.6rem;
+    background: #fffbeb; border-bottom: 1px solid #fde68a; color: #92400e; font-size: .74rem;
+    line-height: 1.4; max-height: 6rem; overflow-y: auto; }
+  .graph-preview-body { flex: 1 1 auto; min-height: 0; display: flex; }
+  .graph-preview-network { flex: 1 1 auto; min-width: 0; min-height: 0; height: 100%;
+    background: radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0) 0 0 / 22px 22px, #fff; }
+  .graph-preview-details { flex: 0 0 clamp(220px, 30%, 360px); overflow: auto; padding: .75rem;
+    border-left: 1px solid #e5e7eb; background: #f8fafc; }
+  .graph-preview-details-title { margin: 0 0 .5rem; font-size: .82rem; color: #111827; overflow-wrap: anywhere; }
+  .graph-preview-details-json { margin: 0; padding: .6rem; background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .72rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* vis-network appends its tooltip to <body>, so it can't be nested under the pane. */
+  div.vis-tooltip { white-space: pre-line !important; max-width: 340px; padding: 6px 9px !important;
+    font-family: inherit !important; font-size: .75rem !important; border-radius: 5px !important; }
+  @media (max-width: 720px) {
+    .graph-preview-body { flex-direction: column; }
+    .graph-preview-details { flex-basis: 40%; border-left: 0; border-top: 1px solid #e5e7eb; }
+  }
 </style>
 {% endblock %}
 
@@ -179,7 +209,7 @@
     {% if graph %}
     <a href="{% url 'export-graph' graph_pk=graph.pk %}"
        class="btn btn-secondary btn-sm" style="white-space:nowrap"
-       title="Download your annotations as a YAML data file (for admin use)">Export YAML</a>
+       title="Download your annotations as a YAML or Excel data file (for admin use)">Export</a>
     <a href="{% url 'import-graph' graph_pk=graph.pk %}"
        class="btn btn-secondary btn-sm" style="white-space:nowrap"
        title="Bulk-import or override annotations from an Excel or YAML file">Import</a>
@@ -223,6 +253,12 @@
                     onclick="ExcerptBin.showDocumentView('pdf')">PDF</button>
           </div>
           {% endif %}
+          {% if graph %}
+          <button type="button" class="btn btn-secondary btn-sm" id="graph-preview-toggle"
+                  data-document-view-button="graph"
+                  onclick="LoomAnnotationActions.load('{% url 'graph-preview' pk=project.pk doc_pk=document.pk %}','#document-view-graph'); ExcerptBin.showDocumentView('graph');"
+                  title="Preview the causal graph you are building">Graph preview</button>
+          {% endif %}
           {% if document.pdf_file %}
           <a class="btn btn-secondary btn-sm" href="{% url 'document-pdf' doc_pk=document.pk %}" target="_blank" rel="noopener">Open PDF</a>
           {% endif %}
@@ -263,6 +299,12 @@
       {% elif not document.canonical_text %}
         <p class="no-text-msg">No text available for this document.<br>
           Attach a PDF or add an abstract to annotate.</p>
+      {% endif %}
+
+      {% if graph %}
+      <div id="document-view-graph" class="document-view graph-preview-pane" hidden>
+        <p class="no-text-msg">Loading graph preview&hellip;</p>
+      </div>
       {% endif %}
     </div>
 
@@ -330,6 +372,17 @@
 <script src="{% static 'js/coordinate-list.js' %}"></script>
 <script src="{% static 'js/applied-to-list.js' %}"></script>
 
+{# ── Graph preview (vis-network vendored, lazy-loaded on first open) ── #}
+{% if graph %}
+<script>
+  window.LOOM_VIS_ASSETS = {
+    js: "{% static 'js/vendor/vis-network.min.js' %}",
+    css: "{% static 'css/vendor/vis-network.min.css' %}"
+  };
+</script>
+<script src="{% static 'js/graph-preview.js' %}"></script>
+{% endif %}
+
 {# ── Span selector ── #}
 {% if can_edit and document.canonical_text %}
 <script src="{% static 'js/span-select.js' %}"></script>
@@ -393,5 +446,17 @@
   document.addEventListener('htmx:afterSettle', (e) => {
     if (e.detail?.target?.id === 'form-panel') _initAutocomplete();
   });
+
+  // Render the vis-network graph once its partial is swapped into the pane.
+  function _renderGraphPreview() {
+    const data = document.getElementById('graph-preview-data');
+    const net = document.getElementById('preview-network');
+    if (data && net && window.LoomGraphPreview) window.LoomGraphPreview.render(data, net);
+  }
+  document.addEventListener('htmx:afterSettle', (e) => {
+    if (e.detail?.target?.id === 'document-view-graph') _renderGraphPreview();
+  });
+  document.getElementById('document-view-graph')
+    ?.addEventListener('htmx:afterSwap', _renderGraphPreview);
 </script>
 {% endblock %}

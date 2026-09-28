@@ -17,6 +17,7 @@ from django.views import View
 
 from apps.documents.models import TextSpan
 from apps.documents.services import ensure_canonical_text, render_highlighted_text
+from apps.export.renderers import render_graph_preview
 from apps.export.serializer import serialize_graph
 from apps.export.validators import validate_graph_data
 from apps.ontology.adhoc import resolve_wd_curies_in_data
@@ -506,6 +507,39 @@ class GraphPanelView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         ctx = _graph_panel_ctx(project, document, graph, assignment)
         return render(request, "annotation/partials/graph_panel.html", ctx)
+
+
+# ── Graph preview (HTMX partial — vis-network render of the draft graph) ──────
+
+
+class GraphPreviewView(LoginRequiredMixin, View):
+    """GET → vis-network preview partial for the annotator's current draft graph.
+
+    Regenerated on every request from serialize_graph(), so it always reflects
+    the in-progress state. Same access rules as GraphPanelView: a read-only
+    (submitted/reviewed) annotator can still preview their own graph.
+    """
+
+    def get(self, request, pk, doc_pk):
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_annotation_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+
+        payload = render_graph_preview(serialize_graph(graph))
+
+        return render(
+            request,
+            "annotation/partials/graph_preview.html",
+            {
+                "project": project,
+                "document": document,
+                "graph": graph,
+                "preview_payload": payload,
+                "preview_counts": payload["counts"],
+                "preview_warnings": payload["warnings"],
+            },
+        )
 
 
 # ── Node views ────────────────────────────────────────────────────────────────

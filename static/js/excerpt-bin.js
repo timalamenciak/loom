@@ -96,9 +96,11 @@
         const text = document.getElementById('document-view-text');
         const pdf = document.getElementById('document-view-pdf');
         const md = document.getElementById('document-view-markdown');
+        const graph = document.getElementById('document-view-graph');
         if (text) text.hidden = view !== 'text';
         if (pdf) pdf.hidden = view !== 'pdf';
         if (md) md.hidden = view !== 'markdown';
+        if (graph) graph.hidden = view !== 'graph';
         document.querySelectorAll('[data-document-view-button]').forEach((button) => {
             button.classList.toggle('active', button.dataset.documentViewButton === view);
         });

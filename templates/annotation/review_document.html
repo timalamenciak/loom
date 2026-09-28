@@ -36,7 +36,7 @@
         {{ row.nodes|length }} nodes &middot; {{ row.edges|length }} edges
       </span>
       <a href="{% url 'export-graph' graph_pk=graph.pk %}"
-         class="muted" style="font-size:.8rem;margin-left:auto">Export YAML</a>
+         class="muted" style="font-size:.8rem;margin-left:auto">Export</a>
       {% endif %}
       {% if a.status == "submitted" %}
       <form method="post"

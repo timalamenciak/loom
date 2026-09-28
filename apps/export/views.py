@@ -96,12 +96,6 @@ class ExportGraphView(LoginRequiredMixin, View):
         )
 
         if request.GET.get("download"):
-            if not is_valid:
-                return HttpResponse(
-                    "Validation errors found:\n" + "\n".join(validation_messages),
-                    content_type="text/plain",
-                    status=422,
-                )
             resp = HttpResponse(final_yaml, content_type="application/x-yaml")
             resp["Content-Disposition"] = (
                 f'attachment; filename="graph-{graph_pk}.yaml"'

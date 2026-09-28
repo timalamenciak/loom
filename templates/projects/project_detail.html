@@ -86,6 +86,9 @@
         {% if a and a.status != "assigned" %}
         <a href="{% url 'review-document' project.pk doc.pk %}" class="action-link">Review</a>
         {% endif %}
+        {% if a.graph %}
+        <a href="{% url 'export-graph' graph_pk=a.graph.pk %}" class="action-link">Export</a>
+        {% endif %}
       </td>
     </tr>
     {% endwith %}

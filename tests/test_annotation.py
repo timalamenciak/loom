@@ -378,6 +378,25 @@ class TestAnnotationView:
         assert b"span-select.js" in response.content
         assert b'id="excerpt-bin"' in response.content
 
+    def test_workspace_has_graph_preview_affordance(
+        self, project_and_user, document, assignment, schema_version
+    ):
+        from django.test import Client
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(
+            f"/annotation/{project.pk}/documents/{document.pk}/annotate/"
+        )
+
+        assert response.status_code == 200
+        assert b'data-document-view-button="graph"' in response.content
+        assert b"/annotate/preview/" in response.content
+        assert b"js/graph-preview.js" in response.content
+        assert b"vendor/vis-network" in response.content
+
     def test_returned_assignment_resumes_in_progress(
         self, project_and_user, document, assignment, schema_version
     ):
@@ -1216,3 +1235,152 @@ class TestSubmitAnnotation:
         assert b"read-only" in workspace.content
         assert mutation.status_code == 403
         assert not Node.objects.filter(graph=graph).exists()
+
+
+# ---------------------------------------------------------------------------
+# Graph preview (vis-network partial)
+# ---------------------------------------------------------------------------
+
+
+class TestGraphPreviewView:
+    def _url(self, project, document):
+        return f"/annotation/{project.pk}/documents/{document.pk}/annotate/preview/"
+
+    def _add_nodes_and_edge(self, graph, schema_version):
+        from apps.annotation.models import Edge, Node
+
+        subj = Node.objects.create(
+            graph=graph,
+            name="Buckthorn",
+            category="taxon",
+            data={"name": "Buckthorn", "entity_type": "taxon"},
+            schema_version=schema_version,
+        )
+        obj = Node.objects.create(
+            graph=graph,
+            name="Soil nitrogen",
+            category="environmental_variable",
+            data={"name": "Soil nitrogen", "entity_type": "environmental_variable"},
+            schema_version=schema_version,
+        )
+        Edge.objects.create(
+            graph=graph,
+            subject=subj,
+            object=obj,
+            predicate="causes",
+            data={"predicate": "causes"},
+            schema_version=schema_version,
+        )
+        return subj, obj
+
+    def test_requires_login(self, document, client):
+        url = f"/annotation/1/documents/{document.pk}/annotate/preview/"
+        resp = client.get(url)
+        assert resp.status_code == 302
+        assert "/accounts/login/" in resp["Location"]
+
+    def test_non_member_forbidden(
+        self, project_and_user, document, graph, schema_version
+    ):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+
+        get_user_model().objects.create_user("outsider2", password="pw")
+        project, _ = project_and_user
+        client = Client()
+        client.login(username="outsider2", password="pw")
+        resp = client.get(self._url(project, document))
+        assert resp.status_code == 403
+
+    def test_unassigned_member_forbidden(
+        self, project_and_user, document, graph, schema_version
+    ):
+        from django.test import Client
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+        resp = client.get(self._url(project, document))
+        assert resp.status_code == 403
+
+    def test_htmx_200_payload_present(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        project, user = project_and_user
+        self._add_nodes_and_edge(graph, schema_version)
+        client = Client()
+        client.force_login(user)
+
+        resp = client.get(self._url(project, document), HTTP_HX_REQUEST="true")
+
+        assert resp.status_code == 200
+        assert b'id="graph-preview-data"' in resp.content
+        assert b'id="preview-network"' in resp.content
+        assert b"Buckthorn" in resp.content
+        assert b"Soil nitrogen" in resp.content
+
+    def test_reflects_draft_state(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.annotation.models import Node
+        from apps.projects.models import Assignment
+
+        project, user = project_and_user
+        Node.objects.create(
+            graph=graph,
+            name="Unsubmitted node",
+            data={"name": "Unsubmitted node", "entity_type": "taxon"},
+            schema_version=schema_version,
+        )
+        assert assignment.status != Assignment.STATUS_SUBMITTED
+        client = Client()
+        client.force_login(user)
+
+        resp = client.get(self._url(project, document))
+        assert resp.status_code == 200
+        assert b"Unsubmitted node" in resp.content
+
+    def test_empty_graph_warns(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+
+        resp = client.get(self._url(project, document))
+        assert resp.status_code == 200
+        assert b"empty" in resp.content
+
+    def test_readonly_viewer_allowed(
+        self, project_and_user, document, assignment, graph, schema_version
+    ):
+        from django.test import Client
+
+        from apps.projects.models import Assignment
+
+        project, user = project_and_user
+        assignment.graph = graph
+        assignment.status = Assignment.STATUS_SUBMITTED
+        assignment.save(update_fields=["graph", "status"])
+        client = Client()
+        client.force_login(user)
+
+        resp = client.get(self._url(project, document))
+        assert resp.status_code == 200
+
+    def test_404_when_no_graph(
+        self, project_and_user, document, assignment, schema_version
+    ):
+        from django.test import Client
+
+        project, user = project_and_user
+        client = Client()
+        client.force_login(user)
+        resp = client.get(self._url(project, document))
+        assert resp.status_code == 404

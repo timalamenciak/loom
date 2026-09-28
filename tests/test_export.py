@@ -609,7 +609,11 @@ class TestExportGraphView:
         assert "provenance" in data
         assert "export_sha256" in data["provenance"]
 
-    def test_invalid_graph_is_not_exported(self, populated_graph, export_user):
+    def test_invalid_graph_is_still_exported(self, populated_graph, export_user):
+        """Download is not gated on LinkML validity: the export page already
+        shows validation problems as a non-blocking warning banner, so the
+        YAML file itself must not 422 just because the graph has issues.
+        """
         from django.test import Client
 
         node = populated_graph.nodes.first()
@@ -621,8 +625,8 @@ class TestExportGraphView:
         client.login(username="exporter", password="pw")
         resp = client.get(f"/export/graphs/{populated_graph.pk}/?download=1")
 
-        assert resp.status_code == 422
-        assert b"Validation errors found" in resp.content
+        assert resp.status_code == 200
+        assert "yaml" in resp["Content-Type"]
 
     def test_requires_login(self, populated_graph):
         from django.test import Client
