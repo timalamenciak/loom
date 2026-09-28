@@ -1,0 +1,37 @@
+{{ preview_payload|json_script:"graph-preview-data" }}
+
+<div class="graph-preview-toolbar">
+  <span class="graph-preview-counts">
+    <strong>{{ preview_counts.nodes }}</strong> node{{ preview_counts.nodes|pluralize }}
+    &nbsp;&middot;&nbsp;
+    <strong>{{ preview_counts.edges }}</strong> edge{{ preview_counts.edges|pluralize }}
+  </span>
+  <input type="search" id="preview-search" class="graph-preview-input"
+         placeholder="Search nodes / edges" aria-label="Search the graph">
+  <select id="preview-node-group" class="graph-preview-select" aria-label="Filter node groups"></select>
+  <select id="preview-edge-group" class="graph-preview-select" aria-label="Filter edge types"></select>
+  <button type="button" class="btn btn-secondary btn-sm" id="preview-fit"
+          title="Fit the whole graph in view">Fit</button>
+  <button type="button" class="btn btn-secondary btn-sm" id="preview-physics"
+          title="Pause or resume the force layout">Pause physics</button>
+  <button type="button" class="btn btn-secondary btn-sm"
+          onclick="LoomAnnotationActions.load('{% url 'graph-preview' pk=project.pk doc_pk=document.pk %}','#document-view-graph');"
+          title="Regenerate the preview from your current annotations">Refresh</button>
+</div>
+
+{% if preview_warnings %}
+<ul class="graph-preview-warnings">
+  {% for w in preview_warnings %}<li>{{ w }}</li>{% endfor %}
+</ul>
+{% endif %}
+
+<div class="graph-preview-body">
+  <div id="preview-network" class="graph-preview-network"></div>
+  <div id="preview-details" class="graph-preview-details" hidden></div>
+</div>
+
+<script>
+  window.LoomGraphPreview && window.LoomGraphPreview.render(
+    document.getElementById("graph-preview-data"),
+    document.getElementById("preview-network"));
+</script>

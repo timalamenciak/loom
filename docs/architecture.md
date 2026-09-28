@@ -237,6 +237,47 @@ for node in graph.nodes.all():
     node.save()
 ```
 
+## Bulk Import/Export
+
+The annotation form and the bulk importer (`apps/export/graph_import.py`)
+are two front ends over the same schema-driven core: both call
+`bind_form_data()` against the graph's pinned `SchemaView`, both write
+through the `apps/annotation/services.py` create/update functions (never
+`bulk_create`), and both get an `AuditEvent` per write for free.
+
+```
+Excel/YAML file
+   │  (import_excel.py / import_yaml.py: format-specific parsing only)
+   ▼
+node_rows / edge_rows  (flat dicts — one per row, no format knowledge left)
+   │
+   ▼
+build_import_plan()  — diffs each row against serialize_graph(graph):
+   │                    create | update | noop | would_delete | error
+   ▼
+ImportPlan  (plain data — cheap to cache; nothing written yet)
+   │  web: stashed via import_store.py, shown as a preview, approved by a click
+   │  CLI: built and applied in the same process
+   ▼
+apply_import_plan()  — one transaction; re-resolves ids against the DB,
+                        calls create_node/update_node/create_edge/update_edge/
+                        delete_node/delete_edge; emits graph.import audit event
+```
+
+Two behaviors exist specifically because a bulk row isn't the same shape as
+a browser POST:
+
+- **Omitted columns don't reset to schema defaults.** The live HTML form
+  always posts every field, so `bind_form_data()` fills an absent value with
+  the slot's `ifabsent` default. An import row is routinely column-sparse
+  (the exporter's own YAML drops unset values), so the importer strips any
+  bound field the row never mentioned before diffing/writing — otherwise
+  re-uploading an unedited export would report a false update on every row.
+- **The `annotator` JSONB key is excluded from both binding and diffing.**
+  It isn't a CAMO schema slot (`_annotate_with_orcid` injects it ad hoc), so
+  handing it to `bind_form_data()` would fail as an "unrecognized field" on
+  every re-imported row from a real export.
+
 ## The One Defining Constraint
 
 > **Loom is driven by the LinkML schema, not by hardcoded fields.**

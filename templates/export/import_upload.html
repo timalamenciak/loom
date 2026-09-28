@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Import — {{ document.title|truncatechars:60 }}{% endblock %}
+
+{% block content %}
+<div style="max-width:720px;margin:0 auto">
+
+  <div style="margin-bottom:1.25rem">
+    <a href="{% url 'export-graph' graph_pk=graph.pk %}" class="muted">&larr; Export</a>
+    <h1 style="margin:.5rem 0 .2rem;font-size:1.4rem">Import annotations</h1>
+    <p class="muted" style="margin:0">{{ document.title }}</p>
+  </div>
+
+  <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:1rem;margin-bottom:1.5rem;font-size:.85rem;line-height:1.5">
+    <p style="margin:0 0 .5rem">
+      Upload a <code>.xlsx</code> workbook (Nodes/Edges sheets) or a <code>.yaml</code> file
+      exported from this graph. Rows whose <code>node_id</code>/<code>edge_id</code> already
+      exist on the graph are <strong>updated</strong>; new ids are created. Nothing is written
+      until you review the preview on the next screen and click Apply.
+    </p>
+    <p style="margin:0">
+      Need a starting point?
+      <a href="{% url 'export-graph-xlsx' graph_pk=graph.pk %}?blank=1">Download a blank template</a>,
+      <a href="{% url 'export-graph-xlsx' graph_pk=graph.pk %}">your current annotations as Excel</a>,
+      or <a href="{% url 'export-graph' graph_pk=graph.pk %}?download=1">as YAML</a>.
+    </p>
+  </div>
+
+  {% if error %}
+  <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:.75rem 1rem;margin-bottom:1.25rem;color:#991b1b;font-size:.85rem">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="form-wrap">
+    {% csrf_token %}
+    <div class="field">
+      <label for="import_file">File</label>
+      <input type="file" id="import_file" name="import_file" accept=".xlsx,.yaml,.yml" required>
+    </div>
+    <div class="field" style="display:flex;align-items:flex-start;gap:.5rem">
+      <input type="checkbox" id="full_sync" name="full_sync" style="margin-top:.2rem" {% if full_sync %}checked{% endif %}>
+      <label for="full_sync" style="margin:0;font-weight:normal">
+        Replace rows missing from this file
+        <div class="muted" style="font-size:.78rem;font-weight:normal">
+          Deletes any node/edge already on the graph that isn't present in the upload. Leave
+          unchecked to only create/update the rows in the file and leave everything else alone.
+        </div>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Preview import</button>
+      <a href="{% url 'export-graph' graph_pk=graph.pk %}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

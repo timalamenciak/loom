@@ -76,13 +76,6 @@ First edit any affected edges so that they reference the node you intend to
 keep. Then delete the duplicate only after confirming that no needed edge will
 be removed with it.
 
-## Submission is blocked
-
-Submission validates the complete graph against its pinned schema. Follow each
-displayed validation message, save the corrections, and submit again. If the
-article cannot support a required value, ask the annotation lead rather than
-guessing.
-
 ## I cannot edit after submission
 
 This is expected. Submitted and reviewed assignments are read-only. A reviewer

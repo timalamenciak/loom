@@ -38,8 +38,7 @@ Before submitting, confirm that:
 2. Read the confirmation message.
 3. Confirm the submission.
 
-Loom validates the entire graph against the schema version pinned to the
-annotation. If validation succeeds, Loom:
+Submitting always:
 
 - changes the assignment to **Submitted**;
 - closes open work sessions;
@@ -53,19 +52,9 @@ The submitted annotation becomes read-only.
     submitting, inspect the graph panel yourself and make sure finished edges
     show **Complete**.
 
-## If validation blocks submission
-
-Loom keeps the assignment editable and reports that the graph did not validate
-against its pinned schema. It also displays a limited set of validation
-messages.
-
-1. Read each displayed message.
-2. Open the affected node, edge, or source document.
-3. Correct and save the values.
-4. Try **Submit for review** again.
-
-Do not weaken or work around a required field merely to submit. If the article
-cannot support a required value, ask the annotation lead how the project wants
-that case handled.
+Loom also validates the entire graph against the schema version pinned to the
+annotation, but this never blocks your submission. If the graph doesn't
+validate, that's flagged for your project's reviewer or admin to follow up
+on — not something you need to fix or interpret yourself.
 
 Next: [understand what happens after submission](after-submission.md).

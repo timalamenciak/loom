@@ -27,8 +27,7 @@
         return form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
     }
 
-    async function deleteExcerpt(form) {
-        if (!window.confirm('Delete this excerpt? Any grounding links to it will also be removed.')) return;
+    async function postForm(form) {
         const response = await fetch(form.action, {
             method: 'POST',
             headers: {
@@ -39,6 +38,21 @@
         });
         if (!response.ok) return;
         refreshFromHtml(await response.text());
+    }
+
+    async function deleteExcerpt(form) {
+        if (!window.confirm('Delete this excerpt? Any grounding links to it will also be removed.')) return;
+        await postForm(form);
+    }
+
+    async function saveEdit(form) {
+        if (!form.querySelector('[name="text"]')?.value.trim()) return;
+        await postForm(form);
+    }
+
+    async function addFreeText(form) {
+        if (!form.querySelector('[name="source_text"]')?.value.trim()) return;
+        await postForm(form);
     }
 
     function refreshFromHtml(html, newlySelectedId) {
@@ -82,9 +96,11 @@
         const text = document.getElementById('document-view-text');
         const pdf = document.getElementById('document-view-pdf');
         const md = document.getElementById('document-view-markdown');
+        const graph = document.getElementById('document-view-graph');
         if (text) text.hidden = view !== 'text';
         if (pdf) pdf.hidden = view !== 'pdf';
         if (md) md.hidden = view !== 'markdown';
+        if (graph) graph.hidden = view !== 'graph';
         document.querySelectorAll('[data-document-view-button]').forEach((button) => {
             button.classList.toggle('active', button.dataset.documentViewButton === view);
         });
@@ -122,10 +138,17 @@
         if (event.target.matches?.('#excerpt-bin [data-excerpt-choice]')) updateControls();
     });
     document.addEventListener('submit', (event) => {
-        const form = event.target.closest?.('.excerpt-delete-form');
-        if (!form) return;
-        event.preventDefault();
-        deleteExcerpt(form);
+        const target = event.target;
+        if (target.closest?.('.excerpt-delete-form')) {
+            event.preventDefault();
+            deleteExcerpt(target.closest('.excerpt-delete-form'));
+        } else if (target.closest?.('.excerpt-edit-form')) {
+            event.preventDefault();
+            saveEdit(target.closest('.excerpt-edit-form'));
+        } else if (target.closest?.('.excerpt-add-form')) {
+            event.preventDefault();
+            addFreeText(target.closest('.excerpt-add-form'));
+        }
     }, true);
     document.addEventListener('htmx:afterSettle', updateControls);
 

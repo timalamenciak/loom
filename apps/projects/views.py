@@ -167,7 +167,9 @@ class ProjectDetailView(LoginRequiredMixin, View):
                 .prefetch_related(
                     Prefetch(
                         "assignments",
-                        queryset=Assignment.objects.select_related("annotator"),
+                        queryset=Assignment.objects.select_related(
+                            "annotator", "graph"
+                        ),
                         to_attr="assignment_list",
                     )
                 )

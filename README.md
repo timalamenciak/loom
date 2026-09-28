@@ -20,9 +20,13 @@ Loom is released under the [MIT License](LICENSE).
 - Project-pinned ontology snapshots with local search and queued loading
 - Active/idle/open time tracking for annotation sessions
 - Audited graph writes and LinkML-validated YAML export with SHA-256 provenance
+- Bulk import/export of a graph's nodes and edges as Excel or YAML, with a
+  preview-before-apply diff and an optional full-sync (delete-missing) mode
 - Deterministic Rosetta statements and fuzzy cognitive map weights
 
-Full graph validation runs before submission and export.
+Full graph validation runs on export; final submission always succeeds for
+the annotator, and any validation issues are flagged for reviewer/admin
+follow-up instead of blocking.
 
 ## Requirements
 
@@ -50,7 +54,7 @@ make migrate
 make superuser
 
 # 5. Load a bundled CAMO schema
-docker compose exec web python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
+docker compose exec web python manage.py load_schema config/schema/camo-0.7.4.yaml --activate
 
 # 6. (Optional) Preload ontologies
 docker compose exec web python manage.py load_ontology --all
@@ -83,6 +87,8 @@ All variables live in `.env` (copied from `.env.example`). Never commit `.env`.
 | `LOOM_MAX_RIS_UPLOAD_MB` | No | `10` | RIS upload limit |
 | `LOOM_MAX_BUNDLE_UPLOAD_MB` | No | `2048` | Compressed RIS/PDF bundle limit |
 | `LOOM_MAX_BUNDLE_UNCOMPRESSED_MB` | No | `2048` | Expanded bundle safety limit |
+| `LOOM_MAX_GRAPH_IMPORT_UPLOAD_MB` | No | `25` | Bulk Excel/YAML graph import upload limit |
+| `LOOM_IMPORT_PLAN_TTL_MIN` | No | `15` | Minutes a previewed bulk import stays valid before Apply must re-upload |
 | `GUNICORN_CMD_ARGS` | No | `--timeout=300` | Gunicorn options; allows large bundle file I/O to finish |
 
 ## Running without Docker
@@ -98,7 +104,7 @@ pip install -e ".[dev]"
 python manage.py migrate
 
 # Load a schema and (optionally) ontologies
-python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
+python manage.py load_schema config/schema/camo-0.7.4.yaml --activate
 python manage.py load_ontology --all
 
 # Create admin user
@@ -112,7 +118,7 @@ python manage.py runserver
 
 ```bash
 # Schema
-python manage.py load_schema config/schema/camo-0.5.0.yaml --activate
+python manage.py load_schema config/schema/camo-0.7.4.yaml --activate
 python manage.py list_schemas
 
 # Projects and documents
@@ -129,6 +135,13 @@ python manage.py process_ontology_loads --watch
 # Export and validation (export always validates before writing)
 python manage.py export_graph <graph_id> -o out.yaml
 python manage.py validate_graph <graph_id>
+
+# Bulk import/export of nodes and edges (Excel or YAML; web UI also
+# available under each graph's Export page)
+python manage.py export_import_template <graph_id> -o template.xlsx
+python manage.py import_nodes_edges <graph_id> template.xlsx           # dry-run report only
+python manage.py import_nodes_edges <graph_id> template.xlsx --apply   # commit
+python manage.py import_nodes_edges <graph_id> template.xlsx --apply --full-sync  # also delete rows missing from the file
 
 # Schema migration assistant (read-only report)
 python manage.py migrate_graph <graph_id> --to-version 0.5.0 --report
@@ -218,7 +231,8 @@ loom/
     documents/          # PDF upload, RIS import, text extraction
     annotation/         # graphs, nodes, edges, annotation UI
     ontology/           # local ontology term index and search
-    export/             # YAML serializer, LinkML validation, Rosetta/FCM rendering
+    export/             # YAML/Excel serializer, LinkML validation, Rosetta/FCM
+                        # rendering, bulk import/export (preview → apply)
     audit/              # append-only AuditEvent log
   config/
     schema/             # CAMO LinkML files (e.g. camo-0.4.0.yaml)
@@ -293,8 +307,6 @@ SHA-256 provenance and schema pinning on every export for reproducibility.
 - **No real-time collaborative editing.** Two annotators can work on the same
   project simultaneously but not on the same document at the same time without
   risking conflicting graph states.
-- **Pre-1.0 API stability.** Minor version bumps may revise annotation
-  workflows or management command interfaces before v1.0.
 - **PDF display only.** Loom uses PDF.js for document display; span offsets
   are derived from extracted canonical text, not PDF coordinates. Heavily
   scanned or image-only PDFs may have reduced extraction quality.
@@ -303,10 +315,13 @@ SHA-256 provenance and schema pinning on every export for reproducibility.
 
 ## Versioning
 
-Loom follows semantic versioning while it is pre-1.0:
+Loom follows semantic versioning:
 
 - Patch releases fix behavior without changing supported workflows.
-- Minor releases may add or revise application workflows.
+- Minor releases add or revise application workflows without breaking
+  existing ones.
+- Major releases may break annotation workflows or management command
+  interfaces.
 - The CAMO schema has its own independently pinned version on every graph.
 
 Update `loom/__init__.py` for an application release. Do not manually change

@@ -1,0 +1,1817 @@
+graph_id: causal_mosaic:johnson_2018_avsc_12352
+schema_version: 0.7.8
+provenance:
+  ontology_framework: ELMO + CAMO
+  causal_mosaic_version: 0.7.8
+  created: '2026-08-24T12:24:00-04:00'
+  source_corpus: Johnson et al. (2018), Applied Vegetation Science, DOI 10.1111/avsc.12352
+  project: Causal Mosaic literature annotation
+  exported_at: '2026-08-24T12:24:00-04:00'
+  ontology_snapshot_id: 'Web-verified 2026-08-24: Wikidata Q1038150; PATO 0000122; PATO 0000033'
+source_documents:
+- document_id: 10.1111/avsc.12352
+  doi: 10.1111/avsc.12352
+  title: Seed addition and biomass removal key to restoring native forbs in degraded temperate grassland
+  authors:
+  - David P. Johnson
+  - Jane A. Catford
+  - Don A. Driscoll
+  - Philip Gibbons
+  year: 2018
+  journal: Applied Vegetation Science
+  study_coordinates:
+  - latitude: -35.270562
+    longitude: 149.026425
+    elevation_m: 574.0
+    coordinate_location_basis:
+    - exact_site
+  study_country: Australia
+  study_state_or_province: Australian Capital Territory
+  study_period_start: '2014-10-05'
+  study_duration_months: 8.0
+  study_temporal_note: Initial treatments were applied 5–6 October 2014. Exotic plant removal was repeated in November
+    2014, January 2015 and March 2015. Sown native forb responses were summarized from surveys 11 weeks and 8 months
+    after the initial treatments.
+  study_design: randomized_experiment
+  sample_size_value: 96
+  sample_size_unit: plots
+  sampling_effort_protocol: 'Fully crossed 2^4 factorial field experiment: all 16 treatment combinations randomized
+    within each of six blocks (96 plots total). Plots were 0.75 m × 0.75 m; response variables were measured in
+    the central 0.5 m × 0.5 m. Sown-native models used 48 seeded plots, exotic-seedling models used 48 exotic-removal
+    plots, and unsown-native models used all 96 plots.'
+  is_sampling_effort_reported: true
+nodes:
+- id: causal_mosaic:native_forb_seed_addition
+  name: Native forb seed addition
+  entity_type: management_intervention
+  entity_term: native forb seed addition
+  state_or_change_qualifier: occurred
+  applied_to:
+  - entity_type: taxon
+    entity_term: sown native forbs
+  source_spans:
+  - text: addition of seed of 14 native forb species that occur naturally in the region
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:tussock_thinning
+  name: Thinning of Themeda triandra tussocks
+  entity_type: management_intervention
+  entity_term: tussock thinning
+  state_or_change_qualifier: occurred
+  applied_to:
+  - entity_type: taxon
+    entity_term: wd:Q1038150
+  source_spans:
+  - text: T. triandra tussocks thinned by ~50% through spraying with glyphosate
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:leaf_litter_removal
+  name: Leaf litter removal
+  entity_type: management_intervention
+  entity_term: leaf litter removal
+  state_or_change_qualifier: occurred
+  applied_to:
+  - entity_type: environmental_variable
+    entity_term: ground leaf litter layer
+  source_spans:
+  - text: all leaf litter on the ground removed by hand
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:exotic_plant_removal
+  name: Exotic plant removal
+  entity_type: management_intervention
+  entity_term: exotic plant removal
+  state_or_change_qualifier: occurred
+  applied_to:
+  - entity_type: taxon
+    entity_term: exotic grasses and forbs
+  source_spans:
+  - text: all exotic grasses and forbs killed by painting individuals with glyphosate
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:live_tussock_cover_increased
+  name: Increasing live Themeda triandra tussock cover
+  entity_type: taxon
+  entity_term: wd:Q1038150
+  measured_attribute: percentage live tussock cover
+  state_or_change_qualifier: increased
+  source_spans:
+  - text: the percentage area covered by living grass tussocks
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:live_tussock_cover_decreased
+  name: Decreased live Themeda triandra tussock cover
+  entity_type: taxon
+  entity_term: wd:Q1038150
+  measured_attribute: percentage live tussock cover
+  state_or_change_qualifier: decreased
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:litter_depth_increased
+  name: Increasing ground litter depth
+  entity_type: environmental_variable
+  entity_term: ground leaf litter layer
+  measured_attribute: PATO:0000122
+  state_or_change_qualifier: increased
+  source_spans:
+  - text: ground litter depth averaged from three measurements
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:litter_depth_decreased
+  name: Decreased ground litter depth
+  entity_type: environmental_variable
+  entity_term: ground leaf litter layer
+  measured_attribute: PATO:0000122
+  state_or_change_qualifier: decreased
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:bare_ground_increased
+  name: Increasing bare-ground cover
+  entity_type: environmental_variable
+  entity_term: bare ground
+  measured_attribute: percentage area
+  state_or_change_qualifier: increased
+  source_spans:
+  - text: the visually estimated percentage area of bare ground
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:canopy_light_penetration_increased
+  name: Increasing light penetrating the vegetation canopy
+  entity_type: environmental_variable
+  entity_term: light penetrating the vegetation canopy
+  measured_attribute: percentage of incident light penetrating canopy
+  state_or_change_qualifier: increased
+  source_spans:
+  - text: the percentage of light penetrating the canopy to above the litter layer
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:available_soil_phosphorus_increased
+  name: Increasing available soil phosphorus concentration
+  entity_type: environmental_variable
+  entity_term: available soil phosphorus
+  measured_attribute: PATO:0000033
+  state_or_change_qualifier: increased
+  source_spans:
+  - text: available soil phosphorus measured within a NaHCO3 extract of the soil
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:soil_moisture_increased
+  name: Increasing volumetric soil moisture
+  entity_type: environmental_variable
+  entity_term: soil moisture
+  measured_attribute: percentage by volume
+  state_or_change_qualifier: increased
+  source_spans:
+  - text: the percentage of soil moisture, by volume
+    section: methods
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:sown_native_forb_richness_increased
+  name: Increased richness of sown native forbs
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: species richness
+  state_or_change_qualifier: increased
+  applied_to:
+  - entity_type: taxon
+    entity_term: sown native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:sown_native_forb_richness_decreased
+  name: Decreased richness of sown native forbs
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: species richness
+  state_or_change_qualifier: decreased
+  applied_to:
+  - entity_type: taxon
+    entity_term: sown native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:sown_native_forb_abundance_increased
+  name: Increased abundance of sown native forbs
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: abundance (count of individuals)
+  state_or_change_qualifier: increased
+  applied_to:
+  - entity_type: taxon
+    entity_term: sown native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:sown_native_forb_abundance_decreased
+  name: Decreased abundance of sown native forbs
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: abundance (count of individuals)
+  state_or_change_qualifier: decreased
+  applied_to:
+  - entity_type: taxon
+    entity_term: sown native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:exotic_forb_seedling_abundance_increased
+  name: Increased exotic forb seedling abundance
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: abundance (count of individuals)
+  state_or_change_qualifier: increased
+  applied_to:
+  - entity_type: taxon
+    entity_term: exotic forb seedlings
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:exotic_forb_seedling_abundance_decreased
+  name: Decreased exotic forb seedling abundance
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: abundance (count of individuals)
+  state_or_change_qualifier: decreased
+  applied_to:
+  - entity_type: taxon
+    entity_term: exotic forb seedlings
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:unsown_native_forb_abundance_increased
+  name: Increased abundance of unsown native forbs
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: abundance (count of individuals)
+  state_or_change_qualifier: increased
+  applied_to:
+  - entity_type: taxon
+    entity_term: unsown native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:unsown_native_forb_abundance_decreased
+  name: Decreased abundance of unsown native forbs
+  entity_type: environmental_variable
+  entity_term: forb assemblage
+  measured_attribute: abundance (count of individuals)
+  state_or_change_qualifier: decreased
+  applied_to:
+  - entity_type: taxon
+    entity_term: unsown native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:native_forb_seed_supply_decreased
+  name: Reduced native forb seed supply
+  entity_type: environmental_variable
+  entity_term: native forb seed supply
+  measured_attribute: availability
+  state_or_change_qualifier: decreased
+  applied_to:
+  - entity_type: taxon
+    entity_term: native forbs
+  annotator: GPT-5.6 Sol
+- id: causal_mosaic:native_forb_recruitment_decreased
+  name: Reduced native forb recruitment
+  entity_type: environmental_process
+  entity_term: native forb recruitment
+  measured_attribute: recruitment success
+  state_or_change_qualifier: decreased
+  applied_to:
+  - entity_type: taxon
+    entity_term: native forbs
+  annotator: GPT-5.6 Sol
+edges:
+- id: causal_mosaic:edge_seed_addition_to_richness
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:native_forb_seed_addition
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_richness_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Seedlings of the sown native forb species only emerged where seed had been added, and with
+    no other treatments mean total native richness and abundance increased by 122% and 61%, respectively.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - counterfactual
+  - probabilistic
+  necessity: explicitly_asserted
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: Mean total native forb richness increased by 122% with seed addition alone.
+    quantitative_numeric: 122.0
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: &id001
+    - Themeda triandra-dominated temperate grassland in the Australian Capital Territory, south-eastern Australia
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Seedlings of the sown native forb species only emerged where seed had been added, and with no other treatments
+      mean total native richness and abundance increased by 122% and 61%, respectively.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Seed addition was not included as a coefficient in Table 1 because sown native forb responses
+    were modeled only in the 48 seeded plots; no sown native forbs occurred in unseeded plots.
+- id: causal_mosaic:edge_seed_addition_to_abundance
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:native_forb_seed_addition
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_abundance_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Seedlings of the sown native forb species only emerged where seed had been added, and with
+    no other treatments mean total native richness and abundance increased by 122% and 61%, respectively.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - counterfactual
+  - probabilistic
+  necessity: explicitly_asserted
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: Mean total native forb abundance increased by 61% with seed addition alone.
+    quantitative_numeric: 61.0
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Seedlings of the sown native forb species only emerged where seed had been added, and with no other treatments
+      mean total native richness and abundance increased by 122% and 61%, respectively.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Seed addition was necessary for emergence of the sown species in this experiment.
+- id: causal_mosaic:edge_thin_to_richness
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:tussock_thinning
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_richness_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 0.498; SE = 0.146; p <0.001; Delta BIC = 8.
+    quantitative_numeric: 0.498
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_litter_removal_to_richness
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:leaf_litter_removal
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_richness_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 1.105; SE = 0.163; p <0.001; Delta BIC = 49.
+    quantitative_numeric: 1.105
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_thin_to_sown_abundance
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:tussock_thinning
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_abundance_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 1.697; SE = 0.201; p <0.001; Delta BIC = 25.
+    quantitative_numeric: 1.697
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_litter_removal_to_sown_abundance
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:leaf_litter_removal
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_abundance_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 2.284; SE = 0.240; p <0.001; Delta BIC = 41.
+    quantitative_numeric: 2.284
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_exotic_removal_to_sown_abundance
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:exotic_plant_removal
+  predicate: causes
+  object: causal_mosaic:sown_native_forb_abundance_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 0.492; SE = 0.149; p <0.001; Delta BIC = 6.
+    quantitative_numeric: 0.492
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_thin_to_exotic_abundance
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:tussock_thinning
+  predicate: causes
+  object: causal_mosaic:exotic_forb_seedling_abundance_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 1.152; SE = 0.311; p <0.001; Delta BIC = 8.
+    quantitative_numeric: 1.152
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_litter_removal_to_exotic_abundance
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:leaf_litter_removal
+  predicate: causes
+  object: causal_mosaic:exotic_forb_seedling_abundance_increased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: Sown native species richness and abundance, and exotic abundance were positively associated
+    with tussock thinning and litter removal. Sown native abundance was also positively associated with exotic species
+    removal.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: explicitly_denied
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 1.212; SE = 0.317; p <0.001; Delta BIC = 9.
+    quantitative_numeric: 1.212
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and exotic abundance were positively associated with tussock
+      thinning and litter removal. Sown native abundance was also positively associated with exotic species removal.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Randomized factorial treatment effect. The paper reported no additional effects from interactions
+    between treatments.
+- id: causal_mosaic:edge_thinning_to_lower_tussock_cover
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:tussock_thinning
+  predicate: causes
+  object: causal_mosaic:live_tussock_cover_decreased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: The tussock thinning treatment and percentage cover of living tussock were strongly negatively
+    correlated (r = -0.65).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: Treatment protocol thinned tussocks by ~50%; treatment–live-cover correlation r = -0.65.
+    quantitative_numeric: -0.65
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: there were strong correlations between the tussock thinning treatment and the percentage cover of living
+      tussock (r = −.65)
+    section: methods
+  - text: T. triandra tussocks thinned by ~50% through spraying with glyphosate
+    section: methods
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.97
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+- id: causal_mosaic:edge_litter_removal_to_lower_litter_depth
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:leaf_litter_removal
+  predicate: causes
+  object: causal_mosaic:litter_depth_decreased
+  negated: false
+  claim_strength: direct_causal
+  original_sentence: The litter removal treatment and litter depth were strongly negatively correlated (r = -0.86).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - interventionist
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: All leaf litter was removed by hand; treatment–litter-depth correlation r = -0.86.
+    quantitative_numeric: -0.86
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: there were strong correlations between the litter removal treatment and litter depth (r = −.86)
+    section: methods
+  - text: all leaf litter on the ground removed by hand
+    section: methods
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.97
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+- id: causal_mosaic:edge_live_cover_to_richness_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:live_tussock_cover_increased
+  predicate: associated_with
+  object: causal_mosaic:sown_native_forb_richness_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native species richness and abundance, and unsown native forb abundance were significantly
+    negatively associated with the explanatory variables representing grassland structure (live tussock cover and
+    litter depth).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.012; SE = 0.005; p 0.031; Delta BIC = 1.
+    quantitative_numeric: -0.012
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and unsown native forb abundance were significantly negatively
+      associated with the explanatory variables representing grassland structure (live tussock cover and litter
+      depth).
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_litter_depth_to_richness_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:litter_depth_increased
+  predicate: associated_with
+  object: causal_mosaic:sown_native_forb_richness_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native species richness and abundance, and unsown native forb abundance were significantly
+    negatively associated with the explanatory variables representing grassland structure (live tussock cover and
+    litter depth).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.671; SE = 0.134; p <0.001; Delta BIC = 26.
+    quantitative_numeric: -0.671
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and unsown native forb abundance were significantly negatively
+      associated with the explanatory variables representing grassland structure (live tussock cover and litter
+      depth).
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_light_to_richness_up
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:canopy_light_penetration_increased
+  predicate: associated_with
+  object: causal_mosaic:sown_native_forb_richness_increased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native forb species richness was positively associated with the percentage light penetrating
+    the canopy and negatively associated with soil P.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 0.017; SE = 0.007; p 0.021; Delta BIC = 1.
+    quantitative_numeric: 0.017
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native forb species richness was positively associated with the percentage light penetrating the
+      canopy and negatively associated with soil P.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_phosphorus_to_richness_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:available_soil_phosphorus_increased
+  predicate: associated_with
+  object: causal_mosaic:sown_native_forb_richness_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native forb species richness was positively associated with the percentage light penetrating
+    the canopy and negatively associated with soil P.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.124; SE = 0.051; p 0.014; Delta BIC = 2.
+    quantitative_numeric: -0.124
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native forb species richness was positively associated with the percentage light penetrating the
+      canopy and negatively associated with soil P.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_live_cover_to_sown_abundance_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:live_tussock_cover_increased
+  predicate: associated_with
+  object: causal_mosaic:sown_native_forb_abundance_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native species richness and abundance, and unsown native forb abundance were significantly
+    negatively associated with the explanatory variables representing grassland structure (live tussock cover and
+    litter depth).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.044; SE = 0.011; p <0.001; Delta BIC = 9.
+    quantitative_numeric: -0.044
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and unsown native forb abundance were significantly negatively
+      associated with the explanatory variables representing grassland structure (live tussock cover and litter
+      depth).
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_litter_depth_to_sown_abundance_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:litter_depth_increased
+  predicate: associated_with
+  object: causal_mosaic:sown_native_forb_abundance_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native species richness and abundance, and unsown native forb abundance were significantly
+    negatively associated with the explanatory variables representing grassland structure (live tussock cover and
+    litter depth).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -1.475; SE = 0.204; p <0.001; Delta BIC = 27.
+    quantitative_numeric: -1.475
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and unsown native forb abundance were significantly negatively
+      associated with the explanatory variables representing grassland structure (live tussock cover and litter
+      depth).
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_live_cover_to_exotic_abundance_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:live_tussock_cover_increased
+  predicate: associated_with
+  object: causal_mosaic:exotic_forb_seedling_abundance_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Exotic forb abundance was associated with live tussock cover but not litter depth.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.022; SE = 0.010; p 0.027; Delta BIC = 1.
+    quantitative_numeric: -0.022
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Exotic forb abundance was associated with live tussock cover but not litter depth.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_light_to_exotic_abundance_up
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:canopy_light_penetration_increased
+  predicate: associated_with
+  object: causal_mosaic:exotic_forb_seedling_abundance_increased
+  negated: false
+  claim_strength: associational
+  original_sentence: Exotic forb seedling abundance was positively associated with percentage light penetrating
+    the canopy.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 0.065; SE = 0.012; p <0.001; Delta BIC = 17.
+    quantitative_numeric: 0.065
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Exotic forb seedling abundance was positively associated with percentage light penetrating the canopy.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_live_cover_to_unsown_native_abundance_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:live_tussock_cover_increased
+  predicate: associated_with
+  object: causal_mosaic:unsown_native_forb_abundance_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native species richness and abundance, and unsown native forb abundance were significantly
+    negatively associated with the explanatory variables representing grassland structure (live tussock cover and
+    litter depth).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.016; SE = 0.006; p 0.005; Delta BIC = 3.
+    quantitative_numeric: -0.016
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and unsown native forb abundance were significantly negatively
+      associated with the explanatory variables representing grassland structure (live tussock cover and litter
+      depth).
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_litter_depth_to_unsown_native_abundance_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:litter_depth_increased
+  predicate: associated_with
+  object: causal_mosaic:unsown_native_forb_abundance_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: Sown native species richness and abundance, and unsown native forb abundance were significantly
+    negatively associated with the explanatory variables representing grassland structure (live tussock cover and
+    litter depth).
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.530; SE = 0.173; p 0.002; Delta BIC = 5.
+    quantitative_numeric: -0.53
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Sown native species richness and abundance, and unsown native forb abundance were significantly negatively
+      associated with the explanatory variables representing grassland structure (live tussock cover and litter
+      depth).
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_soil_moisture_to_unsown_native_abundance_up
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:soil_moisture_increased
+  predicate: associated_with
+  object: causal_mosaic:unsown_native_forb_abundance_increased
+  negated: false
+  claim_strength: associational
+  original_sentence: Unsown native forb abundance was positively associated with soil moisture.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = 0.058; SE = 0.025; p 0.019; Delta BIC = 0.
+    quantitative_numeric: 0.058
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Unsown native forb abundance was positively associated with soil moisture.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_bare_ground_to_unsown_native_abundance_down
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:bare_ground_increased
+  predicate: associated_with
+  object: causal_mosaic:unsown_native_forb_abundance_decreased
+  negated: false
+  claim_strength: associational
+  original_sentence: In addition, unsown native forb abundance was negatively associated with the percentage area
+    of bare ground.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - probabilistic
+  necessity: not_addressed
+  sufficiency: not_addressed
+  direction:
+    status: not_addressed
+  temporal_ordering: not_addressed
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: GLMM coefficient estimate (link scale) = -0.022; SE = 0.008; p 0.007; Delta BIC = 3.
+    quantitative_numeric: -0.022
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: not_addressed
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - observational_cross_sectional
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: In addition, unsown native forb abundance was negatively associated with the percentage area of bare ground.
+    section: results
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.98
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Measured covariate association within the field experiment. Because the covariate itself was
+    not randomized, this edge is encoded as associational rather than direct causal.
+- id: causal_mosaic:edge_low_seed_supply_to_recruitment
+  source_document: 10.1111/avsc.12352
+  subject: causal_mosaic:native_forb_seed_supply_decreased
+  predicate: contributes_to
+  object: causal_mosaic:native_forb_recruitment_decreased
+  negated: false
+  claim_strength: uncertain_causal
+  original_sentence: Native forb recruitment predominantly relied upon seed addition, suggesting that seed limitation
+    is a major barrier to the recovery of degraded grasslands.
+  ecosystem_context: temperate_subhumid_grasslands
+  philosophical_accounts:
+  - counterfactual
+  - inus_component
+  - probabilistic
+  necessity: explicitly_asserted
+  sufficiency: not_addressed
+  direction:
+    status: asserted
+    evidence_for_direction: experimental
+  temporal_ordering: explicitly_asserted
+  mediation:
+    status: not_addressed
+  moderation:
+    status: not_addressed
+  strength:
+    status: explicitly_asserted
+    dose_response: false
+    quantitative_value: All sown-species seedlings emerged only where seed was added; authors infer seed limitation
+      as a major barrier.
+  specificity: not_addressed
+  stability: not_addressed
+  token_or_type: token
+  determinism: not_addressed
+  proximate_distal: not_addressed
+  contributing_sole: contributing_cause
+  reversibility: not_addressed
+  proportionality: not_addressed
+  context_dependence:
+    status: implicitly_assumed
+    scope_conditions: *id001
+    geographic_scope: Australian Capital Territory, south-eastern Australia
+    temporal_scope: Treatments begun 5–6 October 2014; plant responses summarized from surveys 11 weeks and 8 months
+      later.
+    ecosystem_scope: temperate_subhumid_grasslands
+  evidential_basis:
+    evidence_types:
+    - randomized_experiment
+    evidence_objects:
+    - correlation
+  temporal_extent:
+    duration_months: 8.0
+    duration_text: Sown native forb recruitment was summarized from surveys 11 weeks and 8 months after the initial
+      treatments.
+    observation_grain: seasonal
+    observation_seasons:
+    - early summer
+    - early winter
+  source_spans:
+  - text: Native forb recruitment predominantly relied upon seed addition, suggesting that seed limitation is a
+      major barrier to the recovery of degraded grasslands.
+    section: abstract
+  - text: Our results suggest that seed for the sown native species and almost all the unsown existing native species
+      were neither present in the seed bank nor dispersing to the site in sufficient quantities
+    section: discussion
+  annotator: GPT-5.6 Sol
+  annotation_confidence: 0.92
+  annotation_timestamp: '2026-08-24T12:24:00-04:00'
+  annotation_notes: Encoded as uncertain_causal because the paper uses inferential language ("suggesting" / "probably")
+    for the underlying seed-limitation explanation, even though seed addition itself was experimentally manipulated.

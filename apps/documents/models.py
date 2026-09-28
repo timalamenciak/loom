@@ -31,7 +31,7 @@ class TextSpan(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["start_char"]
+        ordering = ["start_char", "created_at"]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(start_char__gte=0),

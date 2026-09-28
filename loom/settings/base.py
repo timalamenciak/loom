@@ -130,6 +130,13 @@ MAX_SCHEMA_UPLOAD_BYTES = (
 MAX_ONTOLOGY_UPLOAD_BYTES = (
     _positive_env_int("LOOM_MAX_ONTOLOGY_UPLOAD_MB", 1024) * 1024 * 1024
 )
+MAX_GRAPH_IMPORT_UPLOAD_BYTES = (
+    _positive_env_int("LOOM_MAX_GRAPH_IMPORT_UPLOAD_MB", 25) * 1024 * 1024
+)
+
+# TTL for a stashed bulk-import preview plan (apps/export/import_store.py) —
+# the window between previewing an Excel/YAML import and clicking Apply.
+LOOM_IMPORT_PLAN_TTL_SECONDS = _positive_env_int("LOOM_IMPORT_PLAN_TTL_MIN", 15) * 60
 
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"

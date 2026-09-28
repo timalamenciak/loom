@@ -11,6 +11,7 @@ from apps.annotation.views import (
     GeoNamesLookupView,
     GraphOntologySnapshotUpgradeView,
     GraphPanelView,
+    GraphPreviewView,
     GraphView,
     HeartbeatView,
     NodeCreateView,
@@ -57,6 +58,12 @@ urlpatterns = [
         "<int:pk>/documents/<int:doc_pk>/annotate/graph/",
         GraphPanelView.as_view(),
         name="graph-panel",
+    ),
+    # Graph preview HTMX partial (vis-network render of the draft graph)
+    path(
+        "<int:pk>/documents/<int:doc_pk>/annotate/preview/",
+        GraphPreviewView.as_view(),
+        name="graph-preview",
     ),
     path(
         "<int:pk>/documents/<int:doc_pk>/annotate/ontology-snapshot/upgrade/",

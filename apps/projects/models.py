@@ -191,6 +191,8 @@ class Assignment(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default=STATUS_ASSIGNED
     )
+    has_validation_issues = models.BooleanField(default=False)
+    validation_issues = models.JSONField(default=list, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

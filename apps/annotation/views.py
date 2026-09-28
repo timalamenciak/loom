@@ -17,6 +17,7 @@ from django.views import View
 
 from apps.documents.models import TextSpan
 from apps.documents.services import ensure_canonical_text, render_highlighted_text
+from apps.export.renderers import render_graph_preview
 from apps.export.serializer import serialize_graph
 from apps.export.validators import validate_graph_data
 from apps.ontology.adhoc import resolve_wd_curies_in_data
@@ -31,6 +32,8 @@ from .policies import (
     require_annotation_assignment,
     require_editable_assignment,
 )
+from .services import EDGE_MANAGED_SLOTS as _EDGE_MANAGED_SLOTS
+from .services import NODE_MANAGED_SLOTS as _NODE_MANAGED_SLOTS
 from .services import (
     _preprocess_source_document,
     adjudicate_edge,
@@ -52,9 +55,6 @@ from .services import (
 )
 
 logger = logging.getLogger(__name__)
-
-_NODE_MANAGED_SLOTS = frozenset({"node_id", "source_spans", "id"})
-_EDGE_MANAGED_SLOTS = frozenset({"edge_id", "subject", "object", "source_spans", "id"})
 
 
 def _auto_node_id(data: dict) -> str:
@@ -124,7 +124,7 @@ def _graph_panel_ctx(project, document, graph, assignment):
     spans = list(
         TextSpan.objects.filter(document=document, created_by=assignment.annotator)
         .prefetch_related("nodes", "edges")
-        .order_by("start_char")
+        .order_by("start_char", "created_at")
     )
     return {
         "project": project,
@@ -216,7 +216,7 @@ def _grounding_options(
     spans = (
         TextSpan.objects.filter(document=document, created_by=user)
         .prefetch_related("nodes", "edges")
-        .order_by("start_char")
+        .order_by("start_char", "created_at")
     )
     for span in spans:
         related = span.nodes.all() if target_kind == "node" else span.edges.all()
@@ -245,7 +245,7 @@ def _selected_spans(document, user, span_ids, *, target_kind, target=None):
             pk__in=span_ids,
             document=document,
             created_by=user,
-        ).order_by("start_char")
+        ).order_by("start_char", "created_at")
     )
 
 
@@ -402,7 +402,7 @@ class AnnotationView(LoginRequiredMixin, View):
         spans = list(
             TextSpan.objects.filter(document=document, created_by=request.user)
             .prefetch_related("nodes", "edges")
-            .order_by("start_char")
+            .order_by("start_char", "created_at")
         )
         highlighted_text = ""
         if document.canonical_text:
@@ -507,6 +507,39 @@ class GraphPanelView(LoginRequiredMixin, View):
         graph = _get_user_graph_or_404(document, request.user, assignment)
         ctx = _graph_panel_ctx(project, document, graph, assignment)
         return render(request, "annotation/partials/graph_panel.html", ctx)
+
+
+# ── Graph preview (HTMX partial — vis-network render of the draft graph) ──────
+
+
+class GraphPreviewView(LoginRequiredMixin, View):
+    """GET → vis-network preview partial for the annotator's current draft graph.
+
+    Regenerated on every request from serialize_graph(), so it always reflects
+    the in-progress state. Same access rules as GraphPanelView: a read-only
+    (submitted/reviewed) annotator can still preview their own graph.
+    """
+
+    def get(self, request, pk, doc_pk):
+        project = get_object_or_404(Project, pk=pk)
+        document = get_object_or_404(Document, pk=doc_pk, project=project)
+        assignment = require_annotation_assignment(document, request.user)
+        graph = _get_user_graph_or_404(document, request.user, assignment)
+
+        payload = render_graph_preview(serialize_graph(graph))
+
+        return render(
+            request,
+            "annotation/partials/graph_preview.html",
+            {
+                "project": project,
+                "document": document,
+                "graph": graph,
+                "preview_payload": payload,
+                "preview_counts": payload["counts"],
+                "preview_warnings": payload["warnings"],
+            },
+        )
 
 
 # ── Node views ────────────────────────────────────────────────────────────────
@@ -1262,23 +1295,19 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         document = get_object_or_404(Document, pk=doc_pk, project=project)
         assignment = require_annotation_assignment(document, request.user)
 
-        if assignment.status in {
+        submittable = {
             Assignment.STATUS_ASSIGNED,
             Assignment.STATUS_IN_PROGRESS,
             Assignment.STATUS_RETURNED,
-        }:
+        }
+
+        valid = True
+        validation_messages = []
+        if assignment.status in submittable:
             graph = _get_user_graph_or_404(document, request.user, assignment)
             valid, validation_messages = validate_graph_data(
                 serialize_graph(graph), graph.schema_version.linkml_yaml
             )
-            if not valid:
-                messages.warning(
-                    request,
-                    "Submission blocked: schema validation errors must be resolved first.",
-                )
-                for message in validation_messages[:5]:
-                    messages.warning(request, message)
-                return redirect("my-queue")
 
         # Close all open sessions
         for s in WorkSession.objects.filter(
@@ -1286,21 +1315,24 @@ class SubmitAnnotationView(LoginRequiredMixin, View):
         ):
             close_session(s)
 
-        submittable = {
-            Assignment.STATUS_ASSIGNED,
-            Assignment.STATUS_IN_PROGRESS,
-            Assignment.STATUS_RETURNED,
-        }
         if assignment.status in submittable:
             old_status = assignment.status
             assignment.status = Assignment.STATUS_SUBMITTED
-            assignment.save(update_fields=["status"])
+            assignment.has_validation_issues = not valid
+            assignment.validation_issues = [] if valid else validation_messages
+            assignment.save(
+                update_fields=["status", "has_validation_issues", "validation_issues"]
+            )
             emit_audit(
                 request.user,
                 "assignment.submit",
                 "Assignment",
                 assignment.pk,
-                {"from": old_status, "to": assignment.status},
+                {
+                    "from": old_status,
+                    "to": assignment.status,
+                    "validation_valid": valid,
+                },
             )
             messages.success(request, "Work submitted for review.")
         else:

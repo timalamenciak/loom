@@ -43,6 +43,10 @@ dependencies = [
     "nh3>=0.2",
     # Claude API client for the (disabled-by-default) LLM proposal seam
     "anthropic>=0.40",
+    # Excel (.xlsx) read/write for graph bulk import/export (apps/export/).
+    # Previously only a transitive dependency via linkml — pinned directly
+    # since we now rely on its Workbook API, not just whatever linkml needs.
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
